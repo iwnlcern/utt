@@ -69,16 +69,21 @@ The first move is forced into the center local board (`forced = 4` in the initia
 This matches the spec's budget-independence claim for `T(s, h)`; if theory's findings overturn budget independence, the key gains budget inputs and the successor DD addresses it — TT VALUE semantics are entirely successor-DD territory.
 Collision policy: play mode stores a 32-bit secondary verification tag per entry (different Zobrist fold); acceptance/fixture mode runs with full-key verification (complete Position compared on probe) so oracle-equality tests can never be polluted by a silent collision.
 
-## 6. Protocol adapter boundary
+## 6. Protocol adapter boundary (abstract boundary only; concrete wire bytes deferred)
 
-The adapter is a separate translation unit/library; the search core has zero JSON and zero I/O dependencies.
-JSON handling uses a vendored, pinned single-header library, linked ONLY into the adapter (operator decision, 2026-08-25; candidate and license check at PLAN).
-Flow: read one JSONL line → strict parse → validate (schema version, board shape, coordinate ranges, budget ranges per R3, `last_mover` consistency, forced-board consistency) → canonicalize into Position + BudgetContext → engine → serialize `{bid, move}` → single line out, flushed.
-stdout carries protocol lines only; all diagnostics go to stderr.
-The engine is stateless per request, which satisfies R2's re-request semantics structurally; a re-requested auction is just another request.
-Bit-identical replies on re-request are NOT promised (the time budget makes search depth wall-clock-dependent); R2 requires a legal reply, not a reproducible one.
-Malformed input, out-of-range values, or EOF produce a diagnostic on stderr and (for malformed requests) no stdout line — faulting is the referee's judgment, not the engine's.
-The schema itself is harness-owned and consumed as-is; any change need routes through s1.orchestrator-planner.
+This section locks the BOUNDARY, not the bytes: the harness-owned protocol design (DD-harness-c1-20260825) defines hello/turn/game_end envelopes, canonical X/O marks and budget keys, seat delivery via `you`, `tie_owner` (no `last_mover`), `request_id` echo, a complete `legal` move list, and an optional `info` carrier — and that document is itself pre-lock.
+Locking concrete message handling here would freeze a consumer against a moving owner record (must-revise M1); the concrete adapter contract is therefore a PLAN-time deliverable written against the APPROVED harness schema, with the owner/consumer acknowledgment routed through s1.orchestrator-planner before either pair's PLAN treats the seam as locked (the harness design names the same obligation from its side).
+
+Locked boundary properties (schema-independent):
+- The adapter is a separate translation unit/library; the search core has zero JSON and zero I/O dependencies.
+- JSON handling uses a vendored, pinned single-header library, linked ONLY into the adapter (operator decision, 2026-08-25; candidate and license check at PLAN).
+- Flow shape: read one protocol line → strict parse → validate against the owner schema of record (fail-closed on missing/type-invalid required keys; unknown keys ignored per the owner's forward-compatibility rule) → canonicalize into Position + RootContext (section 9) → engine → serialize the owner-schema reply → single line out, flushed.
+- Validation includes internal-consistency checks on the imported state: board shape and coordinate ranges, budget ranges per R3, forced-board consistency, tie-state consistency (NULL only at ply 0), and rejection of invalid local-board states per section 3's validity bit.
+- stdout carries protocol lines only; all diagnostics go to stderr.
+- The engine is stateless per request, which satisfies R2's re-request semantics structurally; a re-requested auction is just another request.
+- Bit-identical replies on re-request are NOT promised (the time budget makes search depth wall-clock-dependent); R2 requires a legal reply, not a reproducible one.
+- Malformed input, out-of-range values, or EOF produce a diagnostic on stderr and (for malformed requests) no stdout line — faulting is the referee's judgment, not the engine's.
+- The engine's value-quality metadata (section 10) rides the owner schema's optional analysis carrier (`info` in the current harness draft); the metadata SEMANTICS are engine-owned, the carrier is harness-owned.
 
 ## 7. Test seam
 

@@ -70,6 +70,7 @@ All four rulings are baked into the design spec (commit follows this section) �
 1. theory DESIGN and harness DESIGN dispatch now, in parallel (disjoint surfaces; the shared object — fixture schema conventions on coordinates/forced/ANY — is named in both dispatches with theory as owner).
 2. engine DESIGN dispatches now, scoped to rules core + representation + adapter boundary + test seam; search-math sections stay gated on theory findings.
 3. ui DESIGN waits for the harness protocol lock; ui's contract needs travel inside the harness dispatch.
-4. INDEX inversions from the boot storm (rows 17/19) and one audit-wave inversion (row 31) stay registered, not repaired (scoped per reviewer correction 3).
+4. INDEX inversions: rows 17/19 (boot storm) and row 31 (audit wave) are historical; row 45 (design wave, 073619 after 073714) is ACTIVE and registered per reviewer MR-B (2026-08-25) — all four stay registered, not repaired.
+   Operator marker ratification is deferred until the design-wave write stream stabilizes, at which point the complete inversion set is presented to the operator at once.
    Design work and non-authority relays may continue, but a red relay-root lint blocks delegated dispatch, merge, and automated adapter consumption: before any pair-planner delegated DISPATCH IMPL or merge grant, the INDEX must lint green or carry an operator-ratified monotonic-from marker or explicit operator waiver.
    Marker insertion is operator-only; no seat self-inserts.

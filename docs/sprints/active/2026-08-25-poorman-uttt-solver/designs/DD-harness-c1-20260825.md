@@ -2,8 +2,8 @@
 
 DESIGN_DOC_ID: DD-harness-c1-20260825
 GRILL_REQUIRED: yes (mirrored from the addressed DESIGN dispatch; GRILL_LOCK embedded in §12)
-Status: awaiting DESIGN-REVIEW by harness.implementer
-Inputs of record: DESIGN dispatch `s1/harness-c1/DESIGN-orchestrator-planner-20260825-065713.md`; RECONCILE.md §c1-audits; both harness-c1 audit returns; operator rulings R1–R4 (spec @ a3f250c) and R5 (grill, 2026-08-25).
+Status: revision 2 — M1–M7 and both consistency corrections from DESIGN-REVIEW `harness-c1-design-review-1` folded; awaiting re-review by harness.implementer
+Inputs of record: DESIGN dispatch `s1/harness-c1/DESIGN-orchestrator-planner-20260825-065713.md`; RECONCILE.md §c1-audits; both harness-c1 audit returns; operator rulings R1–R4 (spec @ a3f250c) and R5 (grill, 2026-08-25); DESIGN-REVIEW `s1/harness-c1/DESIGN-REVIEW-pair-implementer-20260825-073619.md` (fold ledger in §14).
 
 ## 1. Scope and fixed inputs
 
@@ -71,14 +71,15 @@ Engine → referee (within `hello_timeout_ms`, default 10000):
 
 `{"type":"game_end","protocol":1,"result":"X","reason":"macro_win","budgets":{"X":312000000,"O":0}}`
 - `result`: `"X" | "O" | "draw" | "void"`.
-- `reason` enum: `macro_win`, `chip_count`, `exact_tie_draw`, `fault_forfeit`, `hello_fault`, `triple_double_fault_void`.
-- After sending, the referee closes the engine's stdin, waits `shutdown_grace_ms` (default 2000), then kills the engine's whole process group.
+- `reason` enum: `macro_win`, `chip_count`, `exact_tie_draw`, `hello_fault`, `recovery_fault`, `triple_double_fault_void`. (`fault_forfeit` removed: under R2 a turn fault loses only the auction, never the game; the reachable fault-terminal transitions are exactly `hello_fault` at setup and `recovery_fault` per §5.1.)
+- Delivery is best-effort after the result is already terminally resolved: inability to deliver `game_end` to a crashed or faulted process never rewrites the decided result; delivery outcome is logged.
+- After sending (or failing to send), the referee closes the engine's stdin, waits `shutdown_grace_ms` (default 2000), then kills the engine's whole process group.
 
 ## 4. Analysis carrier (operator-selected at grill)
 
 - `info` is an optional object in the turn reply; the referee validates only its size (≤ 8 KiB) and JSON-ness, then copies it verbatim into the game log. Friend engines omit it at zero cost.
 - Recommended keys our engine will emit: `t` (threshold, double), `critical_bid` (int units), `pv_if_win` / `pv_if_lose` (arrays of `[local, cell]`), `quality`: `"exact" | "bound" | "estimate"`.
-- `quality` is REQUIRED whenever `info` is present (the engine-c1 value-quality obligation); replies with `info` lacking `quality` log a warning but are not faults (analysis is advisory, never game-affecting).
+- The public v1 reply schema accepts ANY size-capped JSON object as `info`; it is advisory and never game-affecting, so no `info` content can be a fault. `quality` is a conformance requirement on harness-owned analysis producers (our engine, reference tooling) — the engine-c1 value-quality obligation — and a reply whose `info` lacks or misuses `quality` logs a warning, nothing more. (Resolves the required-but-non-faulting contradiction: "required" binds our producers' conformance suite, not the public schema.)
 - Replay and live analysis read the same logged shape; no separate analysis request type exists in v1 (rejected at grill).
 
 ## 5. Faults and R2 mechanics
@@ -89,6 +90,15 @@ Fault classes (each a named enum used on the wire, in logs, and as a conformance
 - Double fault: the identical auction state is re-requested with a fresh `request_id` and `attempt+1`, up to 3 attempts total; the third consecutive double-fault voids the game (`result:"void"`, excluded from W/D/L, counted in reliability stats).
 - Sealed-bid integrity invariant: retries occur only on double-faults, so a legal player's sealed bid never leaks (spec rule 3).
 
+### 5.1 Post-fault process recovery
+
+R2 lets a faulted engine keep playing, so the referee must guarantee a usable process for its next request:
+- After ANY turn fault by a seat (uniform rule, all ten fault classes), the referee terminates that seat's process group, starts a clean process, and re-runs the hello exchange BEFORE that seat's next turn request. Uniform restart eliminates stale-computation/stale-output hazards (timeout leftovers, half-written lines) at the cost of the faulter's warm state — their fault, acceptable.
+- On a double-fault, both seats are recovered before the fresh `attempt+1` request is written.
+- Every recovery is logged as a `recovery` event (§8) with the triggering fault class and the restart hello outcome.
+- If the restart hello itself faults, the game cannot continue: the seat's opponent wins with `game_end` reason `recovery_fault`. If both restart hellos fault, the game is voided. (This is a process-liveness terminal, distinct from R2's per-auction fault semantics, which are unchanged.)
+- §9's lifecycle rule is therefore: one LIVE process per seat at any time, started at game begin, restarted on fault recovery, always restarted between games.
+
 ## 6. Clock semantics
 
 - Monotonic clock, per engine, per turn: the window opens when the referee has completely written and flushed that engine's request line and closes when a complete reply line has been received.
@@ -98,18 +108,35 @@ Fault classes (each a named enum used on the wire, in logs, and as a conformance
 
 ## 7. Determinism and pairing
 
-- The referee owns all randomness. Per-game seed = SHA-256(tournament_seed, game_id), recorded in the log header.
-- The first-move coin is consulted lazily (R1) from the game seed; its outcome, when consulted, is logged in that auction's resolution.
-- Paired games: each matchup plays games in pairs with seats swapped; the pair shares a base seed and the second game inverts the coin mapping, so a first-move tie (if it occurs in both) favors opposite engines.
-- Replays consume logged outcomes and never re-roll.
+- The referee owns all randomness. Identity and encoding pins:
+  - Every engine in a tournament has a unique configured `engine_id` (UTF-8 string); the referee rejects duplicate ids and any config string containing byte `0x1F`.
+  - Stable pair order: `engine_A` is the lexicographically smaller `engine_id` by UTF-8 byte order; `engine_B` the other.
+  - `tournament_seed` is an arbitrary UTF-8 config string, hashed as its UTF-8 bytes.
+- Seed derivation (`||` is byte concatenation, `0x1F` a literal separator byte, components delimiter-free by the config rule above):
+  - `pair_seed = SHA-256(tournament_seed || 0x1F || engine_id_A || 0x1F || engine_id_B || 0x1F || ascii(round))`.
+  - `game_seed_k = SHA-256(pair_seed || byte(k))` for game `k ∈ {1, 2}` of the pair (used for any future in-game randomness; the coin does NOT depend on it).
+- Pair-level coin, expressed in seat terms with NO inversion anywhere: `pair_coin_seat = "X"` if `pair_seed[0]` is even, else `"O"`. In BOTH games of the pair, an actual first-move bid tie (lazy per R1) is won by `pair_coin_seat`.
+- Fairness by construction: seats swap between the two games while `pair_coin_seat` stays fixed, so a first-move tie occurring in both games necessarily favors opposite ENGINES. Single (unpaired) games use round 1 and the same derivation.
+- `game_start` logs `engine_id` per seat, `pair_seed`, `game_seed` (hex), and `pair_coin_seat`, so the mapping reproduces without guessing; replays consume logged outcomes and never re-roll.
+- The determinism suite includes both-parity pair fixtures (one pair with `pair_seed[0]` even, one odd) asserting the opposite-engine property.
 
 ## 8. Game-log schema v1 (JSONL, append-only, one file per game)
 
-Event types: `game_start`, `auction` (one per resolved ply), `game_end`.
-- `game_start`: `log_version:1`, `protocol:1`, `rules:"poorman-uttt-v1"`, `game_id`, optional `tournament_id`, `seed`, `players` (per seat: name/version from hello, command line), `time_control` (`time_ms`, `grace_ms`, `hello_timeout_ms`), initial `budgets`.
-- `auction`: `ply`; `attempts` array (per attempt: `request_id`, per-seat submission record: raw `bid`, `move`, `info`, `elapsed_ms`, `validation` = `ok` or fault class); `resolution` (`winner`, `reason`: `higher_bid | tie_last_mover | tie_coin | fault`, `coin` when consulted, `payment`, applied `move`, `closures` array of `{local, result: "X"|"O"|"full"}`, `macro_line` when the game ends by macro win, `forced_next`); `budgets_after`; `post_board` (nine strings).
-- `game_end`: `result`, `reason`, `budget_margin`, `plies`.
-- Sufficiency contract: the ui replays every frame from the log alone with zero re-execution — both sealed bids, both intents, resolution reason including tie/coin, payments, post-budgets, timing, terminal reason including all R2 outcomes, `post_board` snapshots, integer units, and a version field (ui needs 1–8, all satisfied).
+Event types: `game_start`, `auction` (one per ply ATTEMPTED, resolved or not), `recovery`, `game_end`. The event model is total: every named fault class, hello outcome, recovery, and void maps to a schema-valid log, and the conformance suite proves it fixture-by-fixture.
+
+Record shapes (two, distinct):
+- `turn_record` (per seat, inside `auction` attempts): `validation` (`ok` or fault class); parsed `bid`, `move`, `info` present only when parseable; `elapsed_ms`; on any non-`ok` validation, `raw`: `{b64: <first 4 KiB of the raw bytes, base64>, truncated: bool, bytes_total: int}` — so invalid UTF-8, malformed JSON, EOF (empty capture), oversize, and extra protocol lines are all representable separately from nullable parsed fields.
+- `hello_record` (per seat, used at startup in `game_start` and at restart in `recovery`): `validation` (`ok` or fault class); parsed `name`, `version` present only on `ok`; `elapsed_ms`; same bounded `raw` capture on any non-`ok` validation.
+
+Events:
+- `game_start`: `log_version:1`, `protocol:1`, `rules:"poorman-uttt-v1"`, `game_id`, optional `tournament_id`, per-seat `engine_id` and command line, `pair_seed`, `game_seed`, `pair_coin_seat`, per-seat startup `hello_record`, `time_control` (`time_ms`, `grace_ms`, `hello_timeout_ms`, `shutdown_grace_ms`), initial `budgets`.
+- `auction`: `ply`; `outcome`: `"resolved" | "voided" | "aborted_recovery_fault"`; `attempts` array so far (per attempt: `request_id`, `attempt`, per-seat `turn_record`s); `resolution` — object present iff `outcome:"resolved"` (`winner`, `reason`: `higher_bid | tie_last_mover | tie_coin | fault`, `coin` when consulted, `payment`, applied `move`, `closures` array of `{local, result: "X"|"O"|"full"}`, `macro_line` when the game ends by macro win, `forced_next`), else absent; `budgets_after` and `post_board` (nine strings) equal the pre-state when not resolved.
+- `recovery`: `seat`, triggering `fault` class, restart `hello_record`.
+- `game_end`: `result`, `reason`, `budget_margin`, `plies`, per-seat `delivery`: `ok | failed`.
+
+Causal emission order (normative): events are appended in wall-clock completion order. A `recovery` event is appended at the moment its restart hello concludes — for a mid-ply recovery this is BEFORE that ply's `auction` event, which is appended only when the ply concludes (resolved, voided, or aborted). When both seats recover, seat X's `recovery` is appended before seat O's. The `recovery_fault` terminal therefore logs as: attempts so far inside an `auction` event with `outcome:"aborted_recovery_fault"`, preceded by the failing `recovery` event(s), followed by `game_end` (`reason:"recovery_fault"`, or `"void"`+`triple…` semantics unchanged when the abort applies to both seats — result `"void"` with reason `recovery_fault` when both restart hellos fail).
+- Sufficiency contract: the ui replays every frame from the log alone with zero re-execution — both sealed bids, both intents, resolution reason including tie/coin, payments, post-budgets, timing, terminal reason including all R2 outcomes plus `recovery_fault`, `post_board` snapshots, integer units, and a version field (ui needs 1–8, all satisfied).
+- Canonical serialization: the log writer emits canonical JSON (UTF-8, sorted keys, compact separators) so equal event content is equal bytes.
 - Rejected: an event-chain integrity hash (H-I suggestion) — v1 logs are local files consumed by trusted local tools; deferred.
 
 ## 9. Referee and runner architecture (Python, stdlib-only)
@@ -123,20 +150,21 @@ Monorepo surface `referee/` (package) + `docs/protocol/` (spec docs):
 - `referee.py` — single-game loop: hello, turn cycle (write both → collect both → validate both → resolve → log), termination.
 - `tournament.py` — runner: paired seat-swapped games, W/D/L + average budget-margin + reliability stats, per-game log files plus one JSON summary; sequential by default with optional `--jobs N` process parallelism; no SPRT, no ratings.
 - `bots/` — baseline bots (spec list): `random` (uniform legal move, uniform bid), `zero` (always bid 0), `fraction` (fixed fraction of budget), `allin_tactical` (all-in on tactical wins). The `fraction` bot is written as the ~100-line stdlib reference client and doubles as executable documentation.
-- One process per seat per game, restarted between games (crash/state isolation); each turn remains logically stateless because the full authoritative state is resent.
+- Process lifecycle: one LIVE process per seat at any time — started at game begin, restarted with re-hello on fault recovery (§5.1), always restarted between games (crash/state isolation); each turn remains logically stateless because the full authoritative state is resent.
 
 ## 10. Deliverables this design binds PLAN to
 
 1. `docs/protocol/poorman-uttt-protocol-v1.md` — normative spec: framing rules, field tables for all five message shapes, fault taxonomy, clock semantics, one complete annotated game transcript.
 2. `docs/protocol/schema/` — machine-readable JSON Schema files for every message and log event type.
-3. `referee/` package as in §9, with pytest suites: codec round-trip; rules-vs-theory-fixtures; fault-matrix E2E driving stub engines that commit each named fault; determinism (same seed → byte-identical logs); log-sufficiency (reconstruct frames from log alone).
-4. Conformance fixtures: one success transcript plus one fixture per fault class, runnable against any client.
+3. `referee/` package as in §9, with pytest suites: codec round-trip; rules-vs-theory-fixtures (including the fixture-to-wire loader seam test, §11); fault-matrix E2E driving stub engines that commit each named fault, each producing a schema-valid log; determinism — same seed → byte-identical logs, scoped to deterministic scripted stub engines with an injected fake clock and the canonical log serialization (production logs keep real `elapsed_ms` and engine `info`, which seed equality cannot and need not make identical); log-sufficiency (reconstruct frames from log alone).
+4. Conformance fixtures: one success transcript plus one fixture per fault class, plus recovery-fault terminal fixtures (mid-ply single-seat abort → `aborted_recovery_fault`/`recovery_fault`, and both-seat restart failure → void) and the both-parity pair-fairness fixtures from §7, runnable against any client.
 5. Interpreter/env pinning (uv-managed, Python ≥3.12) per the reconciliation's toolchain obligation.
 
 ## 11. Boundary contracts
 
 - Provides: protocol spec v1 + JSON Schemas + log schema v1 (consumers: engine pair, friend engine, ui replay/analysis, tournament regression). Changes route through s1.orchestrator-planner.
-- Consumes: theory-owned rules fixtures. Shared convention to align with theory (via orchestrator): coordinates `[local 0–8, cell 0–8]` row-major, `forced` as integer-or-null — flagged in the design-completion report.
+- Consumes: theory-owned rules fixtures. The `forced` encoding is ALIGNED by both owner records: theory's design (DD-theory-c1-20260825, fixture schema) locks `forced` as integer 0–8 or `null`, explicitly matching this wire convention, with the boundary acknowledgment routed through s1.orchestrator-planner on theory's side. Residual naming differences (fixture `h`/`budgets:{x,o}` vs wire `tie_owner`/`budgets:{X,O}`) live in one harness-owned fixture loader with a named E2 seam test (§10, deliverable 3).
+- Consumer-alignment obligation (pre-PLAN, orchestrator-routed): the engine design's adapter boundary (DD-engine-rules-c1-20260825 §6) currently validates `last_mover` and serializes bare `{bid, move}` — divergent from this schema's hello/turn envelopes, canonical X/O budget keys, dropped `last_mover`/explicit `tie_owner`, and optional `info`. Harness owns the schema; the concrete adapter delta must be routed through s1.orchestrator-planner before either pair's PLAN treats the seam as locked. This obligation is named in the design-completion report.
 - Not provided in v1 (R5): browser bridge; any network transport; SPRT; generic tournament platform.
 
 ## 12. GRILL_LOCK
@@ -171,7 +199,7 @@ Still operator-owned:
 - none — R1-R5 cover every product-semantic item surfaced by both audits and the ui routing
 
 Design-lock impact:
-- DESIGN_LOCK_ID must reference this GRILL_LOCK_ID; R5 must be reported to s1.orchestrator-planner (ui gate narrows); the coordinate/forced convention needs an orchestrator-routed ack from theory
+- DESIGN_LOCK_ID must reference this GRILL_LOCK_ID; R5 must be reported to s1.orchestrator-planner (ui gate narrows); the coordinate/forced convention needs an orchestrator-routed ack from theory (theory's record now carries it — see §11); the engine adapter delta (§11) is a second orchestrator-routed pre-PLAN obligation
 ```
 
 ## 13. Risks
@@ -179,4 +207,21 @@ Design-lock impact:
 - The `legal` enumeration makes requests the largest lines on the wire (~70 moves × 8 bytes ≈ 0.6 KiB — well under the 32 KiB cap); acceptable.
 - R2 re-requests give engines a second look at the same state; engines with nondeterministic search may answer differently — this is by ruling (R2) and logged per attempt.
 - Exact bid ties are strategically reachable: `auction.py` compares integers only (R4) and the tie fixtures from theory must include tie-at-nonzero and tie-at-zero (zugzwang alternation) cases.
-- If theory's fixture conventions diverge from §11's coordinate convention, engine and harness tests fork — mitigated by routing the convention through the orchestrator before PLAN.
+- If theory's fixture conventions diverge from §11's coordinate convention, engine and harness tests fork — mitigated by routing the convention through the orchestrator before PLAN (theory's record already matches; the loader seam test guards the residual naming map).
+- Uniform post-fault restart (§5.1) costs the faulting engine its warm transposition table mid-game; a strength-affecting but fault-triggered penalty, accepted for supervisor simplicity and stale-state elimination.
+
+## 14. Review-fold ledger (DESIGN-REVIEW harness-c1-design-review-1, 2026-08-25)
+
+- M1 (fixture seam) — folded with a correction: theory's owner record (DD-theory-c1-20260825 fixture schema) already locks `forced` int-or-null aligned to this wire convention, so representation alignment path (a) holds by both records; the residual naming map got an explicit loader boundary + E2 seam test (§11, §10).
+- M2 (post-fault recovery) — folded as recommended: §5.1 uniform restart + re-hello, both-seat recovery on double-fault, `recovery` log event, `recovery_fault` terminal; §9 lifecycle reworded.
+- M3 (log totality) — folded: `auction` per ply attempted with nullable `resolution`, hello records in `game_start`, bounded base64 raw capture on every non-`ok` validation, `recovery` event type; fault-fixture → schema-valid-log named in §10.
+- M4 (determinism scope) — folded as recommended: byte-identity scoped to scripted stubs + injected fake clock + canonical serialization; production keeps real timing (§10).
+- M5 (`info.quality`) — folded as recommended: public schema accepts any capped object; `quality` binds harness-owned producers' conformance; warn-not-fault (§4).
+- M6 (seeds) — folded: full derivation (`pair_id`, `pair_seed`, `game_seed_k`, byte encodings, coin mapping + `coin_invert`) and logged identifiers (§7, §8).
+- M7 (engine adapter divergence) — folded: named consumer-alignment obligation in §11 and in the GRILL_LOCK design-lock impact; delta routes through s1.orchestrator-planner pre-PLAN.
+- Correction A (`fault_forfeit`) — folded: removed; reachable fault terminals are `hello_fault` and `recovery_fault` (§3.5).
+- Correction B (`game_end` delivery) — folded: best-effort delivery, logged, never rewrites a decided result (§3.5, §8).
+
+Second pass (DESIGN-REVIEW harness-c1-design-review-2a, 2026-08-25) — M1/M2/M4/M5/M7 and both corrections passed; residuals folded:
+- M3 residual (recovery log totality) — folded: two distinct record shapes (`turn_record`, `hello_record` with parsed identity on success); `auction.outcome` enum gains `aborted_recovery_fault`; normative causal emission order (wall-clock completion, recovery before its ply's auction event, X before O); recovery-fault dispositions fully enumerated; recovery-fault log fixtures added to §10.
+- M6 residual (pair fairness) — folded as recommended: stable lexicographic A/B engine order, delimiter-free config strings enforced, one pair-level coin bit (`pair_coin_seat` from `pair_seed[0]`), same seat result in both seat-swapped games, NO inversion — opposite-engine favoritism holds by construction; encodings pinned; both-parity pair fixtures added.
