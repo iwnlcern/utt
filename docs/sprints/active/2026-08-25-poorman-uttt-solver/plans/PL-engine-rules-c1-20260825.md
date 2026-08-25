@@ -1,5 +1,7 @@
 # Engine Rules Core Implementation Plan (PL-engine-rules-c1-20260825)
 
+Revision 4 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-4` (relay 100509), all three residuals: MR1-R Task 1 commit lists every literal file (placeholder .cpp included) and the staged-set proof is exact sorted equality, not subset membership, with the pattern binding every later commit; MR4-R the `validate_game_end` interface comment states strict owner-schema validation and the test battery names one negative case per required-field class plus 32 KiB boundary tests proving pre-parse rejection; MR5-R Task 12 has an explicit three-commit topology (harness source → baseline.json only → candidate-verdict.json durable artifact on PASS, never on FAIL).
+
 Revision 3 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-3` (relay 094459), all five groups: MR1 base preflight replaced with object-existence + ancestry + engine-surface-diff checks (main-equality was self-invalid) and mechanical staged-set proof via `git diff --cached --name-only`; MR2 CMake pin comment corrected, Task 2 test includes its seam headers, and a mechanical all-closed totality fixture added beside the macro-win case; MR3 Zobrist sensitivity rebuilt as single-input isolation over the full population for BOTH the 64-bit key and the independent 32-bit tag; MR4 strict `game_end` required-field/enum/budget validation, the 32 KiB line ceiling, and a full binary round-trip corpus test validating emitted replies; MR5 the reference baseline is committed BEFORE any candidate run, with identity refusal preserving the same-session proof.
 
 Revision 2 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-1` (relay 090632), all eight groups: PR1 exact base lock + gitignore-first + explicit staging; PR2 normative bit order with final literals, pinned macro-win sequence, exact RefPosition, from_parts as the mechanical builder; PR3 both dependencies pinned by version/URL/sha256 and vendored in Task 1 before any consumer, JSON boundary restated; PR4 RootContext + winner_on_chips production seam and the DD clock seam brought IN scope (Task 2); PR5 independent secondary Zobrist table + full-population sensitivity tests; PR6 complete ImportError classes, all three message types validated, conformance-corpus consumption with honest pending state; PR7 single-session acceptance benchmark with identity capture, warmup separate from ≥ 10 measured runs, and a refusing --verify mode; PR8 acceptance truth table replacing the overclaiming sweep.
@@ -29,7 +31,7 @@ Consumed owner contracts: harness protocol v1 = DD-harness-c1-20260825 @ 11ac4ef
 - Long .md files put full sentences on their own lines.
 - Commits: small, per task step as marked; never claim a fix without the named test output.
 - Branch (PR1 as corrected by MR1 — main-equality is unusable because sprint-document commits legitimately advance main): at IMPL start prove the dispatched BASE object is still safe with exactly these three checks — (1) `git cat-file -e 63b4b7b^{commit}` succeeds; (2) `git merge-base --is-ancestor 63b4b7b main` succeeds; (3) `git diff --name-only 63b4b7b..main -- engine/` prints NOTHING (the engine surface is untouched since the dispatched base). If any check fails, STOP and relay to s1.orchestrator-planner for a successor BASE — never float the base silently. On success: `git switch -c engine/rules-core-c1 63b4b7b`. Never commit to `main`.
-- Staging discipline (PR1/MR1, mechanical): stage the exact FILES named in each commit step (`git add <file> <file> ...`, no bare directories); then prove the staged set with `git diff --cached --name-only` — REQUIRE every printed path is in the step's named list and REQUIRE `git diff --cached --name-only | grep -c '^engine/build/'` prints 0. `engine/bench/baseline.json` is intentionally trackable.
+- Staging discipline (PR1/MR1/MR1-R, mechanical EQUALITY): stage the exact FILES named in each commit step (`git add <file> <file> ...`, no bare directories); then prove the staged set is EXACTLY the expected set — `git diff --cached --name-only | sort` must byte-equal the step's sorted expected-file list (`diff <(git diff --cached --name-only | sort) <(printf '%s\n' <expected...> | sort)` prints nothing) — a strict subset fails; additionally REQUIRE `git diff --cached --name-only | grep -c '^engine/build/'` prints 0. `engine/bench/baseline.json` is intentionally trackable.
 
 ## File Structure
 
@@ -64,8 +66,10 @@ engine/
   tests/test_fixtures.cpp
   tests/test_wire.cpp
   tests/test_engine_e2e.py           # driven by ctest via python3; spawns the binary
-  bench/bench_playout.cpp            # --reference | --candidate --baseline <path>; emits/checks bench/baseline.json
-  bench/README.md                    # methodology: warmup, runs, flags, cpu capture
+  bench/bench_playout.cpp            # --reference --out baseline.json | --candidate --baseline <path> --out-verdict candidate-verdict.json
+  bench/baseline.json                # committed reference artifact (Step 2 of Task 12)
+  bench/candidate-verdict.json       # committed candidate PASS evidence (Step 3 of Task 12)
+  bench/README.md                    # methodology: identity, warmup vs measured runs, commit topology
 ```
 
 Coordinate conventions everywhere: local boards 0–8 row-major across the macro grid; cells 0–8 row-major within a local board; matches the harness wire and theory fixtures.
@@ -141,13 +145,26 @@ TEST_CASE("toolchain sanity") {
 Run the three build commands from Interfaces above.
 Expected: configure, build, and `ctest` all succeed with 1 passing test.
 
-- [ ] **Step 5: Commit (explicit paths; assert no build artifacts)**
+- [ ] **Step 5: Commit (literal files only; exact-equality staged-set proof — MR1-R)**
 
 ```bash
-git add engine/.gitignore engine/CMakeLists.txt engine/third_party engine/tests/test_smoke.cpp engine/src
-git status --short   # REQUIRE: no engine/build/ path anywhere in the staged set
+git add engine/.gitignore engine/CMakeLists.txt \
+  engine/third_party/doctest/doctest.h engine/third_party/doctest/LICENSE.txt \
+  engine/third_party/nlohmann/json.hpp engine/third_party/nlohmann/LICENSE.MIT \
+  engine/tests/test_smoke.cpp \
+  engine/src/core/local_table.cpp engine/src/core/position.cpp engine/src/core/zobrist.cpp
+diff <(git diff --cached --name-only | sort) <(printf '%s\n' \
+  engine/.gitignore engine/CMakeLists.txt \
+  engine/third_party/doctest/doctest.h engine/third_party/doctest/LICENSE.txt \
+  engine/third_party/nlohmann/json.hpp engine/third_party/nlohmann/LICENSE.MIT \
+  engine/tests/test_smoke.cpp \
+  engine/src/core/local_table.cpp engine/src/core/position.cpp engine/src/core/zobrist.cpp | sort)
+# REQUIRE: the diff prints nothing (exact set equality), and:
+git diff --cached --name-only | grep -c '^engine/build/'   # REQUIRE: 0
 git commit -m "engine: scaffold + gitignore + pinned vendored doctest 2.4.12 and nlohmann/json 3.12.0 (MIT)"
 ```
+
+Every later commit step follows the same pattern: its named file list IS the expected set for the equality check (Global Constraints).
 
 ---
 
@@ -744,7 +761,7 @@ enum class MsgType { Hello, Turn, GameEnd };
 std::expected<MsgType, std::string> classify(std::string_view line);
 std::expected<HelloRequest, std::string> parse_hello(std::string_view line);
 std::expected<TurnRequest, std::string> parse_turn(std::string_view line);
-std::expected<void, std::string> validate_game_end(std::string_view line);  // type/protocol checked, payload tolerated
+std::expected<void, std::string> validate_game_end(std::string_view line);  // STRICT owner-schema validation: required result, enum reason, canonical in-range X/O budgets all fail-closed; unknown keys ignored (MR4-R)
 std::string serialize_reply(const TurnReply&);
 std::string serialize_hello();
 }
@@ -765,7 +782,7 @@ struct PlaceholderPolicy final : Policy { wire::TurnReply choose(const wire::Tur
 - `main.cpp` loop: read lines; classify; `hello` → validate, reply hello; `turn` → parse, `policy.choose(req, clock)` with a `SteadyClock`, serialize (echo `request_id`), write single line, flush; `game_end` → validate, exit 0; parse error → stderr diagnostic, NO stdout line, continue; EOF → exit 0.
 - Conformance corpus ROUND-TRIP (PR6 as corrected by MR4): the harness-owned schemas/normative transcript land under `docs/protocol/` per the harness DD. The corpus test (extends `test_engine_e2e.py`) drives the BINARY: feed every referee→engine line of the normative transcript in order on stdin; capture every engine→referee line from stdout; validate each EMITTED line against the owner reply schema (required keys/types, `request_id` echo matching the corresponding request, `move` ∈ that request's `legal`, `bid` in range) and each INCOMING line through classify/parse; assert stdout discipline throughout (exactly one line per hello/turn request, none otherwise). Only this full round-trip may report green. If the corpus is absent, the test FAILS with "harness conformance corpus not present — criterion 3 pending-blocked" unless env `UTTT_ALLOW_MISSING_CORPUS=1` (same honesty pattern as Task 9; acceptance runs unset it).
 
-- [ ] **Step 1: Write failing wire tests** — round-trip the harness DD's literal ply-0 turn-request line (forced 4, tie_owner null); parse_hello on the DD's hello line; validate_game_end happy + wrong-type cases; legal-list cross-check failure on a doctored list; missing `request_id` fails closed; tie_owner "X" at ply 1 parses, tie_owner null at ply 1 fails; reply serialization echoes request_id and always emits `move`; unknown keys ignored; corpus test wired per the note above.
+- [ ] **Step 1: Write failing wire tests** — round-trip the harness DD's literal ply-0 turn-request line (forced 4, tie_owner null); parse_hello on the DD's hello line; legal-list cross-check failure on a doctored list; missing `request_id` fails closed; tie_owner "X" at ply 1 parses, tie_owner null at ply 1 fails; reply serialization echoes request_id and always emits `move`; unknown keys ignored; corpus test wired per the note above. `validate_game_end` negative battery (MR4-R), one named case per required-field class: happy case passes; wrong `type` fails; missing `result` fails; type-invalid `result` fails; `reason` absent fails; `reason` outside the owner enum fails; `budgets` missing fails; `budgets` keyed other than canonical X/O fails; either budget out of [0, 10^9] fails; an extra unknown key still passes. Line-framing boundary tests (MR4-R): a line of exactly the 32 KiB maximum is accepted into parsing; a line one byte over is rejected BEFORE JSON parsing (prove via a deliberately malformed oversize payload that would throw in the parser — rejection must come from the length check) with a stderr diagnostic and no stdout.
 - [ ] **Step 2: Run to verify failure. Implement wire.cpp + policy + main.** **Step 3: Build + ctest.** **Step 4: Commit** `"engine: protocol v1 adapter (hello/turn/game_end), fail-closed validation, placeholder policy"`.
 
 ---
@@ -803,10 +820,12 @@ struct PlaceholderPolicy final : Policy { wire::TurnReply choose(const wire::Tur
 - `uttt_bench --candidate --baseline engine/bench/baseline.json`: opens the baseline READ-ONLY; recomputes the identity block and REFUSES (exit nonzero, no measurement) on any mismatch of executable digest, compiler, flags, or CPU string — same binary/flags/harness/environment is thereby proven, and the session continuity is the baseline's UUID echoed into the verdict output; measures the optimized Position path with the same warmup/measured discipline; verdict: PASS iff median_cand ≤ 1.0 × median_ref AND median_cand ≤ 100.0, both medians and the UUID printed, exit nonzero on FAIL. This mode cannot write the baseline (no write path exists in it).
 - ORDER (MR5, mechanical): `--reference` → `git add engine/bench/baseline.json` + commit → `--candidate` back-to-back against the just-committed artifact. The baseline is durably in history BEFORE the candidate gate, so a candidate FAIL leaves the reference evidence committed for diagnosis; the identity refusal preserves the DD's same-session/same-binary proof across the intervening docs-only commit.
 
-- [ ] **Step 1: Write bench_playout.cpp** (modes share the playout driver via a template on the position type; identity header configured by CMake).
-- [ ] **Step 2: Build; run --reference; COMMIT the baseline immediately** `"engine: benchmark reference baseline (naive path, warmup+10 measured, identity captured)"` — this commit precedes any candidate run.
-- [ ] **Step 3: Run --candidate against the committed baseline; paste the verdict (both medians + UUID) into the commit message body** `"engine: benchmark candidate PASS vs committed baseline (ratio + absolute ceiling)"`. If FAIL: stop, do not tune the predicate; profile, fix, re-run --candidate (the committed baseline stands); the predicate changes only via a design amendment.
-- [ ] **Step 4: Write bench/README.md** documenting the methodology (identity capture + refusal rules, warmup separate from ≥ 10 measured runs, seeds, flags, cpu capture, reference-commit-then-candidate ordering, fixture/corpus env vars) in full sentences on their own lines.
+Commit topology (MR5-R, three commits, exact bytes each):
+
+- [ ] **Step 1: Write bench_playout.cpp (modes share the playout driver via a template on the position type; identity header configured by CMake); COMMIT the source first** — staged set exactly {`engine/bench/bench_playout.cpp`, `engine/CMakeLists.txt`} (equality proof per Global Constraints): `"engine: benchmark harness source (reference/candidate modes, identity capture)"`.
+- [ ] **Step 2: Build; run --reference; COMMIT exactly {`engine/bench/baseline.json`}** `"engine: benchmark reference baseline (naive path, warmup+10 measured, identity captured)"` — this commit precedes any candidate run and touches nothing else.
+- [ ] **Step 3: Run `--candidate --baseline engine/bench/baseline.json --out-verdict engine/bench/candidate-verdict.json`; the mode writes the DURABLE VERDICT ARTIFACT (both medians, both predicate results, baseline session UUID, identity block) — it still cannot write the baseline. On PASS, COMMIT exactly {`engine/bench/candidate-verdict.json`}** `"engine: benchmark candidate PASS vs committed baseline (ratio + absolute ceiling)"` **with the verdict lines pasted in the body.** If FAIL: stop, do not tune the predicate, do not commit the verdict; profile, fix (source fixes are ordinary task commits), re-run --candidate against the unchanged committed baseline; the predicate changes only via a design amendment.
+- [ ] **Step 4: Write bench/README.md** (own commit, staged set exactly {`engine/bench/README.md`}) documenting the methodology (identity capture + refusal rules, warmup separate from ≥ 10 measured runs, seeds, flags, cpu capture, source→baseline→verdict commit topology, fixture/corpus env vars) in full sentences on their own lines.
 
 ---
 
@@ -819,7 +838,7 @@ struct PlaceholderPolicy final : Policy { wire::TurnReply choose(const wire::Tur
 criterion 1 (theory fixtures)        -> green-E2 | pending-blocked (ls theory/fixtures output)
 criterion 2 (properties/table/perft) -> green-E2 (no owner dependency)
 criterion 3 (adapter + corpus)       -> green-E2 | pending-blocked (ls docs/protocol output)
-criterion 4 (benchmark predicate)    -> green-E2 (bench --candidate verdict vs the committed baseline)
+criterion 4 (benchmark predicate)    -> green-E2 (committed engine/bench/candidate-verdict.json vs the earlier-committed baseline)
 criterion 5                          -> deferred by design (theory Stage-1 + successor DD)
 ```
 
