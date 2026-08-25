@@ -49,6 +49,13 @@
         "info": {"type": "object"},
         "raw": {"$ref": "#/$defs/raw"}
       },
+      "allOf": [
+        {
+          "if": {"properties": {"validation": {"const": "ok"}}, "required": ["validation"]},
+          "then": {"required": ["bid", "move"], "not": {"required": ["raw"]}},
+          "else": {"required": ["raw"]}
+        }
+      ],
       "additionalProperties": true
     },
     "attempt": {

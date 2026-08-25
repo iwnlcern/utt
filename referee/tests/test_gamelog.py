@@ -121,6 +121,27 @@ def test_turn_record_fault_has_raw_and_no_parsed_fields():
     }
 
 
+def test_turn_record_fault_preserves_every_parseable_intention_field():
+    parsed = ParsedReply(
+        validation="wrong_request_id",
+        bid=7,
+        move=(4, 2),
+        info={"quality": "estimate"},
+        raw=b"{}",
+        raw_total=2,
+        raw_truncated=False,
+    )
+
+    assert turn_record(parsed, 6) == {
+        "validation": "wrong_request_id",
+        "elapsed_ms": 6,
+        "bid": 7,
+        "move": [4, 2],
+        "info": {"quality": "estimate"},
+        "raw": {"b64": "e30=", "truncated": False, "bytes_total": 2},
+    }
+
+
 def test_turn_record_ok_and_hello_records():
     turn = ParsedReply("ok", 4, (3, 2), {"quality": 7}, None, None, None)
     hello = ParsedHello("ok", "engine", "2", None, None, None)
@@ -227,7 +248,23 @@ def test_replay_recovery_abort_has_no_resolution():
 
     assert frame.outcome == "aborted_recovery_fault"
     assert frame.resolution is None
+    assert frame.forced == 4
     assert replay_frames(events).end["reason"] == "recovery_fault"
+
+
+def test_nonresolved_later_ply_retains_previous_forced_board():
+    first = resolved_auction()
+    first["resolution"]["forced_next"] = 6
+    second = resolved_auction(ply=1)
+    second["outcome"] = "voided"
+    second.pop("resolution")
+    second["post_board"] = first["post_board"]
+    second["budgets_after"] = first["budgets_after"]
+
+    replay = replay_frames([start_event(), first, second, end_event("void", "triple_double_fault_void")])
+
+    assert replay.frames[0].forced == 6
+    assert replay.frames[1].forced == 6
 
 
 def test_replay_terminal_exposes_result_reason_and_delivery():

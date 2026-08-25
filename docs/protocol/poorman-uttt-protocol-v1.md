@@ -18,6 +18,8 @@ Standard output is protocol-only, while standard error is free-form diagnostic o
 
 The referee captures at most 65,536 bytes of standard error per engine and records whether additional bytes were truncated.
 
+The capped bytes are persisted to a per-game, per-seat diagnostic file, including bytes emitted by process generations that were replaced during recovery.
+
 A protocol line may contain at most 32,768 bytes before LF.
 
 The referee detects an overlong partial line before LF arrives and classifies it as `oversize_line`.
@@ -31,6 +33,8 @@ Both turn requests are fully written and flushed before either reply is awaited.
 Readers ignore unknown object keys within protocol major version 1.
 
 Missing required fields and fields of the wrong type fail closed.
+
+Non-standard numeric constants such as `NaN` and strings that cannot be encoded as valid UTF-8 are rejected and are never re-emitted into canonical JSON.
 
 All game-affecting money values are nonnegative JSON integers, and 1,000,000,000 units is the initial budget.
 
@@ -162,6 +166,8 @@ One failed recovery awards the game to the other seat, while two failed recoveri
 
 Every non-OK reply stores at most the first 4,096 raw bytes in base64 together with the total byte count and truncation flag.
 
+Any bid, move, or analysis object that was parseable before the detected fault remains present in that turn record, so the log retains both engines' intentions.
+
 ## Clock semantics
 
 Each engine has an independent monotonic clock window for each turn.
@@ -218,11 +224,11 @@ A recovery records its triggering ply and request identifier, so consumers assoc
 
 Double-fault recoveries occur before their auction event, while a continuing single-fault recovery occurs after its resolved auction event.
 
-The `game_end` event records result, reason, integer budget margin, attempted plies, and per-seat delivery status.
+The `game_end` event records result, reason, integer budget margin, attempted plies, per-seat delivery status, and per-seat stderr file metadata.
 
 [`transcript-v1.jsonl`](transcript-v1.jsonl) is a real seeded fraction-versus-random game produced by this referee.
 
-The conformance logs under `referee/tests/fixtures/` cover success, every fault class, both recovery-fault dispositions, both-seat recovery failure, and both pair-seed parities.
+The conformance logs under `referee/tests/fixtures/` cover success, every fault class, a fault-won terminal move with no recovery, both recovery-fault dispositions, both-seat recovery failure, and both pair-seed parities.
 
 The shared replay reader reconstructs every frame only from logged events and rejects missing attempts, boards, terminal events, or ply gaps.
 
@@ -258,3 +264,5 @@ uv run --project referee python -m poorman_referee play \
 ```
 
 The CLI also runs an even, seat-swapped round robin from a JSON configuration with `python -m poorman_referee tourney --config tourney.json`.
+
+Tournament summaries encode `avg_budget_margin` exactly as integer `numerator` and positive integer `denominator` fields, so aggregation never introduces floating-point money.

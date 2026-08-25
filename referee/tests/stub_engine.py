@@ -32,6 +32,8 @@ parser.add_argument("--exit-delay-ms", type=int, default=0)
 parser.add_argument("--echo-request", action="store_true")
 parser.add_argument("--fault-once-file")
 parser.add_argument("--die-on-hello-after-restart")
+parser.add_argument("--fork-child-exit", action="store_true")
+parser.add_argument("--child-pid-file")
 args = parser.parse_args()
 faults = {}
 for item in args.fault:
@@ -41,6 +43,19 @@ for item in args.fault:
 if args.spam_stderr:
     sys.stderr.buffer.write(b"e" * args.spam_stderr)
     sys.stderr.buffer.flush()
+
+if args.fork_child_exit:
+    child = os.fork()
+    if child == 0:
+        os.close(0)
+        os.close(1)
+        os.close(2)
+        time.sleep(10)
+        os._exit(0)
+    if args.child_pid_file:
+        with open(args.child_pid_file, "w", encoding="utf-8") as fh:
+            fh.write(str(child))
+    os._exit(5)
 
 rng = random.Random(args.seed)
 turn_number = 0
@@ -84,6 +99,11 @@ for raw in sys.stdin.buffer:
         sys.stdout.buffer.flush()
         time.sleep(10)
         continue
+    if "flood_nolf" in active:
+        sys.stdout.buffer.write(b"x" * (2 * 1024 * 1024))
+        sys.stdout.buffer.flush()
+        time.sleep(10)
+        continue
     if "invalid_utf8" in active:
         sys.stdout.buffer.write(b"\xff\n")
         sys.stdout.buffer.flush()
@@ -118,8 +138,11 @@ for raw in sys.stdin.buffer:
     if "illegal_move" in active:
         reply["move"] = [8, 8] if [8, 8] not in legal else [7, 7]
 
-    write_line(reply)
     if "extra_line" in active or "extra_line_before_sweep" in active:
+        data = json.dumps(reply, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+        sys.stdout.buffer.write(data + data)
+        sys.stdout.buffer.flush()
+    else:
         write_line(reply)
     if "unsolicited_between_plies" in active:
         delayed_write(b'{"unsolicited":true}\n')

@@ -1,5 +1,6 @@
 import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -128,6 +129,18 @@ def test_oversize_without_lf_is_classified_before_timeout():
         engine.kill()
 
 
+def test_large_continuous_line_capture_is_bounded_at_framing_limit():
+    engine = started_engine("X", "--fault", "flood_nolf:1")
+    try:
+        engine.hello(hello_req(), 500)
+        engine.send_line(turn_req())
+        raw, status = engine.read_reply(time.monotonic() + 1)
+        assert status == "oversize_line"
+        assert 32768 < len(raw) <= 32768 + 65536
+    finally:
+        engine.kill()
+
+
 def test_same_write_extra_line_is_quarantined():
     engine = started_engine("X", "--fault", "extra_line:1")
     try:
@@ -214,6 +227,34 @@ def test_kill_leaves_no_child_or_process_group():
     engine.kill()
     assert engine.process.poll() is not None
     assert_group_gone(pgid)
+
+
+def test_kill_signals_original_group_after_leader_has_exited(tmp_path):
+    child_file = tmp_path / "child.pid"
+    engine = started_engine(
+        "X", "--fork-child-exit", "--child-pid-file", str(child_file)
+    )
+    deadline = time.monotonic() + 1
+    while engine.process.poll() is None and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert engine.process.poll() is not None
+    child_pid = int(child_file.read_text(encoding="utf-8"))
+
+    engine.kill()
+
+    deadline = time.monotonic() + 1
+    while time.monotonic() < deadline:
+        state = subprocess.run(
+            ["ps", "-o", "state=", "-p", str(child_pid)],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+        if state in ("", "Z"):
+            break
+        time.sleep(0.01)
+    assert state in ("", "Z")
+    assert engine._pgid is None
 
 
 def test_stderr_capture_is_capped():

@@ -25,6 +25,14 @@ def _hello_fault(validation: str, raw: bytes | None) -> ParsedHello:
     return ParsedHello(validation, None, None, captured, total, truncated)
 
 
+class StderrSink:
+    def __init__(self, cap: int):
+        self.cap = cap
+        self.data = bytearray()
+        self.total = 0
+        self.lock = threading.Lock()
+
+
 class Engine:
     def __init__(
         self,
@@ -34,6 +42,7 @@ class Engine:
         shutdown_grace_ms: int = 2000,
         stderr_cap: int = 65536,
         clock=time.monotonic,
+        stderr_sink: StderrSink | None = None,
     ):
         self.cmd = list(cmd)
         self.seat = seat
@@ -41,23 +50,24 @@ class Engine:
         self.stderr_cap = stderr_cap
         self.clock = clock
         self.process: subprocess.Popen | None = None
+        self._pgid: int | None = None
         self._stdout_buffer = bytearray()
         self._stdout_eof = False
         self._last_fault_raw: bytes | None = None
-        self._stderr = bytearray()
-        self._stderr_total = 0
-        self._stderr_lock = threading.Lock()
+        self._stderr_sink = stderr_sink or StderrSink(stderr_cap)
+        if self._stderr_sink.cap != stderr_cap:
+            raise ValueError("shared stderr sink cap does not match stderr_cap")
         self._stderr_thread: threading.Thread | None = None
 
     @property
     def stderr(self) -> bytes:
-        with self._stderr_lock:
-            return bytes(self._stderr)
+        with self._stderr_sink.lock:
+            return bytes(self._stderr_sink.data)
 
     @property
     def stderr_total(self) -> int:
-        with self._stderr_lock:
-            return self._stderr_total
+        with self._stderr_sink.lock:
+            return self._stderr_sink.total
 
     @property
     def stderr_truncated(self) -> bool:
@@ -69,9 +79,6 @@ class Engine:
         self._stdout_buffer.clear()
         self._stdout_eof = False
         self._last_fault_raw = None
-        with self._stderr_lock:
-            self._stderr.clear()
-            self._stderr_total = 0
         self.process = subprocess.Popen(
             self.cmd,
             stdin=subprocess.PIPE,
@@ -80,6 +87,7 @@ class Engine:
             start_new_session=True,
             bufsize=0,
         )
+        self._pgid = self.process.pid
         if self.process.stdout is None or self.process.stderr is None:
             raise RuntimeError("failed to create engine pipes")
         os.set_blocking(self.process.stdout.fileno(), False)
@@ -97,11 +105,11 @@ class Engine:
                 return
             if not chunk:
                 return
-            with self._stderr_lock:
-                self._stderr_total += len(chunk)
-                remaining = self.stderr_cap - len(self._stderr)
+            with self._stderr_sink.lock:
+                self._stderr_sink.total += len(chunk)
+                remaining = self.stderr_cap - len(self._stderr_sink.data)
                 if remaining > 0:
-                    self._stderr.extend(chunk[:remaining])
+                    self._stderr_sink.data.extend(chunk[:remaining])
 
     def _drain_stdout(self) -> None:
         process = self.process
@@ -110,8 +118,11 @@ class Engine:
             return
         fd = process.stdout.fileno()
         while True:
+            remaining = MAX_LINE + 1 - len(self._stdout_buffer)
+            if remaining <= 0:
+                return
             try:
-                chunk = os.read(fd, 65536)
+                chunk = os.read(fd, min(65536, remaining))
             except BlockingIOError:
                 return
             except OSError:
@@ -226,6 +237,7 @@ class Engine:
                     process.wait(timeout=0)
                 except subprocess.TimeoutExpired:
                     pass
+                self._kill_group()
             self._close_pipes()
             return "failed"
         delivery = "ok" if self.send_line(game_end) is None else "failed"
@@ -239,17 +251,20 @@ class Engine:
         except subprocess.TimeoutExpired:
             self._kill_group()
             process.wait()
+        else:
+            self._kill_group()
         self._close_pipes()
         return delivery
 
     def _kill_group(self) -> None:
-        process = self.process
-        if process is None or process.poll() is not None:
+        pgid = self._pgid
+        if pgid is None:
             return
         try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
             pass
+        self._pgid = None
 
     def kill(self) -> None:
         process = self.process

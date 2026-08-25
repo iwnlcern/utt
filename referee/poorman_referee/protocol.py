@@ -21,7 +21,21 @@ MAX_LINE, MAX_INFO, MAX_RAW = 32768, 8192, 4096
 
 
 def canonical_dumps(obj) -> str:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return json.dumps(
+        obj,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+
+
+def _reject_json_constant(value: str):
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
+def _load_json(text: str):
+    return json.loads(text, parse_constant=_reject_json_constant)
 
 
 @dataclass(frozen=True)
@@ -145,11 +159,15 @@ def parse_turn_reply(
     except UnicodeDecodeError:
         return _reply_fault("invalid_utf8", raw)
     try:
-        data = json.loads(text)
-    except (json.JSONDecodeError, RecursionError):
+        data = _load_json(text)
+    except (json.JSONDecodeError, RecursionError, ValueError):
         return _reply_fault("invalid_json", raw)
 
     if not isinstance(data, dict):
+        return _reply_fault("schema_violation", raw)
+    try:
+        canonical_dumps(data).encode("utf-8")
+    except (UnicodeEncodeError, ValueError):
         return _reply_fault("schema_violation", raw)
     if data.get("type") != "turn" or type(data.get("protocol")) is not int:
         return _reply_fault("schema_violation", raw)
@@ -200,11 +218,15 @@ def parse_hello_reply(raw: bytes) -> ParsedHello:
     except UnicodeDecodeError:
         return _hello_fault("invalid_utf8", raw)
     try:
-        data = json.loads(text)
-    except (json.JSONDecodeError, RecursionError):
+        data = _load_json(text)
+    except (json.JSONDecodeError, RecursionError, ValueError):
         return _hello_fault("invalid_json", raw)
 
     if not isinstance(data, dict):
+        return _hello_fault("schema_violation", raw)
+    try:
+        canonical_dumps(data).encode("utf-8")
+    except (UnicodeEncodeError, ValueError):
         return _hello_fault("schema_violation", raw)
     if data.get("type") != "hello" or type(data.get("protocol")) is not int:
         return _hello_fault("schema_violation", raw)

@@ -2,6 +2,7 @@ import itertools
 import json
 import multiprocessing
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 
 from .gamelog import read_log
@@ -13,6 +14,7 @@ from .seeds import (
     pair_order,
     pair_seed,
     validate_engine_ids,
+    validate_tournament_seed,
 )
 
 
@@ -117,6 +119,7 @@ def run_tournament(cfg: TournamentConfig) -> dict:
     if not all(isinstance(engine_id, str) for engine_id in ids):
         raise ValueError("every engine requires a string id")
     validate_engine_ids(ids)
+    validate_tournament_seed(cfg.tournament_seed)
     for engine in cfg.engines:
         if not (
             isinstance(engine.get("cmd"), list)
@@ -176,7 +179,11 @@ def run_tournament(cfg: TournamentConfig) -> dict:
         stats = totals[engine_id]
         games = stats.pop("margin_games")
         margin_total = stats.pop("margin_total")
-        stats["avg_budget_margin"] = margin_total / games if games else 0
+        average = Fraction(margin_total, games) if games else Fraction(0, 1)
+        stats["avg_budget_margin"] = {
+            "numerator": average.numerator,
+            "denominator": average.denominator,
+        }
         engine_summary[engine_id] = stats
     summary = {
         "tournament_seed": cfg.tournament_seed,

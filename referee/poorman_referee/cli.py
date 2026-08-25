@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .protocol import canonical_dumps
 from .referee import GameConfig, play_game
-from .seeds import game_seed, pair_coin_seat, pair_seed
+from .seeds import game_seed, pair_coin_seat, pair_order, pair_seed, validate_engine_ids
 from .tournament import TournamentConfig, run_tournament
 
 
@@ -43,7 +43,9 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv=None) -> int:
     args = _parser().parse_args(argv)
     if args.action == "play":
-        seed = pair_seed(args.seed, args.x_id, args.o_id, 1)
+        validate_engine_ids([args.x_id, args.o_id])
+        engine_a, engine_b = pair_order(args.x_id, args.o_id)
+        seed = pair_seed(args.seed, engine_a, engine_b, 1)
         cfg = GameConfig(
             cmds={"X": args.x_cmd, "O": args.o_cmd},
             engine_ids={"X": args.x_id, "O": args.o_id},

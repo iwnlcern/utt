@@ -99,7 +99,21 @@ def test_summary_json_is_written_and_sane(tmp_path):
             "faults",
             "voids",
         }
-        assert isinstance(stats["avg_budget_margin"], (int, float))
+        assert set(stats["avg_budget_margin"]) == {"numerator", "denominator"}
+        assert type(stats["avg_budget_margin"]["numerator"]) is int
+        assert type(stats["avg_budget_margin"]["denominator"]) is int
+        assert stats["avg_budget_margin"]["denominator"] > 0
+
+    def assert_no_float(value):
+        assert not isinstance(value, float)
+        if isinstance(value, dict):
+            for child in value.values():
+                assert_no_float(child)
+        elif isinstance(value, list):
+            for child in value:
+                assert_no_float(child)
+
+    assert_no_float(summary)
 
 
 def test_cli_play_and_tourney_commands(tmp_path):
@@ -126,7 +140,12 @@ def test_cli_play_and_tourney_commands(tmp_path):
         )
         == 0
     )
-    assert read_log(play_log)[-1]["event"] == "game_end"
+    events = read_log(play_log)
+    assert events[-1]["event"] == "game_end"
+    from poorman_referee.seeds import pair_order, pair_seed
+
+    ordered = pair_order("A", "B")
+    assert events[0]["pair_seed"] == pair_seed("cli-seed", *ordered, 1).hex()
 
     cfg_path = tmp_path / "tourney.json"
     cfg_path.write_text(
@@ -155,4 +174,12 @@ def test_games_per_pair_must_be_positive_and_even(tmp_path, games):
     cfg.games_per_pair = games
 
     with pytest.raises(ValueError, match="positive and even"):
+        run_tournament(cfg)
+
+
+def test_tournament_rejects_separator_bearing_seed(tmp_path):
+    cfg = tournament_config(tmp_path)
+    cfg.tournament_seed = "ambiguous\x1fseed"
+
+    with pytest.raises(ValueError, match="0x1f"):
         run_tournament(cfg)

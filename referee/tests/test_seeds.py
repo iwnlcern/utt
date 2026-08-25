@@ -9,6 +9,7 @@ from poorman_referee.seeds import (
     pair_order,
     pair_seed,
     validate_engine_ids,
+    validate_tournament_seed,
 )
 
 
@@ -79,3 +80,11 @@ def test_seed_derivation_is_deterministic():
 
     assert pair_seed("repeat", "A", "B", 9) == first
     assert game_seed(first, 1) == game_seed(first, 1)
+
+
+def test_tournament_seed_rejects_separator_collision():
+    with pytest.raises(ValueError, match="0x1f"):
+        validate_tournament_seed("bad\x1fseed")
+
+    with pytest.raises(ValueError, match="0x1f"):
+        pair_seed("bad\x1fseed", "A", "B", 1)

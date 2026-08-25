@@ -72,7 +72,7 @@ def test_real_transcript_validates_and_replays_losslessly():
 
 def test_every_conformance_jsonl_validates_and_replays():
     paths = sorted(FIXTURES.rglob("*.jsonl"))
-    assert len(paths) >= 18
+    assert len(paths) >= 19
     for path in paths:
         events = read_log(path)
         validate_events(events)
@@ -115,6 +115,25 @@ def test_recovery_fault_fixtures_cover_both_dispositions_and_both_failed_void():
     assert single[-1]["reason"] == double[-1]["reason"] == "recovery_fault"
     assert both[-1]["reason"] == "recovery_fault"
     assert both[-1]["result"] == "void"
+
+
+def test_fault_won_terminal_fixture_has_no_recovery_or_result_rewrite():
+    path = FIXTURES / "terminal-fault-won-no-recovery.jsonl"
+    events = read_log(path)
+    terminal = next(
+        event for event in reversed(events) if event["event"] == "auction"
+    )
+
+    assert terminal["resolution"]["reason"] == "fault"
+    assert terminal["resolution"]["macro_line"] is not None
+    assert not [
+        event
+        for event in events
+        if event["event"] == "recovery" and event["ply"] == terminal["ply"]
+    ]
+    assert events[-1]["reason"] == "macro_win"
+    for record in events[-1]["stderr"].values():
+        assert (path.parent / record["path"]).is_file()
 
 
 def test_both_pair_seed_parity_fixtures_swap_engine_favoritism():

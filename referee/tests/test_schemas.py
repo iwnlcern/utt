@@ -223,3 +223,49 @@ def test_recovery_schema_requires_association_and_restart_fields(required):
 
     with pytest.raises(ValidationError):
         validate("log_recovery", event)
+
+
+@pytest.mark.parametrize("missing", ["bid", "move"])
+def test_ok_turn_log_record_requires_parsed_intention(missing):
+    event = log_examples()["log_auction"]
+    del event["attempts"][0]["turns"]["X"][missing]
+
+    with pytest.raises(ValidationError):
+        validate("log_auction", event)
+
+
+def test_fault_turn_log_record_requires_raw_capture():
+    event = log_examples()["log_auction"]
+    event["attempts"][0]["turns"]["X"] = {
+        "validation": "timeout",
+        "elapsed_ms": 4,
+    }
+
+    with pytest.raises(ValidationError):
+        validate("log_auction", event)
+
+
+@pytest.mark.parametrize("name", ["log_game_start", "log_recovery"])
+def test_ok_hello_log_record_requires_identity_and_forbids_raw(name):
+    event = log_examples()[name]
+    hello = event["hellos"]["X"] if name == "log_game_start" else event["hello"]
+    del hello["name"]
+    with pytest.raises(ValidationError):
+        validate(name, event)
+
+    event = log_examples()[name]
+    hello = event["hellos"]["X"] if name == "log_game_start" else event["hello"]
+    hello["raw"] = {"b64": "", "truncated": False, "bytes_total": 0}
+    with pytest.raises(ValidationError):
+        validate(name, event)
+
+
+@pytest.mark.parametrize("name", ["log_game_start", "log_recovery"])
+def test_fault_hello_log_record_requires_raw(name):
+    event = log_examples()[name]
+    hello = event["hellos"]["X"] if name == "log_game_start" else event["hello"]
+    hello.clear()
+    hello.update({"validation": "eof_or_crash", "elapsed_ms": 1})
+
+    with pytest.raises(ValidationError):
+        validate(name, event)

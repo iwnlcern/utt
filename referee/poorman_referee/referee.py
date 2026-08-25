@@ -4,9 +4,10 @@ from pathlib import Path
 
 from .auction import resolve
 from .gamelog import GameLogWriter, hello_record, turn_record
-from .procs import Engine, collect_both
+from .procs import Engine, StderrSink, collect_both
 from .protocol import (
     MAX_RAW,
+    ParsedHello,
     ParsedReply,
     game_end_msg,
     hello_request,
@@ -61,12 +62,15 @@ def _other(seat: str) -> str:
     return "O" if seat == "X" else "X"
 
 
-def _new_engine(cfg: GameConfig, seat: str) -> Engine:
+def _new_engine(
+    cfg: GameConfig, seat: str, stderr_sinks: dict[str, StderrSink]
+) -> Engine:
     return Engine(
         cfg.cmds[seat],
         seat,
         shutdown_grace_ms=cfg.shutdown_grace_ms,
         clock=cfg.clock,
+        stderr_sink=stderr_sinks[seat],
     )
 
 
@@ -119,18 +123,33 @@ def play_game(cfg: GameConfig) -> GameResult:
         raise ValueError("pair_coin_seat must be X or O")
     game_id = cfg.game_seed.hex()
     budgets = {"X": STARTING_BUDGET, "O": STARTING_BUDGET}
-    engines = {seat: _new_engine(cfg, seat) for seat in ("X", "O")}
+    stderr_sinks = {seat: StderrSink(65536) for seat in ("X", "O")}
+    engines = {
+        seat: _new_engine(cfg, seat, stderr_sinks) for seat in ("X", "O")
+    }
     path = Path(cfg.log_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     with path.open("w", encoding="utf-8") as fh:
         log = GameLogWriter(fh)
         try:
-            for engine in engines.values():
-                engine.start()
             parsed_hellos = {}
             hello_records = {}
+            started = set()
             for seat in ("X", "O"):
+                try:
+                    engines[seat].start()
+                except OSError:
+                    parsed = ParsedHello(
+                        "eof_or_crash", None, None, b"", 0, False
+                    )
+                    parsed_hellos[seat] = parsed
+                    hello_records[seat] = hello_record(parsed, 0)
+                else:
+                    started.add(seat)
+            for seat in ("X", "O"):
+                if seat not in started:
+                    continue
                 parsed, elapsed = engines[seat].hello(
                     hello_request(
                         game_id=game_id,
@@ -151,7 +170,7 @@ def play_game(cfg: GameConfig) -> GameResult:
             if hello_faults:
                 result = "void" if len(hello_faults) == 2 else _other(hello_faults[0])
                 return _finish_game(
-                    log, engines, result, "hello_fault", budgets, plies=0
+                    cfg, log, engines, result, "hello_fault", budgets, plies=0
                 )
 
             pos = INITIAL
@@ -246,7 +265,13 @@ def play_game(cfg: GameConfig) -> GameResult:
                                 pos, winner, applied.terminal
                             )
                             return _finish_game(
-                                log, engines, result, reason, budgets, plies=ply + 1
+                                cfg,
+                                log,
+                                engines,
+                                result,
+                                reason,
+                                budgets,
+                                plies=ply + 1,
                             )
 
                         faulters = [
@@ -258,6 +283,7 @@ def play_game(cfg: GameConfig) -> GameResult:
                             failed = _recover_seats(
                                 cfg,
                                 engines,
+                                stderr_sinks,
                                 faulters,
                                 log,
                                 game_id,
@@ -271,6 +297,7 @@ def play_game(cfg: GameConfig) -> GameResult:
                                     "void" if len(failed) == 2 else _other(failed[0])
                                 )
                                 return _finish_game(
+                                    cfg,
                                     log,
                                     engines,
                                     result,
@@ -288,6 +315,7 @@ def play_game(cfg: GameConfig) -> GameResult:
                             )
                         )
                         return _finish_game(
+                            cfg,
                             log,
                             engines,
                             "void",
@@ -299,6 +327,7 @@ def play_game(cfg: GameConfig) -> GameResult:
                     failed = _recover_seats(
                         cfg,
                         engines,
+                        stderr_sinks,
                         ["X", "O"],
                         log,
                         game_id,
@@ -320,6 +349,7 @@ def play_game(cfg: GameConfig) -> GameResult:
                         )
                         result = "void" if len(failed) == 2 else _other(failed[0])
                         return _finish_game(
+                            cfg,
                             log,
                             engines,
                             result,
@@ -357,6 +387,7 @@ def _auction_event(
 def _recover_seats(
     cfg: GameConfig,
     engines: dict[str, Engine],
+    stderr_sinks: dict[str, StderrSink],
     seats: list[str],
     log: GameLogWriter,
     game_id: str,
@@ -370,18 +401,23 @@ def _recover_seats(
         if seat not in seats:
             continue
         engines[seat].kill()
-        engines[seat] = _new_engine(cfg, seat)
-        engines[seat].start()
-        hello, elapsed = engines[seat].hello(
-            hello_request(
-                game_id=game_id,
-                you=seat,
-                time_ms=cfg.time_ms,
-                grace_ms=cfg.grace_ms,
-                budget=budgets[seat],
-            ),
-            cfg.hello_timeout_ms,
-        )
+        engines[seat] = _new_engine(cfg, seat, stderr_sinks)
+        try:
+            engines[seat].start()
+        except OSError:
+            hello = ParsedHello("eof_or_crash", None, None, b"", 0, False)
+            elapsed = 0
+        else:
+            hello, elapsed = engines[seat].hello(
+                hello_request(
+                    game_id=game_id,
+                    you=seat,
+                    time_ms=cfg.time_ms,
+                    grace_ms=cfg.grace_ms,
+                    budget=budgets[seat],
+                ),
+                cfg.hello_timeout_ms,
+            )
         log.emit(
             {
                 "event": "recovery",
@@ -398,6 +434,7 @@ def _recover_seats(
 
 
 def _finish_game(
+    cfg: GameConfig,
     log: GameLogWriter,
     engines: dict[str, Engine],
     result: str,
@@ -408,6 +445,16 @@ def _finish_game(
 ) -> GameResult:
     message = game_end_msg(result=result, reason=reason, budgets=budgets)
     delivery = {seat: engines[seat].finish(message) for seat in ("X", "O")}
+    stderr = {}
+    log_path = Path(cfg.log_path)
+    for seat in ("X", "O"):
+        stderr_path = log_path.with_name(f"{cfg.game_seed.hex()}.{seat}.stderr")
+        stderr_path.write_bytes(engines[seat].stderr)
+        stderr[seat] = {
+            "path": stderr_path.name,
+            "bytes_total": engines[seat].stderr_total,
+            "truncated": engines[seat].stderr_truncated,
+        }
     log.emit(
         {
             "event": "game_end",
@@ -417,6 +464,7 @@ def _finish_game(
             "budget_margin": budgets["X"] - budgets["O"],
             "plies": plies,
             "delivery": delivery,
+            "stderr": stderr,
         }
     )
     return GameResult(result=result, reason=reason, budgets=dict(budgets), plies=plies)

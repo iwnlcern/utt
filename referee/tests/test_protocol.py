@@ -217,3 +217,26 @@ def test_hello_reply_faults_have_bounded_raw_capture(raw, fault):
 
 def test_canonical_dumps_is_compact_unicode_and_key_sorted():
     assert canonical_dumps({"z": "é", "a": [2, 1]}) == '{"a":[2,1],"z":"é"}'
+
+
+def test_nonfinite_json_constant_is_invalid_json_and_never_reemitted():
+    raw = (
+        b'{"type":"turn","protocol":1,"request_id":"g1-p0-a1",'
+        b'"bid":7,"move":[4,2],"info":{"score":NaN}}'
+    )
+
+    assert parse(raw).validation == "invalid_json"
+    with pytest.raises(ValueError):
+        canonical_dumps({"score": float("nan")})
+
+
+def test_escaped_lone_surrogate_is_schema_violation_not_referee_crash():
+    raw = (
+        b'{"type":"turn","protocol":1,"request_id":"g1-p0-a1",'
+        b'"bid":7,"move":[4,2],"info":{"text":"\\ud800"}}'
+    )
+
+    parsed = parse(raw)
+
+    assert parsed.validation == "schema_violation"
+    assert parsed.raw == raw

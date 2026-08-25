@@ -327,6 +327,48 @@ def test_hello_crash_is_forfeit_and_failed_terminal_delivery(tmp_path):
     validate_log(events)
 
 
+def test_spawn_failure_is_logged_as_hello_fault_not_an_incomplete_log(tmp_path):
+    cfg = config(
+        tmp_path,
+        ["/definitely/missing/poorman-engine"],
+        cmd(),
+        name="spawn-failure",
+    )
+
+    result = play_game(cfg)
+    events = read_log(cfg.log_path)
+
+    assert (result.result, result.reason, result.plies) == ("O", "hello_fault", 0)
+    assert events[0]["hellos"]["X"]["validation"] == "eof_or_crash"
+    assert events[-1]["delivery"] == {"X": "failed", "O": "ok"}
+    validate_log(events)
+
+
+def test_stderr_is_persisted_and_capped_across_recovery_generations(tmp_path):
+    cfg = config(
+        tmp_path,
+        cmd("--spam-stderr", "70000", "--fault", "bad_json:1"),
+        cmd(),
+        name="stderr-recovery",
+    )
+
+    play_game(cfg)
+    events = read_log(cfg.log_path)
+    stderr = events[-1]["stderr"]
+    x_path = Path(cfg.log_path).with_name(stderr["X"]["path"])
+    o_path = Path(cfg.log_path).with_name(stderr["O"]["path"])
+
+    assert stderr["X"] == {
+        "path": x_path.name,
+        "bytes_total": 140000,
+        "truncated": True,
+    }
+    assert len(x_path.read_bytes()) == 65536
+    assert stderr["O"]["bytes_total"] == 0
+    assert o_path.read_bytes() == b""
+    validate_log(events)
+
+
 @pytest.mark.parametrize(
     ("name", "extra"),
     [

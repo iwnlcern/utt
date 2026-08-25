@@ -24,6 +24,13 @@
         "author": {"type": "string"},
         "raw": {"$ref": "#/$defs/raw"}
       },
+      "allOf": [
+        {
+          "if": {"properties": {"validation": {"const": "ok"}}, "required": ["validation"]},
+          "then": {"required": ["name", "version"], "not": {"required": ["raw"]}},
+          "else": {"required": ["raw"]}
+        }
+      ],
       "additionalProperties": true
     }
   },

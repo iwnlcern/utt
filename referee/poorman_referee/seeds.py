@@ -11,6 +11,13 @@ def validate_engine_ids(ids: list[str]) -> None:
         raise ValueError("engine ids may not contain byte 0x1f")
 
 
+def validate_tournament_seed(tournament_seed: str) -> None:
+    if not isinstance(tournament_seed, str):
+        raise ValueError("tournament seed must be a string")
+    if "\x1f" in tournament_seed:
+        raise ValueError("tournament seed may not contain byte 0x1f")
+
+
 def pair_order(id1: str, id2: str) -> tuple[str, str]:
     first, second = sorted((id1, id2), key=lambda engine_id: engine_id.encode("utf-8"))
     return first, second
@@ -19,6 +26,8 @@ def pair_order(id1: str, id2: str) -> tuple[str, str]:
 def pair_seed(
     tournament_seed: str, engine_a: str, engine_b: str, round_: int
 ) -> bytes:
+    validate_tournament_seed(tournament_seed)
+    validate_engine_ids([engine_a, engine_b])
     payload = SEP.join(
         (
             tournament_seed.encode("utf-8"),

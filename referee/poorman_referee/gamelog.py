@@ -20,6 +20,12 @@ def _raw_record(raw: bytes | None, total: int | None, truncated: bool | None) ->
 def turn_record(parsed: ParsedReply, elapsed_ms: int) -> dict:
     record = {"validation": parsed.validation, "elapsed_ms": elapsed_ms}
     if parsed.validation != "ok":
+        if parsed.bid is not None:
+            record["bid"] = parsed.bid
+        if parsed.move is not None:
+            record["move"] = list(parsed.move)
+        if parsed.info is not None:
+            record["info"] = parsed.info
         record["raw"] = _raw_record(
             parsed.raw, parsed.raw_total, parsed.raw_truncated
         )
@@ -137,6 +143,7 @@ def replay_frames(events: list[dict]) -> Replay:
 
     frames = []
     seen_plies = set()
+    current_forced = 4
     for expected_ply, auction in enumerate(auctions):
         ply = _required(auction, "ply", "auction")
         if ply != expected_ply:
@@ -157,10 +164,11 @@ def replay_frames(events: list[dict]) -> Replay:
             if not isinstance(resolution, dict):
                 raise ValueError(f"auction ply {ply} missing resolution")
             forced = _required(resolution, "forced_next", f"auction ply {ply} resolution")
+            current_forced = forced
         else:
             if resolution is not None:
                 raise ValueError(f"auction ply {ply} non-resolved outcome has resolution")
-            forced = None
+            forced = current_forced
         frames.append(
             Frame(
                 ply=ply,
