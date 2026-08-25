@@ -72,6 +72,7 @@ std::string fresh_uuid() {
 json identity(const char* argv0, const std::string& session_uuid) {
   return {{"executable_sha256", executable_sha256(argv0)},
           {"compiler", __VERSION__},
+          {"build_type", UTTT_BUILD_TYPE},
           {"compile_flags", UTTT_COMPILE_FLAGS},
           {"cpu", capture_command("/usr/sbin/sysctl -n machdep.cpu.brand_string")},
           {"seeds", kSeeds},
@@ -183,6 +184,9 @@ Options parse_options(int argc, char** argv) {
     throw std::runtime_error("requires nonnegative warmup and at least 10 measured runs");
   }
   if (options.reference && options.out.empty()) throw std::runtime_error("reference needs --out");
+  if (options.candidate && !options.out.empty()) {
+    throw std::runtime_error("candidate does not accept --out");
+  }
   if (options.candidate && (options.baseline.empty() || options.verdict.empty())) {
     throw std::runtime_error("candidate needs --baseline and --out-verdict");
   }
@@ -227,6 +231,9 @@ int main(int argc, char** argv) {
     const bool absolute_pass = candidate <= 100.0;
     const bool pass = ratio_pass && absolute_pass;
     const json verdict = {{"verdict", pass ? "PASS" : "FAIL"},
+                          {"plies_per_run", kPliesPerRun},
+                          {"warmup_runs", options.warmup_runs},
+                          {"measured_runs", options.measured_runs},
                           {"median_ref_ns_per_ply", reference},
                           {"median_cand_ns_per_ply", candidate},
                           {"ratio", candidate / reference},

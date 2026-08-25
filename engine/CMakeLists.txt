@@ -6,7 +6,15 @@ project(uttt_engine CXX)
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-add_compile_options(-std=c++2c -Wall -Wextra -Werror)
+set(UTTT_COMPILE_OPTIONS -Wall -Wextra -Werror -O3)
+add_compile_options(${UTTT_COMPILE_OPTIONS})
+
+string(TOUPPER "${CMAKE_BUILD_TYPE}" UTTT_BUILD_TYPE_UPPER)
+set(UTTT_CONFIG_CXX_FLAGS "${CMAKE_CXX_FLAGS_${UTTT_BUILD_TYPE_UPPER}}")
+list(JOIN UTTT_COMPILE_OPTIONS " " UTTT_COMPILE_OPTIONS_TEXT)
+set(UTTT_COMPILE_FLAGS_VALUE
+  "${CMAKE_CXX_FLAGS} ${UTTT_CONFIG_CXX_FLAGS} -std=c++${CMAKE_CXX_STANDARD} ${UTTT_COMPILE_OPTIONS_TEXT}")
+string(STRIP "${UTTT_COMPILE_FLAGS_VALUE}" UTTT_COMPILE_FLAGS_VALUE)
 
 add_library(uttt_core
   src/core/local_table.cpp
@@ -38,9 +46,9 @@ target_include_directories(uttt_engine PRIVATE third_party)
 add_executable(uttt_bench bench/bench_playout.cpp)
 target_link_libraries(uttt_bench PRIVATE uttt_core)
 target_include_directories(uttt_bench PRIVATE third_party)
-target_compile_options(uttt_bench PRIVATE -O3)
 target_compile_definitions(uttt_bench PRIVATE
-  UTTT_COMPILE_FLAGS="-std=c++2c -O3 -Wall -Wextra -Werror")
+  UTTT_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
+  UTTT_COMPILE_FLAGS="${UTTT_COMPILE_FLAGS_VALUE}")
 
 enable_testing()
 add_test(NAME unit COMMAND uttt_tests)
