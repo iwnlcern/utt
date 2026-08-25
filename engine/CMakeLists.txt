@@ -37,3 +37,8 @@ target_include_directories(uttt_engine PRIVATE third_party)
 
 enable_testing()
 add_test(NAME unit COMMAND uttt_tests)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME e2e COMMAND ${Python3_EXECUTABLE}
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_engine_e2e.py
+  $<TARGET_FILE:uttt_engine>
+  ${CMAKE_CURRENT_SOURCE_DIR}/..)
