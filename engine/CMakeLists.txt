@@ -35,6 +35,13 @@ add_executable(uttt_engine
 target_link_libraries(uttt_engine PRIVATE uttt_core)
 target_include_directories(uttt_engine PRIVATE third_party)
 
+add_executable(uttt_bench bench/bench_playout.cpp)
+target_link_libraries(uttt_bench PRIVATE uttt_core)
+target_include_directories(uttt_bench PRIVATE third_party)
+target_compile_options(uttt_bench PRIVATE -O3)
+target_compile_definitions(uttt_bench PRIVATE
+  UTTT_COMPILE_FLAGS="-std=c++2c -O3 -Wall -Wextra -Werror")
+
 enable_testing()
 add_test(NAME unit COMMAND uttt_tests)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
