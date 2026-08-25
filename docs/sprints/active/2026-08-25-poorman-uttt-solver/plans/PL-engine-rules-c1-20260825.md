@@ -1,5 +1,7 @@
 # Engine Rules Core Implementation Plan (PL-engine-rules-c1-20260825)
 
+Revision 3 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-3` (relay 094459), all five groups: MR1 base preflight replaced with object-existence + ancestry + engine-surface-diff checks (main-equality was self-invalid) and mechanical staged-set proof via `git diff --cached --name-only`; MR2 CMake pin comment corrected, Task 2 test includes its seam headers, and a mechanical all-closed totality fixture added beside the macro-win case; MR3 Zobrist sensitivity rebuilt as single-input isolation over the full population for BOTH the 64-bit key and the independent 32-bit tag; MR4 strict `game_end` required-field/enum/budget validation, the 32 KiB line ceiling, and a full binary round-trip corpus test validating emitted replies; MR5 the reference baseline is committed BEFORE any candidate run, with identity refusal preserving the same-session proof.
+
 Revision 2 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-1` (relay 090632), all eight groups: PR1 exact base lock + gitignore-first + explicit staging; PR2 normative bit order with final literals, pinned macro-win sequence, exact RefPosition, from_parts as the mechanical builder; PR3 both dependencies pinned by version/URL/sha256 and vendored in Task 1 before any consumer, JSON boundary restated; PR4 RootContext + winner_on_chips production seam and the DD clock seam brought IN scope (Task 2); PR5 independent secondary Zobrist table + full-population sensitivity tests; PR6 complete ImportError classes, all three message types validated, conformance-corpus consumption with honest pending state; PR7 single-session acceptance benchmark with identity capture, warmup separate from ≥ 10 measured runs, and a refusing --verify mode; PR8 acceptance truth table replacing the overclaiming sweep.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -26,8 +28,8 @@ Consumed owner contracts: harness protocol v1 = DD-harness-c1-20260825 @ 11ac4ef
 - Rules follow the design spec canonical rules AS LOCKED in the DD; if any task step seems to contradict the DD, the DD wins and the conflict is a blocker relay, not a local fix.
 - Long .md files put full sentences on their own lines.
 - Commits: small, per task step as marked; never claim a fix without the named test output.
-- Branch (PR1, exact base lock): at IMPL start run `git rev-parse main` and REQUIRE `63b4b7b...` (the dispatched BASE); if main has moved, STOP and relay to the orchestrator for a fresh BASE instead of rebasing silently. Then `git switch -c engine/rules-core-c1 63b4b7b`. Never commit to `main`.
-- Staging discipline (PR1): never `git add engine/` broadly; stage explicit paths listed in each commit step; before every commit run `git status --short` and REQUIRE no `engine/build/` path staged (the build tree is gitignored in Task 1 before the first configure). `engine/bench/baseline.json` is intentionally trackable.
+- Branch (PR1 as corrected by MR1 — main-equality is unusable because sprint-document commits legitimately advance main): at IMPL start prove the dispatched BASE object is still safe with exactly these three checks — (1) `git cat-file -e 63b4b7b^{commit}` succeeds; (2) `git merge-base --is-ancestor 63b4b7b main` succeeds; (3) `git diff --name-only 63b4b7b..main -- engine/` prints NOTHING (the engine surface is untouched since the dispatched base). If any check fails, STOP and relay to s1.orchestrator-planner for a successor BASE — never float the base silently. On success: `git switch -c engine/rules-core-c1 63b4b7b`. Never commit to `main`.
+- Staging discipline (PR1/MR1, mechanical): stage the exact FILES named in each commit step (`git add <file> <file> ...`, no bare directories); then prove the staged set with `git diff --cached --name-only` — REQUIRE every printed path is in the step's named list and REQUIRE `git diff --cached --name-only | grep -c '^engine/build/'` prints 0. `engine/bench/baseline.json` is intentionally trackable.
 
 ## File Structure
 
@@ -98,7 +100,9 @@ nlohmann/json is vendored NOW so Task 9's fixture reader (its first consumer) ne
 ```cmake
 cmake_minimum_required(VERSION 3.28)
 project(uttt_engine CXX)
-# doctest 2.4.x vendored; nlohmann/json vendored in Task 10.
+# Vendored (Task 1, pinned): doctest v2.4.12 sha256 94029a7d32da24a56249658147dbd2b33ff0b9ed665295cbbaf19aafff5b0ced
+#                            nlohmann/json v3.12.0 sha256 aaf127c04cb31c406e5b04a63f1ae89369fccde6d8fa7cdda1ed4f32dfc5de63
+# nlohmann is linked into adapter/test targets ONLY, never uttt_core.
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -204,6 +208,8 @@ inline constexpr std::array<uint16_t, 8> kWinLines = {
 ```c++
 #include "doctest/doctest.h"
 #include "core/types.hpp"
+#include "core/budget.hpp"
+#include "core/clock.hpp"
 using namespace uttt;
 TEST_CASE("types basics") {
   CHECK(opponent(Seat::X) == Seat::O);
@@ -469,12 +475,25 @@ TEST_CASE("closure, routing, closed-board ANY") {
   MoveList ml; p.legal_moves(ml);
   for (int i = 0; i < ml.n; ++i) CHECK(((p.closed >> ml.m[i].board) & 1) == 0);
 }
-TEST_CASE("terminal totality (M2)") {
+TEST_CASE("terminal totality (M2): macro win") {
   auto t = make_macro_win_x();
   CHECK(t.terminal() == TerminalKind::MacroWinX);
   MoveList ml; t.legal_moves(ml);
   CHECK(ml.n == 0);
   CHECK(t.applied({8, 8}, Seat::O).error() == ApplyError::TerminalParent);
+}
+TEST_CASE("terminal totality (M2/MR2): all-closed, mechanical fixture, no theory dependency") {
+  // Every local board is the hand-verified valid full-draw from Task 3:
+  // x = 0b011100011, o = 0b100011100 (XXO/OOX/XXO). Nine full-draw locals ->
+  // closed == 0x1FF, no macro line, terminal AllClosed. forced must be ANY
+  // (every board closed); tie X arbitrary.
+  std::array<uint16_t, 9> ax{}, ao{};
+  ax.fill(0b011100011); ao.fill(0b100011100);
+  auto t = Position::from_parts(ax, ao, kForcedAny, TieState::X).value();
+  CHECK(t.terminal() == TerminalKind::AllClosed);
+  MoveList ml; t.legal_moves(ml);
+  CHECK(ml.n == 0);
+  CHECK(t.applied({0, 0}, Seat::X).error() == ApplyError::TerminalParent);
 }
 ```
 
@@ -582,49 +601,51 @@ uint32_t zobrist_tag_full(const Position& p);  // secondary recompute (future TT
 
 ```c++
 TEST_CASE("incremental key == full recompute along random games") { /* reuse Task 6 loop; REQUIRE p.key == zobrist_full(p) each ply */ }
-TEST_CASE("primary and secondary sensitivity: EVERY input, via from_parts") {
-  // Baseline: empty board, forced 4, NullFirstMove.
+TEST_CASE("single-input isolation, BOTH hash functions, FULL population (MR3)") {
+  // Every comparison below differs in EXACTLY ONE declared identity input.
   std::array<uint16_t, 9> zx{}, zo{};
-  auto base = Position::from_parts(zx, zo, 4, TieState::NullFirstMove).value();
-  // (a) every cell x every seat: 162 single-mark variants
+  // Common frame for cell/seat isolation: forced 4, tie O, held constant.
+  auto base = Position::from_parts(zx, zo, 4, TieState::O).value();
   for (int b = 0; b < 9; ++b) for (int c = 0; c < 9; ++c) {
     auto mx = zx; mx[b] = uint16_t(1u << c);
-    auto px = Position::from_parts(mx, zo, 4, TieState::O).value();
+    auto px = Position::from_parts(mx, zo, 4, TieState::O).value();   // + X mark only
     auto mo = zo; mo[b] = uint16_t(1u << c);
-    auto po = Position::from_parts(zx, mo, 4, TieState::X).value();
-    CHECK(px.key != base.key); CHECK(po.key != base.key); CHECK(px.key != po.key);
+    auto po = Position::from_parts(zx, mo, 4, TieState::O).value();   // + O mark only
+    // cell-entry isolation: base vs marked (tie and forced identical)
+    CHECK(px.key != base.key);
+    CHECK(po.key != base.key);
+    CHECK(zobrist_tag_full(px) != zobrist_tag_full(base));
+    CHECK(zobrist_tag_full(po) != zobrist_tag_full(base));
+    // seat-entry isolation: same cell, same tie, same forced, owner differs
+    CHECK(px.key != po.key);
     CHECK(zobrist_tag_full(px) != zobrist_tag_full(po));
   }
-  // (b) all ten forced states pairwise-distinct on otherwise-equal positions
-  //     (board 4 marked once so tie != Null is importable; forced must name an
-  //      open board or ANY — all boards open here)
-  std::array<uint16_t, 9> one{}; one[4] = 1;  // X at (4,0)
-  std::array<uint64_t, 10> keys{};
-  for (int f = 0; f < 9; ++f)
-    keys[f] = Position::from_parts(one, zo, int8_t(f), TieState::O).value().key;
-  keys[9] = Position::from_parts(one, zo, kForcedAny, TieState::O).value().key;
-  for (int i = 0; i < 10; ++i) for (int j = i + 1; j < 10; ++j) CHECK(keys[i] != keys[j]);
-  // (c) all three tie states distinct (empty board admits NullFirstMove;
-  //      marked board admits X/O)
-  auto tn = base.key;
-  auto tx = Position::from_parts(one, zo, 4, TieState::X).value().key;
-  auto to = Position::from_parts(one, zo, 4, TieState::O).value().key;
-  CHECK(tx != to);
-  CHECK(tn != tx); CHECK(tn != to);   // differ in cell AND tie; the pure tie pair is tx vs to
-}
-TEST_CASE("secondary tag is not a fold of the primary") {
-  // Structural guarantee is by construction (independent table); assert the
-  // observable consequence on the (b) population: equal-tag pairs are not
-  // forced by equal-key pairs — spot-check that tag differences occur across
-  // the forced-state variants too.
-  std::array<uint16_t, 9> one{}; one[4] = 1; std::array<uint16_t, 9> zo{};
-  auto a = Position::from_parts(one, zo, 0, TieState::O).value();
-  auto b = Position::from_parts(one, zo, 1, TieState::O).value();
-  CHECK(zobrist_tag_full(a) != zobrist_tag_full(b));
+  // Forced isolation: identical empty board + tie O; all ten forced values
+  // pairwise for BOTH functions (every board open, so 0..8 and ANY all import).
+  std::array<uint64_t, 10> k{}; std::array<uint32_t, 10> g{};
+  for (int f = 0; f < 9; ++f) {
+    auto p = Position::from_parts(zx, zo, int8_t(f), TieState::O).value();
+    k[f] = p.key; g[f] = zobrist_tag_full(p);
+  }
+  { auto p = Position::from_parts(zx, zo, kForcedAny, TieState::O).value();
+    k[9] = p.key; g[9] = zobrist_tag_full(p); }
+  for (int i = 0; i < 10; ++i) for (int j = i + 1; j < 10; ++j) {
+    CHECK(k[i] != k[j]); CHECK(g[i] != g[j]);
+  }
+  // Tie isolation: identical EMPTY board + forced 4; all three tie values
+  // pairwise for BOTH functions (empty board admits NullFirstMove, and X/O
+  // on an empty board import — only Null-with-marks is rejected).
+  auto tn = Position::from_parts(zx, zo, 4, TieState::NullFirstMove).value();
+  auto tx = Position::from_parts(zx, zo, 4, TieState::X).value();
+  auto to = Position::from_parts(zx, zo, 4, TieState::O).value();
+  CHECK(tn.key != tx.key); CHECK(tn.key != to.key); CHECK(tx.key != to.key);
+  CHECK(zobrist_tag_full(tn) != zobrist_tag_full(tx));
+  CHECK(zobrist_tag_full(tn) != zobrist_tag_full(to));
+  CHECK(zobrist_tag_full(tx) != zobrist_tag_full(to));
 }
 ```
 
-`from_parts` (Task 5) is the mechanical builder here — no routing invention (PR2).
+`from_parts` (Task 5) is the mechanical builder — no routing invention (PR2); every pairing above isolates exactly one input, and both the 64-bit key and the independent 32-bit tag are exercised over all 162 cell/seat entries, all ten forced entries, and all three tie entries (MR3).
 
 - [ ] **Step 2: Run to verify failure.** **Step 3: Implement tables + full recompute + incremental maintenance.** **Step 4: Build + ctest.** **Step 5: Commit** `"engine: stable-seed Zobrist keying, incremental == recompute, per-input sensitivity"`.
 
@@ -739,9 +760,10 @@ struct PlaceholderPolicy final : Policy { wire::TurnReply choose(const wire::Tur
 
 - Validation in `parse_turn` (DD §6): protocol major == 1; board strings shape 9×9 over `./X/O`; budgets in [0, 10^9] ints; `tie_owner` null only at ply 0; `forced` null ↔ `kForcedAny`; build Position via `Position::from_parts` (every ImportError class fails closed); CROSS-CHECK the request's `legal` list against own `legal_moves` — mismatch is fail-closed (return error, log diff to stderr).
 - Validation in `parse_hello` (PR6): protocol major == 1; `you` ∈ {"X","O"}; required numeric fields present and non-negative.
-- `validate_game_end` (PR6): type/protocol checked strictly; payload fields tolerated (unknown-key rule) — a malformed game_end is a stderr diagnostic, not a crash.
+- `validate_game_end` (PR6 as corrected by MR4): STRICT on required fields per the owner schema — `type`, `protocol`, required `result`, `reason` from the schema's enum, canonical X/O `budgets` in range — each missing/type-invalid required key fails closed; unknown keys remain ignored. A failing game_end is a stderr diagnostic + no stdout, not a crash.
+- Line ceiling (MR4, owner framing rule): the read loop rejects any input line exceeding 32 KiB before parsing (fail-closed, stderr diagnostic, no stdout).
 - `main.cpp` loop: read lines; classify; `hello` → validate, reply hello; `turn` → parse, `policy.choose(req, clock)` with a `SteadyClock`, serialize (echo `request_id`), write single line, flush; `game_end` → validate, exit 0; parse error → stderr diagnostic, NO stdout line, continue; EOF → exit 0.
-- Conformance corpus (PR6): the harness-owned schemas/normative transcript land under `docs/protocol/` per the harness DD. Add a corpus-driven test that replays every referee→engine line of the normative transcript through classify/parse (expect: all parse clean) IF the corpus exists; if absent, the test FAILS with "harness conformance corpus not present — criterion 3 pending" unless env `UTTT_ALLOW_MISSING_CORPUS=1` (same honesty pattern as Task 9; acceptance runs unset it).
+- Conformance corpus ROUND-TRIP (PR6 as corrected by MR4): the harness-owned schemas/normative transcript land under `docs/protocol/` per the harness DD. The corpus test (extends `test_engine_e2e.py`) drives the BINARY: feed every referee→engine line of the normative transcript in order on stdin; capture every engine→referee line from stdout; validate each EMITTED line against the owner reply schema (required keys/types, `request_id` echo matching the corresponding request, `move` ∈ that request's `legal`, `bid` in range) and each INCOMING line through classify/parse; assert stdout discipline throughout (exactly one line per hello/turn request, none otherwise). Only this full round-trip may report green. If the corpus is absent, the test FAILS with "harness conformance corpus not present — criterion 3 pending-blocked" unless env `UTTT_ALLOW_MISSING_CORPUS=1` (same honesty pattern as Task 9; acceptance runs unset it).
 
 - [ ] **Step 1: Write failing wire tests** — round-trip the harness DD's literal ply-0 turn-request line (forced 4, tie_owner null); parse_hello on the DD's hello line; validate_game_end happy + wrong-type cases; legal-list cross-check failure on a doctored list; missing `request_id` fails closed; tie_owner "X" at ply 1 parses, tie_owner null at ply 1 fails; reply serialization echoes request_id and always emits `move`; unknown keys ignored; corpus test wired per the note above.
 - [ ] **Step 2: Run to verify failure. Implement wire.cpp + policy + main.** **Step 3: Build + ctest.** **Step 4: Commit** `"engine: protocol v1 adapter (hello/turn/game_end), fail-closed validation, placeholder policy"`.
@@ -775,13 +797,16 @@ struct PlaceholderPolicy final : Policy { wire::TurnReply choose(const wire::Tur
 - Create: `engine/bench/bench_playout.cpp`, `engine/bench/README.md`
 - Modify: `engine/CMakeLists.txt` (target `uttt_bench`, RelWithDebInfo/-O3)
 
-**Interfaces (DD §2 ordering rule + §13 criterion 4; PR7 session mechanics):**
-- One acceptance command, single process, single session: `uttt_bench --acceptance --measured-runs 10 --warmup-runs 2 --out engine/bench/baseline.json`. In-process order: (1) capture identity — own executable sha256 (hash argv[0] bytes), `__VERSION__`, compile flags (baked in via a CMake-configured header), `sysctl machdep.cpu.brand_string`, fixed seed list, and a fresh session UUID; (2) run the REFERENCE (naive::RefPosition) — 2 warmup runs discarded, then EXACTLY the requested ≥ 10 MEASURED runs (warmup is additional to, never subtracted from, the measured count — PR7), each run ≥ 2,000,000 plies of fixed-seed full playouts, `asm volatile` sinks on every result; (3) WRITE `baseline.json` = {median_ref_ns_per_ply, per-run values, identity block, session UUID}; (4) run the CANDIDATE (optimized Position) with the same warmup/measured discipline in the same process; (5) verdict: PASS iff median_cand ≤ 1.0 × median_ref AND median_cand ≤ 100.0, printed with both medians, exit nonzero on FAIL. The candidate code path can never write or influence step 3's file (write completes before step 4 begins), satisfying reference-first with same-binary/same-flags/same-session identity by construction.
-- Re-verification mode `--verify --baseline engine/bench/baseline.json`: recomputes the identity block and REFUSES (exit nonzero, no measurement) on any mismatch of executable digest, compiler, flags, or CPU string; on match, reruns candidate-only against the stored median. This is the regression-guard entry point for later commits.
+**Interfaces (DD §2 ordering rule + §13 criterion 4; PR7 session mechanics as corrected by MR5 — the baseline is COMMITTED before any candidate acceptance):**
+- Identity block (shared by both modes, baked via a CMake-configured header): own executable sha256 (hash argv[0] bytes), `__VERSION__`, compile flags, `sysctl machdep.cpu.brand_string`, fixed seed list, session UUID.
+- `uttt_bench --reference --measured-runs 10 --warmup-runs 2 --out engine/bench/baseline.json`: measures the NAIVE path only — warmup runs discarded and ADDITIONAL to the ≥ 10 measured runs (PR7), each run ≥ 2,000,000 plies of fixed-seed full playouts, `asm volatile` sinks — then writes `baseline.json` = {median_ref_ns_per_ply, per-run values, identity block, fresh session UUID}. It contains no candidate code path.
+- `uttt_bench --candidate --baseline engine/bench/baseline.json`: opens the baseline READ-ONLY; recomputes the identity block and REFUSES (exit nonzero, no measurement) on any mismatch of executable digest, compiler, flags, or CPU string — same binary/flags/harness/environment is thereby proven, and the session continuity is the baseline's UUID echoed into the verdict output; measures the optimized Position path with the same warmup/measured discipline; verdict: PASS iff median_cand ≤ 1.0 × median_ref AND median_cand ≤ 100.0, both medians and the UUID printed, exit nonzero on FAIL. This mode cannot write the baseline (no write path exists in it).
+- ORDER (MR5, mechanical): `--reference` → `git add engine/bench/baseline.json` + commit → `--candidate` back-to-back against the just-committed artifact. The baseline is durably in history BEFORE the candidate gate, so a candidate FAIL leaves the reference evidence committed for diagnosis; the identity refusal preserves the DD's same-session/same-binary proof across the intervening docs-only commit.
 
 - [ ] **Step 1: Write bench_playout.cpp** (modes share the playout driver via a template on the position type; identity header configured by CMake).
-- [ ] **Step 2: Build; run --acceptance; commit `engine/bench/baseline.json` together with the PASS verdict pasted into the commit message body** `"engine: benchmark acceptance PASS — reference-first baseline + both predicates, same session"`. If FAIL: stop, do not tune the predicate; profile, fix, re-run; the predicate changes only via a design amendment.
-- [ ] **Step 3: Write bench/README.md** documenting the methodology (identity capture, warmup separate from ≥ 10 measured runs, seeds, flags, cpu capture, --verify refusal rules, fixture/corpus env vars) in full sentences on their own lines.
+- [ ] **Step 2: Build; run --reference; COMMIT the baseline immediately** `"engine: benchmark reference baseline (naive path, warmup+10 measured, identity captured)"` — this commit precedes any candidate run.
+- [ ] **Step 3: Run --candidate against the committed baseline; paste the verdict (both medians + UUID) into the commit message body** `"engine: benchmark candidate PASS vs committed baseline (ratio + absolute ceiling)"`. If FAIL: stop, do not tune the predicate; profile, fix, re-run --candidate (the committed baseline stands); the predicate changes only via a design amendment.
+- [ ] **Step 4: Write bench/README.md** documenting the methodology (identity capture + refusal rules, warmup separate from ≥ 10 measured runs, seeds, flags, cpu capture, reference-commit-then-candidate ordering, fixture/corpus env vars) in full sentences on their own lines.
 
 ---
 
@@ -794,7 +819,7 @@ struct PlaceholderPolicy final : Policy { wire::TurnReply choose(const wire::Tur
 criterion 1 (theory fixtures)        -> green-E2 | pending-blocked (ls theory/fixtures output)
 criterion 2 (properties/table/perft) -> green-E2 (no owner dependency)
 criterion 3 (adapter + corpus)       -> green-E2 | pending-blocked (ls docs/protocol output)
-criterion 4 (benchmark predicate)    -> green-E2 (bench --acceptance verdict)
+criterion 4 (benchmark predicate)    -> green-E2 (bench --candidate verdict vs the committed baseline)
 criterion 5                          -> deferred by design (theory Stage-1 + successor DD)
 ```
 
