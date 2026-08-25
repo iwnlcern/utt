@@ -74,3 +74,36 @@ def solve() -> dict[tuple[str, str], Node]:
             )
 
     return solved
+
+
+def root_pair(
+    solved: dict[tuple[str, str], Node], center_forced: bool = False
+) -> tuple[Fraction, Fraction]:
+    """Return the two conditional root thresholds without valuing a hidden coin."""
+    board = "." * 9
+    moves = (4,) if center_forced else R.legal_moves(board)
+    x_children = [
+        (threshold(R.apply_move(board, cell, R.X), R.O, solved), cell)
+        for cell in moves
+    ]
+    o_children = [
+        (threshold(R.apply_move(board, cell, R.O), R.X, solved), cell)
+        for cell in moves
+    ]
+    a = min(x_children, key=lambda item: item[0])[0]
+    b = max(o_children, key=lambda item: item[0])[0]
+    return tuple(sorted(backup(a, b, h)[0] for h in (R.X, R.O)))
+
+
+def kalai_report(solved: dict[tuple[str, str], Node]) -> dict[str, Fraction]:
+    """Report root budget ratios alongside E0's approximate 101.84:100 target.
+
+    The E0 target is context only; this report makes no agreement claim.
+    """
+    T_lo, T_hi = root_pair(solved)
+    return {
+        "T_lo": T_lo,
+        "T_hi": T_hi,
+        "ratio_lo": T_lo / (1 - T_lo),
+        "ratio_hi": T_hi / (1 - T_hi),
+    }
