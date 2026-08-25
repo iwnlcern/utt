@@ -15,7 +15,8 @@ add_library(uttt_core
 target_include_directories(uttt_core PUBLIC src)
 
 add_executable(uttt_tests
-  tests/test_smoke.cpp)
+  tests/test_smoke.cpp
+  tests/test_types.cpp)
 target_link_libraries(uttt_tests PRIVATE uttt_core)
 target_include_directories(uttt_tests PRIVATE third_party)
 
