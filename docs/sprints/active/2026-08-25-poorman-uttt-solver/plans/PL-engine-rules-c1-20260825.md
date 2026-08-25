@@ -1,5 +1,7 @@
 # Engine Rules Core Implementation Plan (PL-engine-rules-c1-20260825)
 
+Revision 5 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-5` (relay 143850), both residuals: MR1-R2 every test-adding task's Files block and expected staged set now carries `Modify: engine/CMakeLists.txt`, and the smoke test is deterministically RETAINED (no optional deletion); MR4-R2 `result` is named an enum ({"X","O","draw","void"}) in the interface, budgets are pinned as a JSON object with integer canonical X/O values, and the negative battery adds well-typed out-of-enum result, type-invalid reason, non-object budgets, and non-integer/type-invalid budget-value cases.
+
 Revision 4 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-4` (relay 100509), all three residuals: MR1-R Task 1 commit lists every literal file (placeholder .cpp included) and the staged-set proof is exact sorted equality, not subset membership, with the pattern binding every later commit; MR4-R the `validate_game_end` interface comment states strict owner-schema validation and the test battery names one negative case per required-field class plus 32 KiB boundary tests proving pre-parse rejection; MR5-R Task 12 has an explicit three-commit topology (harness source → baseline.json only → candidate-verdict.json durable artifact on PASS, never on FAIL).
 
 Revision 3 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-3` (relay 094459), all five groups: MR1 base preflight replaced with object-existence + ancestry + engine-surface-diff checks (main-equality was self-invalid) and mechanical staged-set proof via `git diff --cached --name-only`; MR2 CMake pin comment corrected, Task 2 test includes its seam headers, and a mechanical all-closed totality fixture added beside the macro-win case; MR3 Zobrist sensitivity rebuilt as single-input isolation over the full population for BOTH the 64-bit key and the independent 32-bit tag; MR4 strict `game_end` required-field/enum/budget validation, the 32 KiB line ceiling, and a full binary round-trip corpus test validating emitted replies; MR5 the reference baseline is committed BEFORE any candidate run, with identity refusal preserving the same-session proof.
@@ -174,7 +176,9 @@ Every later commit step follows the same pattern: its named file list IS the exp
 - Create: `engine/src/core/types.hpp`
 - Create: `engine/src/core/budget.hpp`
 - Create: `engine/src/core/clock.hpp`
-- Create: `engine/tests/test_types.cpp` (add to `uttt_tests` sources; do the same for every later test file)
+- Create: `engine/tests/test_types.cpp`
+- Modify: `engine/CMakeLists.txt` (add the test source to `uttt_tests` — this Modify line and staged-set membership repeat for EVERY task that adds a test file; MR1-R2)
+- Note (MR1-R2 determinism): `engine/tests/test_smoke.cpp` is RETAINED permanently; no task deletes it, so no expected set ever carries a deletion.
 
 **Additional produced interfaces (locked DD seams):**
 
@@ -260,6 +264,7 @@ Written FIRST and from the rules text only — do not consult `local_table.cpp` 
 **Files:**
 - Create: `engine/src/core/naive_local.hpp`
 - Create: `engine/tests/test_naive_local.cpp`
+- Modify: `engine/CMakeLists.txt` (add the test source)
 
 **Interfaces:**
 - Produces:
@@ -346,6 +351,7 @@ These literals are final; do not re-derive them at IMPL.
 **Files:**
 - Create: `engine/src/core/local_table.hpp`, fill `engine/src/core/local_table.cpp`
 - Create: `engine/tests/test_local_table.cpp`
+- Modify: `engine/CMakeLists.txt` (add the test source)
 
 **Interfaces:**
 - Produces:
@@ -410,6 +416,7 @@ TEST_CASE("ternary code round-trip") {
 **Files:**
 - Create: `engine/src/core/position.hpp`, fill `engine/src/core/position.cpp`
 - Create: `engine/tests/test_position.cpp`
+- Modify: `engine/CMakeLists.txt` (add the test source)
 
 **Interfaces:**
 - Produces:
@@ -545,6 +552,7 @@ static Position make_macro_win_x() {
 **Files:**
 - Create: `engine/src/core/naive_position.hpp`
 - Create: `engine/tests/test_lifecycle.cpp`
+- Modify: `engine/CMakeLists.txt` (add the test source)
 
 **Interfaces:**
 - Produces:
@@ -593,6 +601,7 @@ Write the loop concretely: collect both move lists, sort by (board, cell), compa
 - Create: `engine/src/core/zobrist.hpp`, fill `engine/src/core/zobrist.cpp`
 - Modify: `engine/src/core/position.cpp` (initial() and applied() maintain `key`)
 - Create: `engine/tests/test_zobrist.cpp`
+- Modify: `engine/CMakeLists.txt` (add the test source)
 
 **Interfaces:**
 - Produces:
@@ -672,6 +681,7 @@ TEST_CASE("single-input isolation, BOTH hash functions, FULL population (MR3)") 
 
 **Files:**
 - Create: `engine/tests/test_perft.cpp`
+- Modify: `engine/CMakeLists.txt` (add the test source)
 
 **Interfaces:**
 - Consumes: `Position`, `MoveList`.
@@ -700,6 +710,7 @@ These are regression pins (they detect movegen/apply drift), not external truths
 
 **Files:**
 - Create: `engine/tests/test_fixtures.cpp`
+- Modify: `engine/CMakeLists.txt` (add the test source; link the pinned nlohmann header to this TEST target only)
 
 **Interfaces:**
 - Consumes: theory fixture schema v1 (DD-theory-c1 §3): files under `theory/fixtures/*.json`, shape `{"schema_version": 1, "game": "uttt" | "ttt3", "fixtures": [...]}`; categories consumed NOW: legality (`expected_legal_moves`), closure/routing (`move` + expected closure set + next `forced` + terminal flag), terminal (expected result + chip margin — engine checks board-side facts only; chip margins are budget-layer, asserted as pure comparisons on the fixture's stated margins: positive → X, negative → O, zero → draw). Threshold and auction-trace categories are OUT of scope (search/budget math is successor-DD).
@@ -761,7 +772,7 @@ enum class MsgType { Hello, Turn, GameEnd };
 std::expected<MsgType, std::string> classify(std::string_view line);
 std::expected<HelloRequest, std::string> parse_hello(std::string_view line);
 std::expected<TurnRequest, std::string> parse_turn(std::string_view line);
-std::expected<void, std::string> validate_game_end(std::string_view line);  // STRICT owner-schema validation: required result, enum reason, canonical in-range X/O budgets all fail-closed; unknown keys ignored (MR4-R)
+std::expected<void, std::string> validate_game_end(std::string_view line);  // STRICT owner-schema validation (MR4-R/MR4-R2): required result ENUM {"X","O","draw","void"}; required reason ENUM per owner schema; budgets must be a JSON object with exactly canonical X/O keys whose values are JSON INTEGERS in [0, 10^9]; every missing or type-invalid required key fails closed; unknown keys ignored
 std::string serialize_reply(const TurnReply&);
 std::string serialize_hello();
 }
@@ -782,7 +793,7 @@ struct PlaceholderPolicy final : Policy { wire::TurnReply choose(const wire::Tur
 - `main.cpp` loop: read lines; classify; `hello` → validate, reply hello; `turn` → parse, `policy.choose(req, clock)` with a `SteadyClock`, serialize (echo `request_id`), write single line, flush; `game_end` → validate, exit 0; parse error → stderr diagnostic, NO stdout line, continue; EOF → exit 0.
 - Conformance corpus ROUND-TRIP (PR6 as corrected by MR4): the harness-owned schemas/normative transcript land under `docs/protocol/` per the harness DD. The corpus test (extends `test_engine_e2e.py`) drives the BINARY: feed every referee→engine line of the normative transcript in order on stdin; capture every engine→referee line from stdout; validate each EMITTED line against the owner reply schema (required keys/types, `request_id` echo matching the corresponding request, `move` ∈ that request's `legal`, `bid` in range) and each INCOMING line through classify/parse; assert stdout discipline throughout (exactly one line per hello/turn request, none otherwise). Only this full round-trip may report green. If the corpus is absent, the test FAILS with "harness conformance corpus not present — criterion 3 pending-blocked" unless env `UTTT_ALLOW_MISSING_CORPUS=1` (same honesty pattern as Task 9; acceptance runs unset it).
 
-- [ ] **Step 1: Write failing wire tests** — round-trip the harness DD's literal ply-0 turn-request line (forced 4, tie_owner null); parse_hello on the DD's hello line; legal-list cross-check failure on a doctored list; missing `request_id` fails closed; tie_owner "X" at ply 1 parses, tie_owner null at ply 1 fails; reply serialization echoes request_id and always emits `move`; unknown keys ignored; corpus test wired per the note above. `validate_game_end` negative battery (MR4-R), one named case per required-field class: happy case passes; wrong `type` fails; missing `result` fails; type-invalid `result` fails; `reason` absent fails; `reason` outside the owner enum fails; `budgets` missing fails; `budgets` keyed other than canonical X/O fails; either budget out of [0, 10^9] fails; an extra unknown key still passes. Line-framing boundary tests (MR4-R): a line of exactly the 32 KiB maximum is accepted into parsing; a line one byte over is rejected BEFORE JSON parsing (prove via a deliberately malformed oversize payload that would throw in the parser — rejection must come from the length check) with a stderr diagnostic and no stdout.
+- [ ] **Step 1: Write failing wire tests** — round-trip the harness DD's literal ply-0 turn-request line (forced 4, tie_owner null); parse_hello on the DD's hello line; legal-list cross-check failure on a doctored list; missing `request_id` fails closed; tie_owner "X" at ply 1 parses, tie_owner null at ply 1 fails; reply serialization echoes request_id and always emits `move`; unknown keys ignored; corpus test wired per the note above. `validate_game_end` negative battery (MR4-R/MR4-R2), one named case per required-field class: happy case passes; wrong `type` fails; missing `result` fails; type-invalid `result` (number) fails; well-typed OUT-OF-ENUM `result` (`"Q"`) fails; `reason` absent fails; type-invalid `reason` (number) fails; `reason` outside the owner enum fails; `budgets` missing fails; `budgets` non-object (array, string) fails; `budgets` keyed other than canonical X/O fails; non-integer budget value (`1.5`) fails; type-invalid budget value (`"5"`) fails; either budget out of [0, 10^9] fails; an extra unknown key still passes. Line-framing boundary tests (MR4-R): a line of exactly the 32 KiB maximum is accepted into parsing; a line one byte over is rejected BEFORE JSON parsing (prove via a deliberately malformed oversize payload that would throw in the parser — rejection must come from the length check) with a stderr diagnostic and no stdout.
 - [ ] **Step 2: Run to verify failure. Implement wire.cpp + policy + main.** **Step 3: Build + ctest.** **Step 4: Commit** `"engine: protocol v1 adapter (hello/turn/game_end), fail-closed validation, placeholder policy"`.
 
 ---
