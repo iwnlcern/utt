@@ -70,7 +70,10 @@ All four rulings are baked into the design spec (commit follows this section) �
 1. theory DESIGN and harness DESIGN dispatch now, in parallel (disjoint surfaces; the shared object — fixture schema conventions on coordinates/forced/ANY — is named in both dispatches with theory as owner).
 2. engine DESIGN dispatches now, scoped to rules core + representation + adapter boundary + test seam; search-math sections stay gated on theory findings.
 3. ui DESIGN waits for the harness protocol lock; ui's contract needs travel inside the harness dispatch.
-4. INDEX inversions: rows 17/19 (boot storm) and row 31 (audit wave) are historical; row 45 (design wave, 073619 after 073714) is ACTIVE and registered per reviewer MR-B (2026-08-25) — all four stay registered, not repaired.
-   Operator marker ratification is deferred until the design-wave write stream stabilizes, at which point the complete inversion set is presented to the operator at once.
+4. INDEX inversions (historical, hand-mode era): the entire defect class was CLOSED by the operator-directed daemon cutover of 2026-08-25 — the daemon serializes admission and renders the INDEX from the run record, so append-order inversions are inexpressible; the marker question is obsolete.
+5. Divergence adjudication (2026-08-25, s1-daemon/RECONCILE-orchestrator-planner-20260825-094836.md): projection event {index, divergence, b5a880e0} is adjudicated-expected — the pre-cutover hand INDEX the daemon replaced at import (bytes archived).
+   The ledger has no event-adjudication surface, so this root permanently reports conflicts: 1 / verify ok:false on that single record; accepted with no residual defect.
+   Dispatch gate v2: delegated dispatch requires no verify events beyond the adjudicated set, daemon-admitted filing, and the standard pair-level conditions.
+   Kit defects registered for the kit owner: K1 verify/status aggregate historical events without adjudication/supersession; K2 engine relay lint applies the hand-append monotonic INDEX check to the daemon-rendered dispatch-grouped projection.
    Design work and non-authority relays may continue, but a red relay-root lint blocks delegated dispatch, merge, and automated adapter consumption: before any pair-planner delegated DISPATCH IMPL or merge grant, the INDEX must lint green or carry an operator-ratified monotonic-from marker or explicit operator waiver.
    Marker insertion is operator-only; no seat self-inserts.
