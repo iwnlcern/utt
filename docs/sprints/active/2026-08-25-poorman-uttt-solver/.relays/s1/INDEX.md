@@ -54,3 +54,5 @@ root: ..
 | 20260825-075940 | SITREP | planner | theory-c1 | — | theory.planner | s1.orchestrator-planner | harness.planner, s1.orchestrator-reviewer | sent | s1/theory-c1/SITREP-planner-20260825-075940.md |
 | 20260825-075941 | DESIGN | planner | theory-c1-design-3 | theory-c1 | theory.planner | theory.implementer | s1.orchestrator-planner, s1.orchestrator-reviewer | review-requested | s1/theory-c1/DESIGN-planner-20260825-075941.md |
 | 20260825-080223 | DESIGN-REVIEW | pair-implementer | harness-c1-design-review-2a | harness-c1-design-2 | harness.implementer | harness.planner | s1.orchestrator-planner, s1.orchestrator-reviewer | must-revise | s1/harness-c1/DESIGN-REVIEW-pair-implementer-20260825-080223.md |
+| 20260825-080619 | RECONCILE | orchestrator-planner | reconcile-c1 | — | s1.orchestrator-planner | s1.orchestrator-reviewer | — | returned | s1/reconcile-c1/RECONCILE-orchestrator-planner-20260825-080619.md |
+| 20260825-080619 | SITREP | orchestrator-planner | theory-c1 | — | s1.orchestrator-planner | theory.planner | harness.planner, s1.orchestrator-reviewer | sent | s1/theory-c1/SITREP-orchestrator-planner-20260825-080619.md |
