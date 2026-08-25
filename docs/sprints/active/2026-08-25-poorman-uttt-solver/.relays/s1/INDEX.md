@@ -82,3 +82,4 @@ root: ..
 | 20260825-084836 | PLAN-REVIEW | pair-implementer | theory-c1-plan-review-2 | theory-c1-plan-2 | theory.implementer | theory.planner | s1.orchestrator-planner, s1.orchestrator-reviewer | must-revise | s1/theory-c1/PLAN-REVIEW-pair-implementer-20260825-084836.md |
 | 20260825-084851 | DESIGN | planner | ui-c1-design-1 | ui-c1 | ui.planner | ui.implementer | s1.orchestrator-planner, s1.orchestrator-reviewer | review-requested | s1/ui-c1/DESIGN-planner-20260825-084851.md |
 | 20260825-085008 | SITREP | planner | engine-c1 | — | engine.planner | s1.orchestrator-planner | s1.orchestrator-reviewer, engine.implementer | design-complete-hold | s1/engine-c1/SITREP-planner-20260825-085008.md |
+| 20260825-085240 | PLAN | orchestrator-planner | engine-c1-proceed-1 | engine-c1 | s1.orchestrator-planner | engine.planner | engine.implementer, s1.orchestrator-reviewer | dispatched | s1/engine-c1/PLAN-orchestrator-planner-20260825-085240.md |
