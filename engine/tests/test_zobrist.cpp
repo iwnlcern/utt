@@ -18,7 +18,7 @@ uint64_t next_random(uint64_t& state) {
 
 TEST_CASE("incremental key equals full recompute along random games") {
   uint64_t rng = 0xABCDEF0123456789ULL;
-  for (int game = 0; game < 500; ++game) {
+  for (int game = 0; game < 2000; ++game) {
     auto p = Position::initial();
     while (true) {
       REQUIRE(p.key == zobrist_full(p));
