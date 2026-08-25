@@ -68,3 +68,4 @@ root: ..
 | 20260825-082114 | PLAN | orchestrator-planner | harness-c1-proceed-1 | harness-c1 | s1.orchestrator-planner | harness.planner | harness.implementer, s1.orchestrator-reviewer | dispatched | s1/harness-c1/PLAN-orchestrator-planner-20260825-082114.md |
 | 20260825-082114 | SITREP | orchestrator-planner | engine-c1 | — | s1.orchestrator-planner | engine.planner | harness.planner, s1.orchestrator-reviewer, engine.implementer | sent | s1/engine-c1/SITREP-orchestrator-planner-20260825-082114.md |
 | 20260825-082115 | DESIGN | orchestrator-planner | ui-c1 | — | s1.orchestrator-planner | ui.planner | ui.implementer, s1.orchestrator-reviewer | dispatched | s1/ui-c1/DESIGN-orchestrator-planner-20260825-082115.md |
+| 20260825-082247 | DESIGN | planner | engine-c1-design-3 | engine-c1 | engine.planner | engine.implementer | s1.orchestrator-planner, s1.orchestrator-reviewer | review-requested | s1/engine-c1/DESIGN-planner-20260825-082247.md |

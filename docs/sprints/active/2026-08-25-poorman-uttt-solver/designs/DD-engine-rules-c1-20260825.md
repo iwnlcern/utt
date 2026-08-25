@@ -1,7 +1,8 @@
 # DD-engine-rules-c1-20260825 — Engine rules core, representation, adapter boundary, and test seam
 
 DESIGN_DOC_ID: DD-engine-rules-c1-20260825
-Status: revision 2, awaiting successor Implementer DESIGN-REVIEW.
+Status: revision 3, awaiting successor Implementer DESIGN-REVIEW.
+Revision 3 (2026-08-25) folds review `.relays/s1/engine-c1/DESIGN-REVIEW-pair-implementer-20260825-081432.md` and the orchestrator boundary routing `.relays/s1/engine-c1/SITREP-orchestrator-planner-20260825-082114.md`: MR1 mechanical local-reachability rule replacing the dual-winner shorthand (§3, §7); MR2 grill ledger made internally truthful (48-bit payload, collapsible copy probe, make/unmake never measured) and non-self-referential baseline ordering rule (§2, §11, §13); consistency: RootContext naming unified (§2); §6 now consumes the LOCKED harness schema as-is at its approved digest, with the addressed alignment routing satisfying the pre-PLAN acknowledgment gate (§6, §12).
 Revision 2 (2026-08-25) folds all five must-revise findings from `.relays/s1/engine-c1/DESIGN-REVIEW-pair-implementer-20260825-075718.md`: M1 adapter narrowed to an abstract boundary (§6, §9 RootContext); M2 total terminal legality (§4); M3 table validity bit + mechanical fork definition + exhaustive proof (§3, §7); M4 lifecycle/Zobrist/budget-terminal/perft test obligations and the Position→T notation fix (§7, §9); M5 benchmark evidence rescoped to directional, durable baseline moved to a committed PLAN deliverable (§2, §13).
 Author: engine.planner.
 Lock boundary: this document is the COMPLETE lock surface for the engine rules core, representation, adapter boundary, and test seam.
@@ -78,8 +79,10 @@ Full-key verification is a FIELDWISE comparison over the identity-bearing Positi
 
 ## 6. Protocol adapter boundary (abstract boundary only; concrete wire bytes deferred)
 
-This section locks the BOUNDARY, not the bytes: the harness-owned protocol design (DD-harness-c1-20260825) defines hello/turn/game_end envelopes, canonical X/O marks and budget keys, seat delivery via `you`, `tie_owner` (no `last_mover`), `request_id` echo, a complete `legal` move list, and an optional `info` carrier — and that document is itself pre-lock.
-Locking concrete message handling here would freeze a consumer against a moving owner record (must-revise M1); the concrete adapter contract is therefore a PLAN-time deliverable written against the APPROVED harness schema, with the owner/consumer acknowledgment routed through s1.orchestrator-planner before either pair's PLAN treats the seam as locked (the harness design names the same obligation from its side).
+The owner schema is now design-locked and this section consumes it AS-IS: DD-harness-c1-20260825, Implementer-APPROVED at digest 11ac4efc8520d4baa306dbb4f7d902bbcfe5b5738afc1fd0a71941b3e7890440 (`.relays/s1/harness-c1/DESIGN-REVIEW-pair-implementer-20260825-081315.md`), routed to this consumer by the addressed orchestrator alignment relay `.relays/s1/engine-c1/SITREP-orchestrator-planner-20260825-082114.md` — that routing satisfies the pre-PLAN owner/consumer acknowledgment gate named on both sides (must-revise M1; consistency correction, review 081432).
+Concrete consumption obligations, from the approved schema: hello/turn/game_end message envelopes (not bare per-line requests); canonical X/O marks and budget keys with seat delivery via `you` (engine derives mine/theirs once); explicit `tie_owner` field — `last_mover` does not exist on the wire; `request_id` echo in every turn reply; the request's complete `legal` move list cross-checked against own movegen (divergence is a diagnostic + fail-closed condition); reply `move` always a member of `legal`; the optional `info` object carries section 10's value-quality metadata and is logged verbatim by the referee.
+Schema questions route to harness.planner via s1.orchestrator-planner; the schema is not this pair's to change.
+Remaining PLAN-time work is implementation and the conformance corpus, not contract shape.
 
 Locked boundary properties (schema-independent):
 - The adapter is a separate translation unit/library; the search core has zero JSON and zero I/O dependencies.
@@ -144,12 +147,12 @@ GRILL_SOURCE:
 - questions asked operator: 4 (design-direction approval; JSON dependency; value-quality metadata shape; oracle-match tolerance)
 
 Resolved decisions:
-- Position layout — array<uint16_t,9> per player + caches — benchmark-equal to uint128, simpler — source code (E2 benchmark)
+- Position layout — array<uint16_t,9> per player + caches — playout-benchmark directionally equal to uint128, simpler — source code (E2 directional benchmark)
 - JSON in adapter — vendored pinned single-header lib, adapter-only — robustness at a load-bearing fault boundary (R2) — source operator
 - Value-quality metadata — quality + [lo,hi] + depth + complete flag — honest analysis without over-claiming; ui/harness consumable — source operator
 - Oracle-match tolerance — ±1 fixed-point unit (1e-9 on T) as an engine-side acceptance-test parameter only; authoritative p=T and tolerance/fallback contracts remain theory-owned — source operator (scoped by orchestrator amendment 073330)
 - TT collision policy — 64-bit Zobrist + 32-bit tag in play; full-key verify in acceptance tests — acceptance criteria demand exactness — source default (recorded, unchallenged)
-- Value copy over make/unmake — benchmark — source code (E2)
+- Value copy over make/unmake — value-copy chosen for contract simplicity; the playout benchmark (whose per-ply path includes a full Position copy) showed no representation bottleneck at 23–24 ns/ply; make/unmake was NEVER measured and no comparative claim is made (MR2 correction) — source code (E2 directional) + default
 
 Rejected alternatives:
 - __uint128_t masks — no measured win; extraction complexity — rejected on evidence
@@ -167,7 +170,7 @@ Design-lock impact:
 ## 12. Boundary contracts
 
 Writes: engine analysis metadata semantics (section 10) — carrier harness-owned; routing note to orchestrator.
-Reads: harness protocol schema v1 (consumer, as-is); theory fixture schema v1 (consumer, verbatim); theory findings doc (gates the successor DD, not this one).
+Reads: harness protocol schema v1 — the APPROVED owner record DD-harness-c1-20260825 @ digest 11ac4efc85…7890440 (consumer, as-is; concrete adapter acknowledgment orchestrator-routed pre-PLAN); theory fixture schema v1 (consumer, verbatim); theory findings doc (gates the successor DD, not this one).
 Target entity: `engine/` rules core + adapter + tests conforming to this document.
 Downstream consumer: referee (spawns engine), ui (analysis view), theory (cross-validation).
 Contract: JSONL per harness spec; fixtures per theory spec; tolerance per section 7 (theory-subordinated).
@@ -187,4 +190,4 @@ No-consumer action: not applicable — consumers named.
 - Theory could overturn budget independence or reshape zugzwang: Zobrist inputs reopen via the successor DD; contained because no value semantics are locked here.
 - Vendored JSON lib license must be verified before vendoring (PLAN step).
 - The fork-mask definition (section 3) has edge cases (double-threat counting on near-full boards); the exhaustive 19,683-entry naive-evaluator comparison in section 7 is the guard.
-- The concrete adapter contract is deliberately unlocked until the harness schema is approved (section 6); the residual risk is PLAN-time schedule coupling, accepted in exchange for not locking a consumer against a moving owner record.
+- The adapter consumes the approved harness schema at a pinned digest (section 6); if the owner schema is later amended, this document's §6 requires a matching supplement/revision with its own review — the risk is bounded by the pin, not open-ended.
