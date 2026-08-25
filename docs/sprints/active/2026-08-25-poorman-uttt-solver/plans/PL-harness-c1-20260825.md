@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 PLAN_LOCK_ID: PL-harness-c1-20260825
-DESIGN_LOCK_ID: DD-harness-c1-20260825 @ sha256 11ac4efc8520d4baa306dbb4f7d902bbcfe5b5738afc1fd0a71941b3e7890440
+DESIGN_LOCK_ID: DD-harness-c1-20260825 @ sha256 c935c29c0ee603df1750c49c40dabcd5432f70105070b60552728f1e6dc24a6e
 GRILL_LOCK_ID: GRILL-harness-c1-20260825
 
 **Goal:** Implement the approved harness v1: JSONL interop protocol spec + schemas, stdlib-only Python referee with R1–R3/R5 semantics and total fault/recovery logging, four standalone baseline bots, and a paired tournament runner.
