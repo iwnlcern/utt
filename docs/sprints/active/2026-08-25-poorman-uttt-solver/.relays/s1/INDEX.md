@@ -30,3 +30,7 @@ root: ..
 | 20260825-063913 | AUDIT | pair-implementer | ui-c1 | — | ui.implementer | s1.orchestrator-planner | s1.orchestrator-reviewer | returned | s1/ui-c1/AUDIT-pair-implementer-20260825-063913.md |
 | 20260825-063841 | AUDIT | planner | harness-c1 | — | harness.planner | s1.orchestrator-planner | s1.orchestrator-reviewer | returned | s1/harness-c1/AUDIT-planner-20260825-063841.md |
 | 20260825-064131 | AUDIT | planner | theory-c1 | — | theory.planner | s1.orchestrator-planner | s1.orchestrator-reviewer | sent | s1/theory-c1/AUDIT-planner-20260825-064131.md |
+| 20260825-065713 | RECONCILE | orchestrator-planner | reconcile-c1 | — | s1.orchestrator-planner | s1.orchestrator-reviewer | — | sent | s1/reconcile-c1/RECONCILE-orchestrator-planner-20260825-065713.md |
+| 20260825-065713 | DESIGN | orchestrator-planner | theory-c1 | — | s1.orchestrator-planner | theory.planner | theory.implementer, s1.orchestrator-reviewer | dispatched | s1/theory-c1/DESIGN-orchestrator-planner-20260825-065713.md |
+| 20260825-065713 | DESIGN | orchestrator-planner | harness-c1 | — | s1.orchestrator-planner | harness.planner | harness.implementer, s1.orchestrator-reviewer | dispatched | s1/harness-c1/DESIGN-orchestrator-planner-20260825-065713.md |
+| 20260825-065713 | DESIGN | orchestrator-planner | engine-c1 | — | s1.orchestrator-planner | engine.planner | engine.implementer, s1.orchestrator-reviewer | dispatched | s1/engine-c1/DESIGN-orchestrator-planner-20260825-065713.md |
