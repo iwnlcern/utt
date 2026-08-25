@@ -23,13 +23,13 @@ def hello_req(seat="X"):
     )
 
 
-def turn_req(seat="X", request_id="g1-p0-a1"):
+def turn_req(seat="X", request_id="g1-p0-a1", ply=0):
     return {
         "type": "turn",
         "protocol": 1,
         "game_id": "g1",
         "request_id": request_id,
-        "ply": 0,
+        "ply": ply,
         "attempt": 1,
         "you": seat,
         "board": ["........."] * 9,
@@ -166,7 +166,7 @@ def test_pre_send_boundary_faults_delayed_output_without_writing(fault):
         assert engine.read_reply(time.monotonic() + 1)[1] is None
         assert engine.sweep_extra() is False
         time.sleep(0.15)
-        assert engine.send_line(turn_req(request_id="g1-p1-a1")) == "extra_protocol_line"
+        assert engine.send_line(turn_req(request_id="g1-p1-a1", ply=1)) == "extra_protocol_line"
     finally:
         engine.kill()
 
@@ -177,7 +177,7 @@ def test_fault_buffer_is_clean_after_classification():
         engine.hello(hello_req(), 500)
         engine.send_line(turn_req())
         assert engine.read_reply(time.monotonic() + 1)[1] == "extra_protocol_line"
-        assert engine.send_line(turn_req(request_id="g1-p1-a1")) is None
+        assert engine.send_line(turn_req(request_id="g1-p1-a1", ply=1)) is None
         assert engine.read_reply(time.monotonic() + 1)[1] is None
     finally:
         engine.kill()

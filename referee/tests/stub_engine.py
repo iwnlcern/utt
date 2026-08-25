@@ -29,6 +29,9 @@ parser.add_argument("--bid", default="0")
 parser.add_argument("--seed", type=int, default=1)
 parser.add_argument("--spam-stderr", type=int, default=0)
 parser.add_argument("--exit-delay-ms", type=int, default=0)
+parser.add_argument("--echo-request", action="store_true")
+parser.add_argument("--fault-once-file")
+parser.add_argument("--die-on-hello-after-restart")
 args = parser.parse_args()
 faults = {}
 for item in args.fault:
@@ -46,6 +49,12 @@ for raw in sys.stdin.buffer:
     request = json.loads(raw)
     if request["type"] == "hello":
         hello_number += 1
+        if args.die_on_hello_after_restart:
+            marker = args.die_on_hello_after_restart
+            if os.path.exists(marker):
+                os._exit(4)
+            with open(marker, "w", encoding="utf-8") as fh:
+                fh.write("started\n")
         if "hello_timeout" in faults.get(hello_number, []):
             time.sleep(10)
             continue
@@ -58,7 +67,13 @@ for raw in sys.stdin.buffer:
         break
 
     turn_number += 1
-    active = faults.get(turn_number, [])
+    active = faults.get(request["ply"] + 1, [])
+    if active and args.fault_once_file:
+        if os.path.exists(args.fault_once_file):
+            active = []
+        else:
+            with open(args.fault_once_file, "w", encoding="utf-8") as fh:
+                fh.write("faulted\n")
     if "timeout" in active:
         time.sleep(10)
         continue
@@ -88,6 +103,12 @@ for raw in sys.stdin.buffer:
         "bid": bid,
         "move": move,
     }
+    if args.echo_request:
+        reply["info"] = {
+            "request_ply": request["ply"],
+            "request_tie_owner": request["tie_owner"],
+            "request_budgets": request["budgets"],
+        }
     if "wrong_id" in active:
         reply["request_id"] += "-wrong"
     if "schema" in active:
