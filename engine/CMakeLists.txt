@@ -23,9 +23,17 @@ add_executable(uttt_tests
   tests/test_lifecycle.cpp
   tests/test_zobrist.cpp
   tests/test_perft.cpp
-  tests/test_fixtures.cpp)
+  tests/test_fixtures.cpp
+  tests/test_wire.cpp
+  src/adapter/wire.cpp)
 target_link_libraries(uttt_tests PRIVATE uttt_core)
 target_include_directories(uttt_tests PRIVATE third_party)
+
+add_executable(uttt_engine
+  src/adapter/main.cpp
+  src/adapter/wire.cpp)
+target_link_libraries(uttt_engine PRIVATE uttt_core)
+target_include_directories(uttt_engine PRIVATE third_party)
 
 enable_testing()
 add_test(NAME unit COMMAND uttt_tests)
