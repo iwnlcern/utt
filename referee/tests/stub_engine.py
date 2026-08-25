@@ -34,6 +34,9 @@ parser.add_argument("--fault-once-file")
 parser.add_argument("--die-on-hello-after-restart")
 parser.add_argument("--fork-child-exit", action="store_true")
 parser.add_argument("--child-pid-file")
+parser.add_argument("--sweep-release-file")
+parser.add_argument("--sweep-extra-written-file")
+parser.add_argument("--wait-for-file")
 args = parser.parse_args()
 faults = {}
 for item in args.fault:
@@ -138,11 +141,21 @@ for raw in sys.stdin.buffer:
     if "illegal_move" in active:
         reply["move"] = [8, 8] if [8, 8] not in legal else [7, 7]
 
-    if "extra_line" in active or "extra_line_before_sweep" in active:
+    if "extra_line_before_sweep" in active:
+        write_line(reply)
+        while not os.path.exists(args.sweep_release_file):
+            time.sleep(0.001)
+        write_line(reply)
+        with open(args.sweep_extra_written_file, "w", encoding="utf-8") as fh:
+            fh.write("extra-written\n")
+    elif "extra_line" in active:
         data = json.dumps(reply, sort_keys=True, separators=(",", ":")).encode() + b"\n"
         sys.stdout.buffer.write(data + data)
         sys.stdout.buffer.flush()
     else:
+        if args.wait_for_file:
+            while not os.path.exists(args.wait_for_file):
+                time.sleep(0.001)
         write_line(reply)
     if "unsolicited_between_plies" in active:
         delayed_write(b'{"unsolicited":true}\n')

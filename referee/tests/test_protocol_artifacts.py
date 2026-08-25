@@ -68,6 +68,7 @@ def test_real_transcript_validates_and_replays_losslessly():
     assert replay.events == tuple(events)
     assert replay.frames
     assert replay.end["reason"] in {"macro_win", "chip_count", "exact_tie_draw"}
+    assert set(replay.end["stderr"]) == {"X", "O"}
 
 
 def test_every_conformance_jsonl_validates_and_replays():
@@ -78,6 +79,7 @@ def test_every_conformance_jsonl_validates_and_replays():
         validate_events(events)
         replay = replay_frames(events)
         assert replay.events == tuple(events), path
+        assert set(replay.end["stderr"]) == {"X", "O"}, path
 
 
 def test_fault_matrix_fixtures_cover_all_named_faults():
@@ -153,3 +155,9 @@ def test_both_pair_seed_parity_fixtures_swap_engine_favoritism():
             assert first["resolution"]["winner"] == coin
             favored.append(start["engines"][coin]["engine_id"])
         assert set(favored) == {"A", "B"}
+        all_closed = [game[-1] for game in events if game[-1]["reason"] != "macro_win"]
+        assert all_closed
+        assert all(
+            (end["result"], end["reason"]) == ("draw", "exact_tie_draw")
+            for end in all_closed
+        )

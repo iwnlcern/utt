@@ -77,8 +77,8 @@ def test_clean_stub_game_completes_and_log_replays(tmp_path):
     result = play_game(cfg)
     events = read_log(cfg.log_path)
 
-    assert result.result in {"X", "O"}
-    assert result.reason in {"macro_win", "chip_count"}
+    assert result.result in {"X", "O", "draw"}
+    assert result.reason in {"macro_win", "chip_count", "exact_tie_draw"}
     assert result.plies == len(auctions(events))
     assert events[-1]["delivery"] == {"X": "ok", "O": "ok"}
     validate_log(events)
@@ -256,11 +256,12 @@ def test_fault_won_terminal_move_is_not_rewritten_by_restart_failure(tmp_path):
     validate_log(events)
 
 
-def test_tie_coin_owner_transitions_and_integer_budgets(tmp_path):
+@pytest.mark.parametrize("bid", [3, 0])
+def test_tie_coin_owner_transitions_and_integer_budgets(tmp_path, bid):
     cfg = config(
         tmp_path,
-        cmd("--bid", "3", "--echo-request", "--seed", "3"),
-        cmd("--bid", "3", "--echo-request", "--seed", "4"),
+        cmd("--bid", str(bid), "--echo-request", "--seed", "3"),
+        cmd("--bid", str(bid), "--echo-request", "--seed", "4"),
         coin="O",
         name="ties",
     )
@@ -272,10 +273,53 @@ def test_tie_coin_owner_transitions_and_integer_budgets(tmp_path):
     assert first_three[0]["resolution"]["reason"] == "tie_coin"
     assert first_three[0]["resolution"]["winner"] == "O"
     assert [a["resolution"]["winner"] for a in first_three] == ["O", "X", "O"]
-    assert first_three[0]["budgets_after"] == {"X": 10**9, "O": 10**9 - 3}
+    assert first_three[0]["budgets_after"] == {"X": 10**9, "O": 10**9 - bid}
     echoed = [a["attempts"][0]["turns"]["X"]["info"]["request_tie_owner"] for a in first_three]
     assert echoed == [None, "X", "O"]
+    assert all(
+        turn["warnings"] == ["info_quality_missing_or_invalid"]
+        for auction in first_three
+        for turn in auction["attempts"][0]["turns"].values()
+    )
     assert all(type(value) is int for value in result.budgets.values())
+    validate_log(events)
+
+
+def test_all_closed_unequal_budgets_awards_budget_leader(tmp_path):
+    cfg = config(
+        tmp_path,
+        cmd("--bid", "1", "--seed", "1"),
+        cmd("--bid", "1", "--seed", "32"),
+        coin="X",
+        name="all-closed-unequal-budgets",
+    )
+
+    result = play_game(cfg)
+    events = read_log(cfg.log_path)
+
+    assert result.budgets == {"X": 10**9 - 35, "O": 10**9 - 34}
+    assert (result.result, result.reason) == ("O", "chip_count")
+    assert events[-1]["result"] == "O"
+    assert events[-1]["reason"] == "chip_count"
+    validate_log(events)
+
+
+def test_all_closed_equal_budgets_is_exact_tie_draw(tmp_path):
+    cfg = config(
+        tmp_path,
+        cmd("--bid", "1", "--seed", "1"),
+        cmd("--bid", "1", "--seed", "22"),
+        coin="X",
+        name="all-closed-equal-budgets",
+    )
+
+    result = play_game(cfg)
+    events = read_log(cfg.log_path)
+
+    assert result.budgets == {"X": 10**9 - 32, "O": 10**9 - 32}
+    assert (result.result, result.reason) == ("draw", "exact_tie_draw")
+    assert events[-1]["result"] == "draw"
+    assert events[-1]["reason"] == "exact_tie_draw"
     validate_log(events)
 
 

@@ -153,18 +153,39 @@ def test_same_write_extra_line_is_quarantined():
         engine.kill()
 
 
-def test_final_sweep_deterministically_catches_extra_while_companion_is_open():
+def test_final_sweep_deterministically_catches_extra_while_companion_is_open(
+    tmp_path,
+):
+    release = tmp_path / "release-extra"
+    extra_written = tmp_path / "extra-written"
     engines = {
-        "X": started_engine("X", "--fault", "extra_line_before_sweep:1"),
-        "O": started_engine("O", "--fault", "timeout:1"),
+        "X": started_engine(
+            "X",
+            "--fault",
+            "extra_line_before_sweep:1",
+            "--sweep-release-file",
+            str(release),
+            "--sweep-extra-written-file",
+            str(extra_written),
+        ),
+        "O": started_engine("O", "--wait-for-file", str(extra_written)),
     }
     reqs = {seat: turn_req(seat) for seat in engines}
     try:
         for seat, engine in engines.items():
             engine.hello(hello_req(seat), 500)
+
+        original_read = engines["X"].read_reply
+
+        def read_then_release(deadline):
+            reply = original_read(deadline)
+            release.write_text("read-complete\n", encoding="utf-8")
+            return reply
+
+        engines["X"].read_reply = read_then_release
         replies = collect_both(engines, reqs, parser_for(reqs), 100, 25)
         assert replies["X"][0].validation == "extra_protocol_line"
-        assert replies["O"][0].validation == "timeout"
+        assert replies["O"][0].validation == "ok"
     finally:
         for engine in engines.values():
             engine.kill()
@@ -198,14 +219,14 @@ def test_fault_buffer_is_clean_after_classification():
 
 def test_finish_live_engine_honors_nondefault_grace_and_reaps_group():
     engine = started_engine(
-        "X", "--exit-delay-ms", "100", shutdown_grace_ms=300
+        "X", "--exit-delay-ms", "5000", shutdown_grace_ms=300
     )
     engine.hello(hello_req(), 500)
     pgid = engine.process.pid
     started = time.monotonic()
     assert engine.finish({"type": "game_end", "protocol": 1}) == "ok"
     elapsed = time.monotonic() - started
-    assert 0.08 <= elapsed < 0.3
+    assert 0.25 <= elapsed < 0.8
     assert engine.process.poll() is not None
     assert_group_gone(pgid)
 

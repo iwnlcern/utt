@@ -15,7 +15,7 @@ from .protocol import (
     to_submission,
     turn_request,
 )
-from .rules import INITIAL, Position, apply_move, local_status
+from .rules import INITIAL, Position, apply_move
 
 
 STARTING_BUDGET = 10**9
@@ -102,16 +102,14 @@ def _game_start_event(
     }
 
 
-def _terminal_from_position(pos: Position, mover: str, terminal: str) -> tuple[str, str]:
+def _terminal_from_position(
+    mover: str, terminal: str, budgets: dict[str, int]
+) -> tuple[str, str]:
     if terminal == "macro_win":
         return mover, "macro_win"
-    chips = {
-        seat: sum(local_status(cells) == seat for cells in pos.board)
-        for seat in ("X", "O")
-    }
-    if chips["X"] > chips["O"]:
+    if budgets["X"] > budgets["O"]:
         return "X", "chip_count"
-    if chips["O"] > chips["X"]:
+    if budgets["O"] > budgets["X"]:
         return "O", "chip_count"
     return "draw", "exact_tie_draw"
 
@@ -262,7 +260,7 @@ def play_game(cfg: GameConfig) -> GameResult:
                         )
                         if applied.terminal is not None:
                             result, reason = _terminal_from_position(
-                                pos, winner, applied.terminal
+                                winner, applied.terminal, budgets
                             )
                             return _finish_game(
                                 cfg,

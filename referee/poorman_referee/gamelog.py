@@ -19,6 +19,12 @@ def _raw_record(raw: bytes | None, total: int | None, truncated: bool | None) ->
 
 def turn_record(parsed: ParsedReply, elapsed_ms: int) -> dict:
     record = {"validation": parsed.validation, "elapsed_ms": elapsed_ms}
+    if parsed.info is not None and parsed.info.get("quality") not in {
+        "exact",
+        "bound",
+        "estimate",
+    }:
+        record["warnings"] = ["info_quality_missing_or_invalid"]
     if parsed.validation != "ok":
         if parsed.bid is not None:
             record["bid"] = parsed.bid
@@ -155,8 +161,13 @@ def replay_frames(events: list[dict]) -> Replay:
         attempts = _required(auction, "attempts", f"auction ply {ply}")
         if not isinstance(attempts, list) or not attempts:
             raise ValueError(f"auction ply {ply} attempts must be non-empty")
-        for attempt in attempts:
+        for expected_attempt, attempt in enumerate(attempts, 1):
             _validate_attempt(attempt, ply)
+            if attempt["attempt"] != expected_attempt:
+                raise ValueError(
+                    f"auction ply {ply} attempt sequence: "
+                    f"expected {expected_attempt}, got {attempt['attempt']}"
+                )
         board = _required(auction, "post_board", f"auction ply {ply}")
         budgets = _required(auction, "budgets_after", f"auction ply {ply}")
         resolution = auction.get("resolution")

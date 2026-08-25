@@ -32,6 +32,8 @@ Both turn requests are fully written and flushed before either reply is awaited.
 
 Readers ignore unknown object keys within protocol major version 1.
 
+The referee and engine MUST both use protocol major version 1; a hello reply with another major fails schema validation and forfeits at hello before ply 0.
+
 Missing required fields and fields of the wrong type fail closed.
 
 Non-standard numeric constants such as `NaN` and strings that cannot be encoded as valid UTF-8 are rejected and are never re-emitted into canonical JSON.
@@ -117,6 +119,8 @@ The move is required even when an engine expects its bid to lose.
 The referee copies `info` to the log but never uses it to decide the game.
 
 Unknown keys and arbitrary object keys inside `info` are allowed.
+
+When `info` is present but `quality` is missing or is not `exact`, `bound`, or `estimate`, the reply remains valid and its turn log record carries `info_quality_missing_or_invalid` in an additive `warnings` array.
 
 ### `game_end.schema.json`
 
@@ -205,6 +209,8 @@ The auction winner pays its own bid only for a normal or tied valid resolution.
 A single-fault winner pays zero.
 
 Money is compared, paid, serialized, and aggregated as integers.
+
+A macro line wins immediately. If all local boards close without a macro line, the seat with strictly more remaining budget wins with reason `chip_count`; equal remaining budgets produce `draw` with reason `exact_tie_draw`.
 
 ## Log schema v1 and replay
 

@@ -143,7 +143,7 @@ def test_turn_record_fault_preserves_every_parseable_intention_field():
 
 
 def test_turn_record_ok_and_hello_records():
-    turn = ParsedReply("ok", 4, (3, 2), {"quality": 7}, None, None, None)
+    turn = ParsedReply("ok", 4, (3, 2), {"quality": "estimate"}, None, None, None)
     hello = ParsedHello("ok", "engine", "2", None, None, None)
     bad_hello = ParsedHello("invalid_utf8", None, None, b"\xff", 1, False)
 
@@ -152,7 +152,7 @@ def test_turn_record_ok_and_hello_records():
         "elapsed_ms": 5,
         "bid": 4,
         "move": [3, 2],
-        "info": {"quality": 7},
+        "info": {"quality": "estimate"},
     }
     assert hello_record(hello, 3) == {
         "validation": "ok",
@@ -165,6 +165,17 @@ def test_turn_record_ok_and_hello_records():
         "elapsed_ms": 4,
         "raw": {"b64": "/w==", "truncated": False, "bytes_total": 1},
     }
+
+
+@pytest.mark.parametrize("info", [{"pv": []}, {"quality": "unsupported"}])
+def test_turn_record_warns_without_faulting_on_missing_or_invalid_info_quality(info):
+    parsed = ParsedReply("ok", 4, (3, 2), info, None, None, None)
+
+    record = turn_record(parsed, 5)
+
+    assert record["validation"] == "ok"
+    assert record["info"] == info
+    assert record["warnings"] == ["info_quality_missing_or_invalid"]
 
 
 def test_replay_clean_ply_retains_consumer_visible_fields_and_raw_timeline():
@@ -208,6 +219,26 @@ def test_replay_keeps_all_double_fault_attempts():
     assert frame.attempts[0]["turns"]["X"]["validation"] == "timeout"
     assert frame.attempts[0]["turns"]["O"]["validation"] == "invalid_json"
     assert frame.attempts[1]["attempt"] == 2
+
+
+def test_replay_rejects_attempt_sequence_after_first_attempt_is_removed():
+    attempts = [
+        {
+            "request_id": "g1-p0-a1",
+            "attempt": 1,
+            "turns": {"X": fault_turn(), "O": fault_turn("invalid_json")},
+        },
+        {
+            "request_id": "g1-p0-a2",
+            "attempt": 2,
+            "turns": {"X": ok_turn(), "O": ok_turn(move=(4, 5))},
+        },
+    ]
+    auction = resolved_auction(attempts=attempts)
+    del auction["attempts"][0]
+
+    with pytest.raises(ValueError, match="attempt sequence: expected 1, got 2"):
+        replay_frames([start_event(), auction, end_event()])
 
 
 def test_replay_associates_single_fault_recovery_emitted_after_auction():
