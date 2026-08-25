@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <cstdint>
 
 namespace uttt {
@@ -28,7 +29,10 @@ struct Move {
 struct MoveList {
   std::array<Move, 81> m{};
   uint8_t n = 0;
-  void push(Move mv) { m[n++] = mv; }
+  void push(Move mv) {
+    assert(n < m.size());
+    m[n++] = mv;
+  }
 };
 
 inline constexpr int8_t kForcedAny = -1;
