@@ -85,7 +85,5 @@ Operator-judgment items: exact representable `p = T` classification and the 10^9
 
 ACTIONS_GIT_REF: governance-only DESIGN-REVIEW relay and INDEX row authored; no source/test edits; see FINAL_GIT_STATUS_SHORT
 FINAL_GIT_STATUS_SHORT:
- M docs/sprints/active/2026-08-25-poorman-uttt-solver/.relays/s1/INDEX.md
-?? docs/sprints/active/2026-08-25-poorman-uttt-solver/.relays/s1/harness-c1/DESIGN-REVIEW-pair-implementer-20260825-073619.md
-?? docs/sprints/active/2026-08-25-poorman-uttt-solver/.relays/s1/theory-c1/DESIGN-REVIEW-pair-implementer-20260825-073714.md
-?? docs/sprints/active/2026-08-25-poorman-uttt-solver/designs/DD-engine-rules-c1-20260825.md
+ M docs/sprints/active/2026-08-25-poorman-uttt-solver/.relays/s1/engine-c1/DESIGN-planner-20260825-073729.md
+ M docs/sprints/active/2026-08-25-poorman-uttt-solver/.relays/s1/theory-c1/DESIGN-REVIEW-pair-implementer-20260825-073714.md
