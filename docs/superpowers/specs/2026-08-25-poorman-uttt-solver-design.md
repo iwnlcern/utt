@@ -22,9 +22,9 @@ These override any variant found in reference material.
 3. Each turn both players submit sealed simultaneous bids plus an intended move.
    The higher bidder pays their bid to the bank (money is destroyed — Poorman), and must place their mark (won bids must result in a move).
 4. Bid ties resolve in order:
-   a. The player with more chips remaining wins the tie (compared at bid time, before payment).
-   b. If chips are exactly equal, the player who did not move last wins the tie.
-   c. On the first move with equal chips, a coin flip decides.
+   a. The player who did not move last wins the tie.
+   b. On the first move (no previous move exists), a coin flip decides.
+   Stack sizes play no role in bid-tie resolution.
    The tie winner is the auction winner: they pay the tied bid and must move.
 5. The first move is forced into the center local board.
 6. A local board is closed when it is won or completely full.
@@ -47,14 +47,17 @@ Terminal values: `T = 0` (X macro win), `T = 1` (O macro win), `T = 1/2` (all bo
 Backup operator (subject to validation): with `a = min over X moves of T(child, ·)` and `b = max over O moves of T(child, ·)`,
 
 - if `a ≤ b`: `T = b / (1 - a + b)`, critical bid fraction `r = (b - a) / (1 - a + b)` of the combined budget;
-- if `a > b` (zero-bid zugzwang): both players bid 0 and the tie rules force a mover.
+- if `a > b` (zero-bid zugzwang): both players bid 0, the tie owner `h` wins the tie and is forced to move, so `T = a` when `h = X` and `T = b` when `h = O`.
 
-### Open math question (blocks the engine math lock)
+The tie owner `h` is a pure alternation flag — the player who did not move last (coin flip on the first move) — matching the reference derivation exactly.
+Stack sizes play no role in bid-tie resolution, so `T(s, h)` is budget-independent as written and the transposition-table key carries one tie-owner bit.
 
-The reference derivation modeled the tie owner as a pure alternation flag.
-Under our rules the 0–0 tie is won by the chip leader, who is then forced to move, so the zugzwang branch depends on the budget comparison — i.e., on `p` itself — with the last-mover flag mattering only on the knife-edge `p = 1/2`.
-The zugzwang backup must be re-derived for this variant, and the transposition-table key must carry exactly the tie-relevant state the corrected operator needs.
-The theory pair resolves this via literature review plus an exact solver, before the engine pair locks its search design.
+### Open math questions (block the engine math lock)
+
+The variant is still not textbook Poorman: leftover budget has terminal value (drawn board → chip leader wins), entering the theory as the `T = 1/2` terminal.
+Published Poorman results (threshold existence/uniqueness, pure-strategy sufficiency, the backup formula's derivation) were proven for standard win/lose reachability objectives and must be checked against this terminal rule rather than assumed.
+Knife-edge behavior at exactly `p = T` under fixed-point budgets also needs a precise ruling.
+The theory pair resolves both via literature review plus the Stage-1 exact solver, before the engine pair locks its search design.
 
 ## Component 1: theory (Python)
 
