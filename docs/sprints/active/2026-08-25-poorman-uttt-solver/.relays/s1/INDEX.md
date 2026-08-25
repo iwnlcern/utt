@@ -38,3 +38,6 @@ root: ..
 | 20260825-072517 | SITREP | planner | engine-c1 | — | engine.planner | s1.orchestrator-planner | s1.orchestrator-reviewer, engine.implementer | sent | s1/engine-c1/SITREP-planner-20260825-072517.md |
 | 20260825-072649 | DESIGN | planner | harness-c1-design-1 | harness-c1 | harness.planner | harness.implementer | s1.orchestrator-planner, s1.orchestrator-reviewer | review-requested | s1/harness-c1/DESIGN-planner-20260825-072649.md |
 | 20260825-072751 | DESIGN | planner | theory-c1-design-1 | theory-c1 | theory.planner | theory.implementer | s1.orchestrator-planner, s1.orchestrator-reviewer | review-requested | s1/theory-c1/DESIGN-planner-20260825-072751.md |
+| 20260825-073330 | RECONCILE | orchestrator-planner | reconcile-c1 | — | s1.orchestrator-planner | s1.orchestrator-reviewer | — | returned | s1/reconcile-c1/RECONCILE-orchestrator-planner-20260825-073330.md |
+| 20260825-073330 | DESIGN | orchestrator-planner | engine-c1 | — | s1.orchestrator-planner | engine.planner | engine.implementer, s1.orchestrator-reviewer | dispatched | s1/engine-c1/DESIGN-orchestrator-planner-20260825-073330.md |
+| 20260825-073330 | DESIGN | orchestrator-planner | theory-c1 | — | s1.orchestrator-planner | theory.planner | theory.implementer, s1.orchestrator-reviewer | dispatched | s1/theory-c1/DESIGN-orchestrator-planner-20260825-073330.md |
