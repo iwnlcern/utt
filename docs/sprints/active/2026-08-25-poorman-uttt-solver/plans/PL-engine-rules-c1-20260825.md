@@ -1,5 +1,7 @@
 # Engine Rules Core Implementation Plan (PL-engine-rules-c1-20260825)
 
+Revision 6 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-6` (relay 145314), single finding MR6: the consumed harness owner-contract digest is refreshed to the approved amended bytes (c935c29c…), with the recorded disposition that amendment 1 changes only harness-owned recovery-event/log ordering — no engine-facing message shape, adapter requirement, or task byte changes; no accepted task or benchmark content reopened.
+
 Revision 5 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-5` (relay 143850), both residuals: MR1-R2 every test-adding task's Files block and expected staged set now carries `Modify: engine/CMakeLists.txt`, and the smoke test is deterministically RETAINED (no optional deletion); MR4-R2 `result` is named an enum ({"X","O","draw","void"}) in the interface, budgets are pinned as a JSON object with integer canonical X/O values, and the negative battery adds well-typed out-of-enum result, type-invalid reason, non-object budgets, and non-integer/type-invalid budget-value cases.
 
 Revision 4 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-4` (relay 100509), all three residuals: MR1-R Task 1 commit lists every literal file (placeholder .cpp included) and the staged-set proof is exact sorted equality, not subset membership, with the pattern binding every later commit; MR4-R the `validate_game_end` interface comment states strict owner-schema validation and the test battery names one negative case per required-field class plus 32 KiB boundary tests proving pre-parse rejection; MR5-R Task 12 has an explicit three-commit topology (harness source → baseline.json only → candidate-verdict.json durable artifact on PASS, never on FAIL).
@@ -17,7 +19,7 @@ Revision 2 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-1` (relay 09063
 **Tech Stack:** C++26 (`-std=c++2c`), Homebrew LLVM 22.1.8, CMake ≥ 3.28 + Ninja, doctest (vendored single header, MIT), nlohmann/json (vendored single header, MIT, adapter-only).
 
 **Spec:** docs/sprints/active/2026-08-25-poorman-uttt-solver/designs/DD-engine-rules-c1-20260825.md @ sha256 265773e3a98adcd7f8e297e9ca9fc394581ba2506bd660e248b000320ea03f47 (locked; approving review engine-c1-design-review-4).
-Consumed owner contracts: harness protocol v1 = DD-harness-c1-20260825 @ 11ac4efc8520d4baa306dbb4f7d902bbcfe5b5738afc1fd0a71941b3e7890440; theory fixture schema v1 = DD-theory-c1-20260825 §3 (`theory/fixtures/SCHEMA.md`, `schema-v1.json`).
+Consumed owner contracts: harness protocol v1 = DD-harness-c1-20260825 @ c935c29c0ee603df1750c49c40dabcd5432f70105070b60552728f1e6dc24a6e (approved amendment 1 included — its recovery-event/log-ordering changes are harness-owned and out of engine scope, and it leaves the five engine-facing message shapes and all adapter requirements unchanged; MR6); theory fixture schema v1 = DD-theory-c1-20260825 §3 (`theory/fixtures/SCHEMA.md`, `schema-v1.json`).
 
 ## Global Constraints
 
@@ -749,7 +751,7 @@ This task adds rejection tests for EVERY ImportError class (PR6): overlapping ma
 - Modify: `engine/CMakeLists.txt` (add `uttt_engine` binary; nlohmann include ONLY on adapter + test targets, never `uttt_core`)
 
 **Interfaces:**
-- Consumes: harness protocol v1 (DD-harness-c1 @ 11ac4efc85…): referee→engine `hello` `{type, protocol, game_id, you, rules, time_ms, grace_ms, budget}`; engine→referee hello `{type, protocol, name, version, author?}`; turn request `{type, protocol, game_id, request_id, ply, attempt, you, board[9 strings], forced: 0-8|null, legal: [[b,c]...], budgets: {X, O}, tie_owner: "X"|"O"|null, time_ms}`; turn reply `{type, protocol, request_id, bid, move: [b,c], info?}`; `game_end` (read and ignored beyond loop exit bookkeeping).
+- Consumes: harness protocol v1 (DD-harness-c1 @ c935c29c0ee603df1750c49c40dabcd5432f70105070b60552728f1e6dc24a6e, amendment 1 included — no engine-facing shape change; MR6): referee→engine `hello` `{type, protocol, game_id, you, rules, time_ms, grace_ms, budget}`; engine→referee hello `{type, protocol, name, version, author?}`; turn request `{type, protocol, game_id, request_id, ply, attempt, you, board[9 strings], forced: 0-8|null, legal: [[b,c]...], budgets: {X, O}, tie_owner: "X"|"O"|null, time_ms}`; turn reply `{type, protocol, request_id, bid, move: [b,c], info?}`; `game_end` validated STRICTLY per the interface below before loop exit.
 - Produces:
 
 ```c++
