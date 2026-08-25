@@ -1,7 +1,8 @@
 # DD-engine-rules-c1-20260825 — Engine rules core, representation, adapter boundary, and test seam
 
 DESIGN_DOC_ID: DD-engine-rules-c1-20260825
-Status: awaiting Implementer DESIGN-REVIEW.
+Status: revision 2, awaiting successor Implementer DESIGN-REVIEW.
+Revision 2 (2026-08-25) folds all five must-revise findings from `.relays/s1/engine-c1/DESIGN-REVIEW-pair-implementer-20260825-075718.md`: M1 adapter narrowed to an abstract boundary (§6, §9 RootContext); M2 total terminal legality (§4); M3 table validity bit + mechanical fork definition + exhaustive proof (§3, §7); M4 lifecycle/Zobrist/budget-terminal/perft test obligations and the Position→T notation fix (§7, §9); M5 benchmark evidence rescoped to directional, durable baseline moved to a committed PLAN deliverable (§2, §13).
 Author: engine.planner.
 Lock boundary: this document is the COMPLETE lock surface for the engine rules core, representation, adapter boundary, and test seam.
 Search math (backup operator implementation, cutoff/bound derivation, TT entry contract, selective-widening soundness) is NOT part of this document or its lock; it arrives as a successor DESIGN_DOC_ID after theory's findings and Stage-1 solver land, with its own grill delta, DESIGN-REVIEW, and lock (orchestrator amendment, `.relays/s1/engine-c1/DESIGN-orchestrator-planner-20260825-073330.md`).
@@ -35,24 +36,27 @@ Semantics are value-copy immutable: search copies the parent and applies one mov
 `tie` is the deterministic tie owner; the transition is `tie' = opponent(actual mover)` (spec as amended @ 2aef375); `NULL_FIRST_MOVE` is valid only before the first mark (R1).
 Budgets never enter Position; they live in a root-side `BudgetContext` (section 9).
 
-Evidence (E2, microbenchmark, Homebrew clang 22.1.8 `-O3 -std=c++2c`, Apple M5 Pro, 2026-08-25):
-this layout and a `__uint128_t`-per-player layout are indistinguishable — both `sizeof == 80` with the shared caches, random-playout cost 23–24 ns/ply including movegen + value copy + apply + table lookup (~42M plies/s single-thread), pure copy fully vectorized (≈0), free-choice movegen over 81 cells ≈ 26 ns.
-Decision therefore falls to simplicity: direct per-local indexing, no 128-bit shift/extract code, natural fixture/debug reads.
-Benchmark source was throwaway design evidence at `/tmp/uttt_bench/bench.cpp`; methodology and numbers are recorded here and are trivially reproducible from this section.
-The 30 s/move budget is confirmed non-binding for the rules core; search strength will be bounded by tree shape and cutoff math (successor DD), not representation.
+Evidence (E2, DIRECTIONAL microbenchmark, Homebrew clang 22.1.8 `-O3 -std=c++2c`, Apple M5 Pro, 2026-08-25):
+this layout and a `__uint128_t`-per-player layout are indistinguishable on the random-playout probe — both `sizeof == 80` with the shared caches, 23–24 ns/ply including movegen + value copy + apply + table lookup (~42M plies/s single-thread).
+Evidence scope correction (must-revise M5): the throwaway bench's pure-copy and repeated-movegen probes were optimizable (the copy loop's state perturbation had identical conditional arms, permitting collapse), so no "copy ≈ 0" claim is made; the playout number is directional layout-comparison evidence only, not a durable baseline.
+Decision (stands on the playout comparison plus simplicity): direct per-local indexing, no 128-bit shift/extract code, natural fixture/debug reads.
+Durable performance evidence is a PLAN deliverable: a committed benchmark harness under `engine/` with dead-code-elimination guards (e.g. `DoNotOptimize`/volatile sinks), documented warmup/iteration counts, compiler flags, and CPU state, from which a fresh regression baseline is measured; acceptance criteria reference THAT baseline, never the /tmp number.
+The 30 s/move budget is still assessed non-binding for the rules core (directional evidence + prior art); search strength will be bounded by tree shape and cutoff math (successor DD), not representation.
 
 ## 3. Local lookup table
 
 One global table of 19,683 entries (3^9 local-board states), indexed by the incrementally maintained ternary code `tern[b]` (cell c contributes `{empty:0, X:1, O:2} * 3^c`).
 Each entry packs into one `uint64_t` (total 157 KB, L2-resident):
 
+- `valid` (1 bit): 0 for locally unreachable states — any assignment where both players hold a completed line (a board closes on the first win, so dual-winner states cannot arise in play). Invalid entries carry defined bytes (`status = full-draw` convention, masks zeroed) but are never consulted by play; the adapter's import validation rejects any external position whose local board maps to an invalid entry (must-revise M3).
 - `status` (2 bits): open / X-won / O-won / full-draw.
 - `empties` (9 bits): empty-cell mask.
 - `win_x`, `win_o` (9 bits each): cells completing a local three-in-a-row for that player now (immediate wins; doubles as the opponent's block mask).
-- `fork_x`, `fork_o` (9 bits each): cells creating two-or-more simultaneous local threats for that player.
+- `fork_x`, `fork_o` (9 bits each), defined mechanically (must-revise M3): cell c is a fork cell for player P iff c is empty, placing P at c does NOT complete a line (that cell is `win_p`, not fork), and in the resulting board the set of cells that would then be immediate wins for P has size ≥ 2 (distinct cells, regardless of how many lines each completes).
 
 Rationale: the same lookup that closes boards feeds move ordering (macro wins, local wins, blocks, forks) without per-node recomputation.
 Cells of closed boards never change, so `tern[b]` of a closed board is frozen and its entry stays valid.
+Table proof obligation: an exhaustive test compares ALL 19,683 entries — validity, status, empties, win masks, fork masks — against an independent naive evaluator (section 7).
 
 ## 4. Moves, movegen, terminal detection
 
@@ -60,6 +64,7 @@ Move = `{uint8_t board, uint8_t cell}`; move lists are fixed `std::array<Move, 8
 Movegen: if `forced != ANY` and that board is open, enumerate `empties` of that board; otherwise enumerate `empties` of every open board.
 Apply-move updates, in order: cell mask, `tern[b]`, table lookup; on close: `closed`/`macro_*`; then mover macro-win check (win masks over `macro_*`); then all-closed check; then `forced` = target cell's board, remapped to ANY if that board is closed; then `tie = opponent(mover)`.
 Terminal kinds exposed: `none`, `macro_win(player)`, `all_closed`.
+Terminal legality is total (must-revise M2): `legal_moves(p) = ∅` for BOTH terminal kinds — a macro win ends the game even with open cells remaining — and `apply` rejects every move on a terminal parent as a checked precondition, without mutating the parent.
 `all_closed` resolution (chip comparison, ½–½ on exact equality) happens OUTSIDE Position, in the layer that owns budgets; Position never answers "who won a chip-count draw".
 The first move is forced into the center local board (`forced = 4` in the initial state) per canonical rule 5.
 
@@ -67,7 +72,8 @@ The first move is forced into the center local board (`forced = 4` in the initia
 
 64-bit Zobrist over exactly the state that identifies a search node: 81 cells × 2 players (162 randoms), forced state (10 randoms: 0..8, ANY), tie state (3 randoms: X, O, NULL_FIRST_MOVE).
 This matches the spec's budget-independence claim for `T(s, h)`; if theory's findings overturn budget independence, the key gains budget inputs and the successor DD addresses it — TT VALUE semantics are entirely successor-DD territory.
-Collision policy: play mode stores a 32-bit secondary verification tag per entry (different Zobrist fold); acceptance/fixture mode runs with full-key verification (complete Position compared on probe) so oracle-equality tests can never be polluted by a silent collision.
+Collision policy: play mode stores a 32-bit secondary verification tag per entry (different Zobrist fold); acceptance/fixture mode runs with full-key verification so oracle-equality tests can never be polluted by a silent collision.
+Full-key verification is a FIELDWISE comparison over the identity-bearing Position fields (`x`, `o`, `forced`, `tie`) — never a padding-sensitive `memcmp`, and never over derived caches (`tern`, `macro_*`, `closed`) unless cache consistency has been separately verified (reviewer clarification, adopted).
 
 ## 6. Protocol adapter boundary (abstract boundary only; concrete wire bytes deferred)
 
@@ -89,7 +95,12 @@ Locked boundary properties (schema-independent):
 
 - Fixture ingestion: a test-only reader consumes theory's fixture schema verbatim (theory publishes the schema section early; engine requests it via the orchestrator if absent when needed). Fixtures drive: legal-move sets, closure/forced/ANY routing, terminal outcomes, and (small cases) expected thresholds and critical bids.
 - Property tests: movegen equals a naive 81-cell reference implementation on random positions; closed boards never accept marks; forced-routing including closed-board→ANY; `tern[b]` always equals recomputation from masks; macro/closed caches always equal recomputation.
-- Perft-style move counts at fixed depths from named positions, pinned as regression values.
+- Table proof (M3): exhaustive comparison of all 19,683 LocalTable entries (validity, status, empties, win masks, fork masks) against an independent naive evaluator.
+- Terminal and rejection tests (M2): named fixtures proving `legal_moves = ∅` at both terminal kinds (macro win with open cells remaining; all-closed), and apply-rejection without parent mutation for post-terminal, occupied-cell, closed-board, out-of-range, and wrong-forced-board moves; adapter rejection fixtures for invalid local states and inconsistent caches/closure/forced/tie imports.
+- State-lifecycle tests (M4): initial state is `forced = 4` with `tie = NULL_FIRST_MOVE`; `tie' = opponent(actual mover)` including consecutive marks by the same player; NULL_FIRST_MOVE is gone after the first mark and never reappears; parent Position is byte-identical across identity fields after any child apply (value-copy immutability).
+- Zobrist completeness (M4): the incrementally maintained key equals full recomputation on random positions, and changing ANY single key input (any cell, forced state, tie state) changes the key.
+- Budget-layer terminal outcomes (M4): all-closed resolution tested for X-relative chip margins positive, negative, and exactly zero (½–½).
+- Perft, defined unambiguously (M4): perft is a BOTH-MOVER expansion matching the search shape — from each position, every legal cell is expanded twice, once as an X mark and once as an O mark (2× branching), with terminal cutoffs; counts at fixed depths from named positions are pinned as regression values. A single-mover schedule is NOT assumed anywhere, because under bidding either player can mark consecutively.
 - Deterministic clock: search takes an injected clock interface; tests use a fake clock, so soft-stop logic is testable without wall time.
 - Threshold-equality tests vs theory's Stage-1 oracle use |T_engine − T_exact| ≤ 1e-9 on T (±1 fixed-point unit of the 10^9 combined-budget scale; operator decision, 2026-08-25), run in full-key TT verification mode (section 5). This tolerance is an ENGINE-SIDE ACCEPTANCE-TEST PARAMETER ONLY: the authoritative `p = T` classification and the approximation-tolerance/exact-fallback contract are theory-owned obligations (orchestrator amendment note, per reviewer correction 1); if theory's contract lands stricter or shaped differently, theory wins and this parameter is re-derived from it.
 
@@ -100,10 +111,11 @@ Single-threaded, deterministic-given-clock search first; concurrency is a later,
 Surface: `engine/` per the roadmap; layout details (targets, test framework) are PLAN decisions.
 License gate (standing): nelhage/ultimattt and TheGustafson/ai-ultimate-tictactoe are reference-study only; no code reuse without fresh orchestrator/operator authorization.
 
-## 9. Budget plumbing (seam only)
+## 9. Root context and budget plumbing (seam only)
 
-`BudgetContext { int64 own_units, opp_units }` lives beside — never inside — Position.
-Search maps `(Position, tie) → T` (and analysis metadata); the root layer alone combines T with BudgetContext to produce the integer bid per R3/R4.
+`RootContext { Seat seat /* X or O, from the owner schema's `you` */; int64 budget_x, budget_o /* canonical X/O units */ }` lives beside — never inside — Position (M1: the harness delivers canonical X/O budgets plus a seat; the engine derives own/theirs itself, killing the perspective-flip bug class).
+Search maps `Position → T` (tie state is inside Position; the earlier `(Position, tie)` notation was redundant — M4); T is X's critical fraction of the combined budget, exactly as the spec defines it, regardless of which seat this engine holds.
+The root layer alone combines T with RootContext — converting to own-seat perspective via `seat` — to produce the integer bid per R3/R4, plus the analysis metadata of section 10.
 Unsigned/64-bit-safe arithmetic for sums and products of unit counts (`__int128` intermediates where products demand it).
 The interior of the search (how T is computed and pruned) is successor-DD territory.
 
@@ -164,13 +176,14 @@ No-consumer action: not applicable — consumers named.
 ## 13. Acceptance criteria (for the eventual rules-core PLAN)
 
 1. All theory fixtures pass (legal moves, closures, routing, terminals) — E2.
-2. Property tests and pinned perft counts pass — E2.
-3. Adapter round-trips the harness conformance corpus; stdout discipline verified — E2.
-4. Rules-core microbench regression guard: playout ≤ 2× the 24 ns/ply design-evidence number on this laptop — E2.
+2. Property tests, the exhaustive 19,683-entry table proof, terminal/rejection/lifecycle/Zobrist tests, and pinned both-mover perft counts pass — E2.
+3. Adapter round-trips the harness conformance corpus (against the APPROVED owner schema, per section 6); stdout discipline verified — E2.
+4. Rules-core microbench regression guard: playout within 2× of the baseline measured by the COMMITTED benchmark harness on this laptop (PLAN deliverable per section 2; the /tmp design-evidence number is not the baseline) — E2.
 5. Oracle threshold equality within section 7's parameter on every Stage-1-reachable position — E2 — listed for continuity but EXECUTABLE only after theory's Stage-1 and the successor search DD land; it does not gate the rules-core PLAN.
 
 ## 14. Risks
 
 - Theory could overturn budget independence or reshape zugzwang: Zobrist inputs reopen via the successor DD; contained because no value semantics are locked here.
 - Vendored JSON lib license must be verified before vendoring (PLAN step).
-- The fork-mask definition (section 3) has edge cases (double-threat counting on near-full boards); property tests against a naive recomputation are the guard.
+- The fork-mask definition (section 3) has edge cases (double-threat counting on near-full boards); the exhaustive 19,683-entry naive-evaluator comparison in section 7 is the guard.
+- The concrete adapter contract is deliberately unlocked until the harness schema is approved (section 6); the residual risk is PLAN-time schedule coupling, accepted in exchange for not locking a consumer against a moving owner record.
