@@ -297,17 +297,17 @@ def replay_frames(events: list[dict]) -> Replay  # from log alone; raises ValueE
 
 ```python
 class Engine:
-    def __init__(self, cmd: list[str], seat: str, *, stderr_cap: int = 65536,
-                 clock=time.monotonic): ...
+    def __init__(self, cmd: list[str], seat: str, *, shutdown_grace_ms: int = 2000,
+                 stderr_cap: int = 65536, clock=time.monotonic): ...
     def start(self) -> None                    # Popen, start_new_session=True (own process group)
     def hello(self, req: dict, timeout_ms: int) -> tuple[ParsedHello, int]
-    # __init__ signature: Engine(cmd, seat, *, shutdown_grace_ms: int = 2000,
-    #                            stderr_cap: int = 65536, clock=time.monotonic)
     def send_line(self, obj: dict) -> str | None
-        # Returns None after writing the canonical line + flush.
-        # Returns "extra_protocol_line" WITHOUT writing when ANY stale bytes (complete or partial
-        # line) are buffered at send time: protocol bytes are never silently discarded — the stale
-        # output faults the upcoming submission through the normal R2 path and recovery clears it.
+        # PRE-SEND BOUNDARY (normative, in order): (1) non-blockingly drain ALL currently available
+        # stdout bytes from the OS pipe into the framing buffer; (2) if the buffer then contains
+        # even a single byte (complete OR partial line), return "extra_protocol_line" WITHOUT
+        # writing — protocol bytes are never silently discarded; the stale output faults the
+        # upcoming submission through the normal R2 path and recovery clears it; (3) otherwise
+        # write the canonical line + flush and return None.
     def read_reply(self, deadline: float) -> tuple[bytes | None, str | None]
         # Bounded INCREMENTAL framing over a per-engine buffer:
         #   (raw, None)                    complete LF line, nothing else buffered
@@ -333,7 +333,7 @@ def collect_both(engines: dict[str, Engine], reqs: dict[str, dict],
 
 `stub_engine.py` (test-only, standalone stdlib): speaks the protocol correctly by default; misbehaves on command via argv, e.g. `--fault timeout:2` (sleep past deadline on ply 2), `bad_json:1`, `illegal_move:3`, `oversize:1`, `extra_line:2`, `die:2` (exit mid-turn), `hello_timeout`, `bid <int>|all_in|echo_legal0`; deterministic via `--seed`.
 
-- [ ] **Step 1: Failing tests** — spawn stub, clean hello returns name/version and elapsed; `collect_both` returns both ok replies and measured windows; timeout stub → (`None`,"timeout") after `time_ms+grace_ms` (use tiny 200 ms budgets in tests); dead stub → `eof_or_crash`; oversize stub (`--fault oversize_nolf:1`, streams > 32 KiB with no LF) → `"oversize_line"` classified BEFORE any newline arrives; extra-line stub (`--fault extra_line:1`, same-write) → `"extra_protocol_line"` with the second line quarantined; DELAYED extra-line stub (`--fault extra_line_delayed:1`, second line in a separate write ~50 ms after the reply) → `collect_both`'s `sweep_extra()` downgrades the seat to `"extra_protocol_line"`; stale-bytes-at-send: stub emits an unsolicited line between plies → next `send_line` returns `"extra_protocol_line"` without writing, and the submission faults through R2; after any fault, the next request sees a clean buffer; `finish()` returns `"ok"` for a live engine and `"failed"` for a dead one, honors a CONFIGURED non-default `shutdown_grace_ms` (construct `Engine(..., shutdown_grace_ms=300)` and assert the wait), then the process group is gone; `kill()` leaves no child (poll returncode, check process group gone); stderr capped (stub `--spam-stderr`).
+- [ ] **Step 1: Failing tests** — spawn stub, clean hello returns name/version and elapsed; `collect_both` returns both ok replies and measured windows; timeout stub → (`None`,"timeout") after `time_ms+grace_ms` (use tiny 200 ms budgets in tests); dead stub → `eof_or_crash`; oversize stub (`--fault oversize_nolf:1`, streams > 32 KiB with no LF) → `"oversize_line"` classified BEFORE any newline arrives; extra-line stub (`--fault extra_line:1`, same-write) → `"extra_protocol_line"` with the second line quarantined; delayed extra output is proven with two DETERMINISTIC schedules, not a race: (a) sweep-visible — the stub emits its extra line while its companion seat's reply is held open (stub `--fault extra_line_before_sweep:1` writes the extra line, then the OTHER stub is released), so the line exists in the pipe before `collect_both`'s final `sweep_extra()`, which downgrades the seat to `"extra_protocol_line"` on THAT auction; (b) post-sweep — the stub emits an unsolicited line only after the ply fully resolves (`--fault unsolicited_between_plies:1`), and the NEXT `send_line`'s pre-send drain pulls it from the OS pipe and returns `"extra_protocol_line"` without writing, faulting the upcoming submission; a partial-byte variant (stub writes `b"garbage-no-newline"` between plies) faults the same way — no test may depend on a line arriving during an instantaneous sweep; after any fault, the next request sees a clean buffer; `finish()` returns `"ok"` for a live engine and `"failed"` for a dead one, honors a CONFIGURED non-default `shutdown_grace_ms` (construct `Engine(..., shutdown_grace_ms=300)` and assert the wait), then the process group is gone; `kill()` leaves no child (poll returncode, check process group gone); stderr capped (stub `--spam-stderr`).
 - [ ] **Steps 2–5: FAIL → implement → PASS → commit** `"harness: engine supervisor + sealed collection"`.
 
 ### Task 9: referee.py — single-game loop (the DD §5/§5.1 machine)

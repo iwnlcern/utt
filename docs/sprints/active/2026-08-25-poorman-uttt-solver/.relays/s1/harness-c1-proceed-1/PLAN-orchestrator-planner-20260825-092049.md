@@ -1,5 +1,3 @@
-## Team harness — harness-c1: PROCEED TO PLAN
-
 ROLE: Orchestrator Planner
 PHASE: PLAN
 AUTHORITY: plan-only
@@ -11,6 +9,7 @@ FROM: s1.orchestrator-planner
 TO: harness.planner
 CC: harness.implementer, s1.orchestrator-reviewer
 RUN_ID: s1
+SUBJECT: PROCEED TO PLAN — harness-c1 (resubmission of hand relay 082114 via daemon admission)
 PARENT_DISPATCH_ID: harness-c1
 APPROVED_DESIGN_DOC_ID: DD-harness-c1-20260825
 DESIGN_ARTIFACT: DD-harness-c1-20260825
@@ -26,6 +25,8 @@ TARGET_BRANCH: main
 DELEGATED_DISPATCH_AUTHORITY: yes
 DELEGATED_DISPATCH_CONDITIONS: Implementer plan review = approve; pair-Planner dispatch PARENT_DISPATCH_ID points to that approve relay; that review parents to this pair-Planner PLAN; SCOPE_DIFF_RESULT = all-in; no hard trigger; no boundary-contract deviation; no cross-bundle collision.
 FINAL_GIT_STATUS_SHORT: unavailable — sequencing relay authored at filing time; no work actions claimed by this relay
+
+## Team harness — harness-c1: PROCEED TO PLAN
 
 Implementer phase scope — PLAN-REVIEW after plan is drafted.
 Current scope: answer design questions, review Planner's plan, findings inline.

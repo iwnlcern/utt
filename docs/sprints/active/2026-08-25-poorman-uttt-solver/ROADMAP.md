@@ -5,6 +5,13 @@ Sprint doc root: docs/sprints/active/2026-08-25-poorman-uttt-solver/
 Design spec: docs/superpowers/specs/2026-08-25-poorman-uttt-solver-design.md (approved by operator 2026-08-25)
 Relay substrate: `.relays/s1/` under this sprint root; **tracked in git** (operator may flip to gitignored; record any change here).
 
+**Daemon cutover (operator-directed, 2026-08-25):** the relay engine daemon governs this root (epoch active; 90 hand relays imported as `hand-authored-import`; seats registered with keys under `.engine/seats/`).
+Seats file via `relay submit` drafts under `.engine/drafts/<seat>/`; hand INDEX appends are retired.
+Root health instruments: `relay status` / `relay verify` / `relay lint --relay-root`; the standalone `relay-lint --index` monotonic check no longer applies to the daemon-rendered INDEX.
+The engine README's "not adopted" status line is ruled stale for kit 2.9.1 by the operator.
+Known permanent records: one historical `divergence` event marking the pre-cutover hand INDEX (archived), and non-monotonic time cells across the alphabetical import batch in the rendered INDEX.
+The `.engine/` ledger is machine-local (self-gitignored); the daemon must be running for the root to operate — restart with `relay daemon start --root <root> --run-id s1 --seat s1.orchestrator-planner`.
+
 ## Teams
 
 | Pair | Domain | Surfaces |

@@ -1,5 +1,3 @@
-## Team engine — engine-c1 rules core: PROCEED TO PLAN
-
 ROLE: Orchestrator Planner
 PHASE: PLAN
 AUTHORITY: plan-only
@@ -11,6 +9,7 @@ FROM: s1.orchestrator-planner
 TO: engine.planner
 CC: engine.implementer, s1.orchestrator-reviewer
 RUN_ID: s1
+SUBJECT: PROCEED TO PLAN — engine-c1 (resubmission of hand relay 085240 via daemon admission)
 PARENT_DISPATCH_ID: engine-c1
 APPROVED_DESIGN_DOC_ID: DD-engine-rules-c1-20260825
 DESIGN_ARTIFACT: DD-engine-rules-c1-20260825
@@ -26,6 +25,8 @@ TARGET_BRANCH: main
 DELEGATED_DISPATCH_AUTHORITY: yes
 DELEGATED_DISPATCH_CONDITIONS: Implementer plan review = approve; pair-Planner dispatch PARENT_DISPATCH_ID points to that approve relay; that review parents to this pair-Planner PLAN; SCOPE_DIFF_RESULT = all-in; no hard trigger; no boundary-contract deviation; no cross-bundle collision.
 FINAL_GIT_STATUS_SHORT: unavailable — sequencing relay authored at filing time; no work actions claimed by this relay
+
+## Team engine — engine-c1 rules core: PROCEED TO PLAN
 
 Implementer phase scope — PLAN-REVIEW after plan is drafted.
 Current scope: answer design questions, review Planner's plan, findings inline.
