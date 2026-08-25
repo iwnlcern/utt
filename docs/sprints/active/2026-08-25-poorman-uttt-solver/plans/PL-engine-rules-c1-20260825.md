@@ -1,5 +1,7 @@
 # Engine Rules Core Implementation Plan (PL-engine-rules-c1-20260825)
 
+Revision 2 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-1` (relay 090632), all eight groups: PR1 exact base lock + gitignore-first + explicit staging; PR2 normative bit order with final literals, pinned macro-win sequence, exact RefPosition, from_parts as the mechanical builder; PR3 both dependencies pinned by version/URL/sha256 and vendored in Task 1 before any consumer, JSON boundary restated; PR4 RootContext + winner_on_chips production seam and the DD clock seam brought IN scope (Task 2); PR5 independent secondary Zobrist table + full-population sensitivity tests; PR6 complete ImportError classes, all three message types validated, conformance-corpus consumption with honest pending state; PR7 single-session acceptance benchmark with identity capture, warmup separate from ≥ 10 measured runs, and a refusing --verify mode; PR8 acceptance truth table replacing the overclaiming sweep.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the C++26 rules core, local tables, Zobrist keying, test seam, benchmark harness, and JSONL protocol adapter locked by DD-engine-rules-c1-20260825 — no search math.
@@ -14,7 +16,9 @@ Consumed owner contracts: harness protocol v1 = DD-harness-c1-20260825 @ 11ac4ef
 ## Global Constraints
 
 - Compiler: Homebrew LLVM 22.1.8 (`/opt/homebrew/opt/llvm/bin/clang++`), `-std=c++2c`; feature-tested library facilities only (`std::simd` and `<inplace_vector>` are absent — do not include them).
-- The search core (everything under `engine/src/core/`) has zero JSON and zero I/O dependencies; JSON appears only under `engine/src/adapter/`.
+- JSON boundary (PR3 clarification): the PRODUCTION core (`engine/src/core/`, target `uttt_core`) has zero JSON and zero I/O dependencies; the adapter target and TEST-ONLY fixture ingestion may use the pinned vendored header.
+- Dependency pins (PR3; verified 2026-08-25, MIT license bytes confirmed): doctest v2.4.12 from https://raw.githubusercontent.com/doctest/doctest/v2.4.12/doctest/doctest.h sha256 94029a7d32da24a56249658147dbd2b33ff0b9ed665295cbbaf19aafff5b0ced, LICENSE sha256 0fe0b331fa1513dcce8604ff1fa925f32d1cea17d8aeb1c2471fad40d291adc5; nlohmann/json v3.12.0 from https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp sha256 aaf127c04cb31c406e5b04a63f1ae89369fccde6d8fa7cdda1ed4f32dfc5de63, LICENSE.MIT (from https://raw.githubusercontent.com/nlohmann/json/v3.12.0/LICENSE.MIT) sha256 46a65cffd1ea955132d95a8dd921640714a8d6b537d2e4e482d31145ae95b603. Vendoring verifies these digests with `shasum -a 256` and records them in a comment in CMakeLists; a mismatch aborts and escalates.
+- Bit order (PR2, normative everywhere): bit c = cell c, cells row-major within a local board — bit 0 = row 0 col 0 … bit 8 = row 2 col 2; identical to the DD's `3^c` ternary convention. `kWinLines` values are order-symmetric and unchanged; every mask literal in this plan is written in this convention and is final.
 - No search math: no backup operator, no cutoff/bound math, no TT, no widening. `zobrist` keying IS in scope (it keys state identity, not values).
 - License gate: nelhage/ultimattt and TheGustafson/ai-ultimate-tictactoe are reference-study only; copying code from them is prohibited.
 - Vendored deps are pinned single headers with their LICENSE text committed beside them; both chosen libs are MIT (verify the license file content on vendoring; abort and escalate if not MIT).
@@ -22,7 +26,8 @@ Consumed owner contracts: harness protocol v1 = DD-harness-c1-20260825 @ 11ac4ef
 - Rules follow the design spec canonical rules AS LOCKED in the DD; if any task step seems to contradict the DD, the DD wins and the conflict is a blocker relay, not a local fix.
 - Long .md files put full sentences on their own lines.
 - Commits: small, per task step as marked; never claim a fix without the named test output.
-- Branch: create `engine/rules-core-c1` from `main` at IMPL start; do not commit to `main`.
+- Branch (PR1, exact base lock): at IMPL start run `git rev-parse main` and REQUIRE `63b4b7b...` (the dispatched BASE); if main has moved, STOP and relay to the orchestrator for a fresh BASE instead of rebasing silently. Then `git switch -c engine/rules-core-c1 63b4b7b`. Never commit to `main`.
+- Staging discipline (PR1): never `git add engine/` broadly; stage explicit paths listed in each commit step; before every commit run `git status --short` and REQUIRE no `engine/build/` path staged (the build tree is gitignored in Task 1 before the first configure). `engine/bench/baseline.json` is intentionally trackable.
 
 ## File Structure
 
@@ -42,6 +47,8 @@ engine/
   src/core/zobrist.hpp               # zobrist tables + full recompute
   src/core/zobrist.cpp
   src/core/naive_position.hpp        # naive 81-cell reference movegen + naive apply (header-only, used by tests and bench reference path)
+  src/core/budget.hpp                # RootContext + winner_on_chips (pure, header-only; PR4)
+  src/core/clock.hpp                 # Clock interface + FakeClock (header-only; PR4 — DD §7 locked seam)
   src/adapter/wire.hpp               # TurnRequest/TurnReply/Hello structs + parse/validate/serialize (nlohmann inside .cpp only)
   src/adapter/wire.cpp
   src/adapter/policy.hpp             # Policy interface + PlaceholderPolicy
@@ -63,20 +70,28 @@ Coordinate conventions everywhere: local boards 0–8 row-major across the macro
 
 ---
 
-### Task 1: Scaffold and toolchain lock
+### Task 1: Scaffold, gitignore, toolchain lock, and BOTH vendored dependencies
 
 **Files:**
+- Create: `engine/.gitignore` (content: `build/`)
 - Create: `engine/CMakeLists.txt`
 - Create: `engine/third_party/doctest/doctest.h`, `engine/third_party/doctest/LICENSE.txt`
+- Create: `engine/third_party/nlohmann/json.hpp`, `engine/third_party/nlohmann/LICENSE.MIT`
 - Create: `engine/tests/test_smoke.cpp` (deleted in Task 2 when real tests exist — keep if you prefer; it is one assertion)
 
 **Interfaces:**
 - Produces: build commands used by every later task: `cmake -S engine -B engine/build -G Ninja -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo` then `ninja -C engine/build` then `ctest --test-dir engine/build --output-on-failure`.
 
-- [ ] **Step 1: Vendor doctest**
+- [ ] **Step 0: Write engine/.gitignore FIRST (PR1)**
 
-Download the latest 2.4.x single header from the doctest GitHub release, save as `engine/third_party/doctest/doctest.h`, save its LICENSE.txt beside it, and confirm the license text is MIT (first line of LICENSE.txt).
-Record the version in a one-line comment at the top of CMakeLists.
+Content is the single line `build/`.
+Verify: `git check-ignore engine/build/x` prints the path after the file exists.
+
+- [ ] **Step 1: Vendor BOTH pinned dependencies (PR3)**
+
+Download exactly the four pinned URLs from Global Constraints, verify each file's sha256 against the pinned digests with `shasum -a 256` (abort on any mismatch), confirm both license files are MIT by reading their first lines, and place them at the paths above.
+Record versions + digests in a comment block at the top of CMakeLists.
+nlohmann/json is vendored NOW so Task 9's fixture reader (its first consumer) never precedes it.
 
 - [ ] **Step 2: Write CMakeLists**
 
@@ -122,20 +137,43 @@ TEST_CASE("toolchain sanity") {
 Run the three build commands from Interfaces above.
 Expected: configure, build, and `ctest` all succeed with 1 passing test.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit (explicit paths; assert no build artifacts)**
 
 ```bash
-git add engine/
-git commit -m "engine: scaffold CMake + Ninja + Homebrew LLVM c++2c toolchain, vendor doctest (MIT)"
+git add engine/.gitignore engine/CMakeLists.txt engine/third_party engine/tests/test_smoke.cpp engine/src
+git status --short   # REQUIRE: no engine/build/ path anywhere in the staged set
+git commit -m "engine: scaffold + gitignore + pinned vendored doctest 2.4.12 and nlohmann/json 3.12.0 (MIT)"
 ```
 
 ---
 
-### Task 2: Core types
+### Task 2: Core types + budget and clock seams (PR4)
 
 **Files:**
 - Create: `engine/src/core/types.hpp`
+- Create: `engine/src/core/budget.hpp`
+- Create: `engine/src/core/clock.hpp`
 - Create: `engine/tests/test_types.cpp` (add to `uttt_tests` sources; do the same for every later test file)
+
+**Additional produced interfaces (locked DD seams):**
+
+```c++
+// budget.hpp — the production all-closed resolver (DD §4/§9): pure, core-resident.
+namespace uttt {
+struct RootContext { Seat seat; int64_t budget_x; int64_t budget_o; };
+enum class ChipResult : uint8_t { XWins, OWins, Draw };
+constexpr ChipResult winner_on_chips(int64_t budget_x, int64_t budget_o) {
+  return budget_x > budget_o ? ChipResult::XWins
+       : budget_x < budget_o ? ChipResult::OWins : ChipResult::Draw;
+}
+}
+// clock.hpp — the DD §7 injected-clock seam (PR4: locked bytes, not deferred).
+namespace uttt {
+struct Clock { virtual int64_t now_ms() = 0; virtual ~Clock() = default; };
+struct FakeClock final : Clock { int64_t t = 0; int64_t now_ms() override { return t; } };
+struct SteadyClock final : Clock { int64_t now_ms() override; };  // steady_clock in .hpp inline
+}
+```
 
 **Interfaces:**
 - Produces (exact, used by every later task):
@@ -176,6 +214,15 @@ TEST_CASE("types basics") {
   CHECK(ml.m[0] == Move{4, 2});
   CHECK(kWinLines.size() == 8);
 }
+TEST_CASE("all-closed chip resolution: production seam, all three margins (PR4)") {
+  CHECK(winner_on_chips(500000001, 499999999) == ChipResult::XWins);   // +margin
+  CHECK(winner_on_chips(499999999, 500000001) == ChipResult::OWins);   // -margin
+  CHECK(winner_on_chips(1, 1) == ChipResult::Draw);                    // exact equality (spec ½–½)
+  CHECK(winner_on_chips(0, 0) == ChipResult::Draw);
+}
+TEST_CASE("fake clock contract") {
+  FakeClock c; CHECK(c.now_ms() == 0); c.t = 27000; CHECK(c.now_ms() == 27000);
+}
 ```
 
 - [ ] **Step 2: Run to verify it fails** (compile error: header absent). **Step 3: Add the header exactly as in Interfaces.** **Step 4: Build + ctest, expect pass.** **Step 5: Commit** `git commit -m "engine: core types"`.
@@ -214,20 +261,21 @@ LocalEval eval_local(uint16_t x, uint16_t o);
   - `win_p` (only for valid Open boards; else 0): bits c ∈ empties where `completed(p | bit(c))`.
   - `fork_p` (only for valid Open boards; else 0): bits c ∈ empties where NOT `completed(p | bit(c))` AND the board after placing p at c has ≥ 2 distinct immediate-win cells for p.
 
-- [ ] **Step 1: Write failing tests — every class from the DD**
+- [ ] **Step 1: Write failing tests — every class from the DD (literals FINAL in the normative bit order: bit c = cell c, bit 0 = r0c0 … bit 8 = r2c2; PR2)**
 
 ```c++
 #include "doctest/doctest.h"
 #include "core/naive_local.hpp"
 using namespace uttt;
-static uint16_t rowmask(int r) { return uint16_t(0b111 << (3 * (2 - r))); }
+// bit c = cell c, row-major: row r = bits {3r, 3r+1, 3r+2}; col k = bits {k, k+3, k+6}.
+static constexpr uint16_t rowmask(int r) { return uint16_t(0b111u << (3 * r)); }
 TEST_CASE("naive local eval") {
   auto empty = naive::eval_local(0, 0);
   CHECK(empty.valid); CHECK(empty.status == LocalStatus::Open);
   CHECK(empty.empties == 0x1FF); CHECK(empty.win_x == 0);
 
-  // single-line win: valid
-  auto onewin = naive::eval_local(rowmask(0), 0b000000011);
+  // single-line win (X row 0 = bits 0,1,2; O two stray cells 7,8): valid
+  auto onewin = naive::eval_local(rowmask(0), 0b110000000);
   CHECK(onewin.valid); CHECK(onewin.status == LocalStatus::XWon);
   CHECK(onewin.empties == 0);
 
@@ -236,36 +284,35 @@ TEST_CASE("naive local eval") {
   CHECK_FALSE(dual.valid); CHECK(dual.status == LocalStatus::FullDraw);
   CHECK(dual.empties == 0); CHECK(dual.win_x == 0); CHECK(dual.fork_o == 0);
 
-  // same-player disjoint lines: invalid (MR1 class 2, XXX/XXX/...)
+  // same-player disjoint lines (X rows 0 and 1): invalid (MR1 class 2)
   auto disjoint = naive::eval_local(uint16_t(rowmask(0) | rowmask(1)), 0);
   CHECK_FALSE(disjoint.valid);
 
-  // same-player two lines sharing the closing mark: VALID
-  // X on row0 + col0 (cells r0c0,r0c1,r0c2,r1c0,r2c0), corner r0c0 on both lines,
-  // removing it kills both.
-  uint16_t two = uint16_t(rowmask(0) | 0b100100100);
-  auto shared = naive::eval_local(two, 0);
+  // same-player two lines sharing the closing mark: VALID.
+  // X = row 0 (bits 0,1,2) + col 0 (bits 0,3,6) = 0b001001111;
+  // bit 0 lies on both lines and removing it kills both.
+  auto shared = naive::eval_local(0b001001111, 0);
   CHECK(shared.valid); CHECK(shared.status == LocalStatus::XWon);
 
-  // immediate win mask: X holds r0c0,r0c1 -> r0c2 completes
-  auto near = naive::eval_local(0b110000000, 0);
-  CHECK((near.win_x & 0b001000000) != 0);
+  // immediate win mask: X holds cells 0,1 -> cell 2 completes row 0
+  auto near = naive::eval_local(0b000000011, 0);
+  CHECK((near.win_x & 0b000000100) != 0);
 
-  // fork: X at two corners r0c0,r2c2 with center free — center creates
-  // the two diagonals? center completes nothing yet; after center X has
-  // main-diag threat needing r0c0..: hand-check a known fork instead:
-  // X at r0c0 and r0c2 and r2c0: playing center (r1c1) yields diag+col threats >= 2.
-  auto forky = naive::eval_local(0b101000100, 0);
+  // fork: X at cells 0 (r0c0) and 2 (r0c2), candidate center cell 4:
+  // placing X at 4 completes nothing, and afterwards cells {1 (row0),
+  // 8 (main diag 0,4,8), 6 (anti-diag 2,4,6)} are distinct immediate wins (>= 2).
+  auto forky = naive::eval_local(0b000000101, 0);
   CHECK((forky.fork_x & 0b000010000) != 0);
 
-  // full draw
-  auto draw = naive::eval_local(0b101110010, 0b010001101);
+  // full draw: XXO/OOX/XXO -> x = cells {0,1,5,6,7} = 0b011100011,
+  // o = cells {2,3,4,8} = 0b100011100; hand-checked: no line either side, board full.
+  auto draw = naive::eval_local(0b011100011, 0b100011100);
   CHECK(draw.valid); CHECK(draw.status == LocalStatus::FullDraw);
 }
 ```
 
-Verify the fork/draw literals by hand against the bit convention (bit 8 = r0c0 … bit 0 = r2c2 or your chosen order) BEFORE running — pick ONE bit order (recommended: bit index = 3*row + col, i.e. bit 0 = r0c0 … bit 8 = r2c2) and rewrite the literals above consistently with it; the values shown assume MSB-first and MUST be adapted to the chosen order.
-The chosen bit order is part of the produced interface: document it in a comment in `types.hpp` and use it in every later task and in fixture/wire conversion.
+The bit order is normative for the whole codebase (Global Constraints); document it in a comment in `types.hpp` and use it in fixture/wire conversion.
+These literals are final; do not re-derive them at IMPL.
 
 - [ ] **Step 2: Run to verify failure.** **Step 3: Implement `eval_local` per the semantics block.** **Step 4: Build + ctest, expect pass.** **Step 5: Commit** `"engine: naive local evaluator + MR1 reachability oracle"`.
 
@@ -359,6 +406,23 @@ struct Position {
   void legal_moves(MoveList& out) const;   // EMPTY at any terminal (DD §4)
   std::expected<Position, ApplyError> applied(Move mv, Seat mover) const;
   bool identity_equal(const Position& p) const;  // fieldwise x,o,forced,tie ONLY (DD §5)
+
+  // Mechanical import/fixture builder (PR2/PR6; lives here, NOT in Task 9).
+  // ImportError is declared beside Position in position.hpp:
+  // enum class ImportError : uint8_t { OverlappingMasks, InvalidLocal,
+  //   ForcedOutOfDomain, ForcedToClosedBoard, TieOutOfDomain, TieNullAfterFirstMark };
+  // recomputes tern/macro/closed/key from the masks and REJECTS every locked
+  // inconsistency class (ImportError enum): OverlappingMasks, InvalidLocal
+  // (table validity bit), ForcedOutOfDomain (not in {0..8, kForcedAny}),
+  // ForcedToClosedBoard (non-ANY forced naming a closed board — this alone
+  // covers the all-closed-with-forced contradiction, since every board is
+  // closed then), TieOutOfDomain, TieNullAfterFirstMark (NullFirstMove with
+  // any cell already marked). Terminal imports (macro win / all-closed) are
+  // otherwise accepted; their consistency is fully enforced by the rules above
+  // because closed/macro state is recomputed, never trusted from the caller.
+  static std::expected<Position, ImportError>
+  from_parts(const std::array<uint16_t, 9>& x, const std::array<uint16_t, 9>& o,
+             int8_t forced, TieState tie);
 };
 }
 ```
@@ -406,11 +470,6 @@ TEST_CASE("closure, routing, closed-board ANY") {
   for (int i = 0; i < ml.n; ++i) CHECK(((p.closed >> ml.m[i].board) & 1) == 0);
 }
 TEST_CASE("terminal totality (M2)") {
-  // Fabricate a macro win via legal play on three local boards
-  // (win locals 0,1,2 for X using the routing dance above per board),
-  // then: terminal() == MacroWinX, legal_moves empty, applied -> TerminalParent.
-  // Build helper make_macro_win_x() inside the test file that performs
-  // the scripted legal sequence and returns the terminal Position.
   auto t = make_macro_win_x();
   CHECK(t.terminal() == TerminalKind::MacroWinX);
   MoveList ml; t.legal_moves(ml);
@@ -419,8 +478,27 @@ TEST_CASE("terminal totality (M2)") {
 }
 ```
 
-`make_macro_win_x()` is written in the test file as an explicit scripted sequence of `applied` calls (every move legal under routing; same dance as the closure test repeated for locals 0, 1, 2 — the writer works the routing out once and asserts value() at each step).
-Note the row convention: with bit order 3*row+col, cells {0,1,2} are row 0.
+`make_macro_win_x()` is this EXACT pinned sequence (PR2; X wins every auction — legal under bidding; forced-state comments verified by REQUIRE on `forced` after each step):
+
+```c++
+static Position make_macro_win_x() {
+  auto p = Position::initial();                       // forced 4
+  auto step = [&](Move m) { p = p.applied(m, Seat::X).value(); };
+  step({4, 0});  REQUIRE(p.forced == 0);              // cell 0 -> board 0
+  step({0, 0});  REQUIRE(p.forced == 0);
+  step({0, 1});  REQUIRE(p.forced == 1);
+  step({1, 0});  REQUIRE(p.forced == 0);
+  step({0, 2});  REQUIRE((p.closed >> 0) & 1);        // board 0: row 0 done
+                 REQUIRE(p.forced == 2);
+  step({2, 1});  REQUIRE(p.forced == 1);
+  step({1, 1});  REQUIRE(p.forced == 1);
+  step({1, 2});  REQUIRE((p.closed >> 1) & 1);        // board 1: row 0 done
+                 REQUIRE(p.forced == 2);
+  step({2, 0});  REQUIRE(p.forced == kForcedAny);     // cell 0 -> board 0 closed
+  step({2, 2});                                       // board 2: row 0 done -> macro row {0,1,2}
+  return p;
+}
+```
 
 - [ ] **Step 2: Run to verify failure.** **Step 3: Implement.** **Step 4: Build + ctest, expect pass.** **Step 5: Commit** `"engine: Position apply/movegen/terminals with total terminal legality"`.
 
@@ -439,20 +517,20 @@ Note the row convention: with bit order 3*row+col, cells {0,1,2} are row 0.
 namespace uttt::naive {
 // Naive 81-cell reference: recomputes everything from scratch each call.
 // Independent implementation: derives closure/status from eval_local (Task 3),
-// scans all cells for movegen, no caches. Same Move/Seat types.
+// scans all cells for movegen, no caches. Same Move/Seat types. Timing-free.
 struct RefPosition {
-  std::array<Cell81, 1> board;  // implement as std::array<uint8_t, 81>: 0 empty, 1 X, 2 O
-  int8_t forced; TieState tie;
+  std::array<uint8_t, 81> cells{};  // index 9*board + cell; 0 empty, 1 X, 2 O
+  int8_t forced = 4;
+  TieState tie = TieState::NullFirstMove;
   static RefPosition initial();
   TerminalKind terminal() const;
   void legal_moves(MoveList& out) const;
   RefPosition applied_unchecked(Move mv, Seat mover) const;  // caller passes legal moves only
 };
-uint64_t playout_ns_probe(...);  // NOT here — bench owns timing; this header stays timing-free
 }
 ```
 
-(Adjust the struct literally: `std::array<uint8_t, 81> cells;` with index `9*board+cell`; drop the `Cell81` placeholder shown above.)
+This interface is final (PR2 — the earlier `Cell81` placeholder is gone).
 
 - [ ] **Step 1: Write failing property tests**
 
@@ -485,36 +563,68 @@ Write the loop concretely: collect both move lists, sort by (board, cell), compa
 
 ```c++
 namespace uttt {
-// 175 randoms: cell[81][2 seats], forced[10] (0..8 + ANY), tie[3].
-// Generated at build time from a FIXED seed (splitmix64 from 0x9E3779B97F4A7C15)
-// so keys are stable across runs and platforms.
-struct ZobristTables { /* arrays as above */ static const ZobristTables& instance(); };
-uint64_t zobrist_full(const Position& p);   // recompute from identity fields
-// 32-bit secondary tag: independent fold, e.g. splitmix64(key) >> 32 — used by the
-// future TT (successor DD); expose now as: uint32_t zobrist_tag(uint64_t key);
+// PRIMARY: 175 uint64 randoms: cell[81][2 seats], forced[10] (0..8 + ANY), tie[3].
+// SECONDARY (PR5): an INDEPENDENT 175-entry uint32 table over the SAME identity
+// inputs, generated from a DIFFERENT fixed seed — never derived from the primary
+// key, so a primary collision does not imply a tag collision.
+// Both generated at startup from FIXED seeds (primary: splitmix64 stream seeded
+// 0x9E3779B97F4A7C15; secondary: splitmix64 stream seeded 0xA5A5A5A5DEADBEEF),
+// stable across runs and platforms.
+struct ZobristTables { /* both table sets */ static const ZobristTables& instance(); };
+uint64_t zobrist_full(const Position& p);   // primary recompute from identity fields
+uint32_t zobrist_tag_full(const Position& p);  // secondary recompute (future TT verify tag)
 }
 ```
 
-- `applied()` updates `key`: XOR out old forced and tie randoms, XOR in the placed cell random, XOR in new forced and tie randoms.
+- `applied()` updates `key`: XOR out old forced and tie randoms, XOR in the placed cell random, XOR in new forced and tie randoms. (`key` stores the primary; the secondary is recompute-only until the TT exists.)
 
-- [ ] **Step 1: Write failing tests**
+- [ ] **Step 1: Write failing tests (full declared input population — PR5)**
 
 ```c++
 TEST_CASE("incremental key == full recompute along random games") { /* reuse Task 6 loop; REQUIRE p.key == zobrist_full(p) each ply */ }
-TEST_CASE("key sensitivity: every input changes the key") {
-  auto p = Position::initial();
-  auto q = p.applied({4, 4}, Seat::X).value();
-  CHECK(p.key != q.key);                             // cell + tie + forced moved
-  // forced-only difference: construct two positions equal in cells/tie differing
-  // only in forced (reach the same cell set via different move orders per Task 5's
-  // routing dance) and CHECK different keys; likewise tie-only via mover swap.
-  // X-mark vs O-mark on the same cell:
-  auto r = p.applied({4, 4}, Seat::O).value();
-  CHECK(q.key != r.key);
+TEST_CASE("primary and secondary sensitivity: EVERY input, via from_parts") {
+  // Baseline: empty board, forced 4, NullFirstMove.
+  std::array<uint16_t, 9> zx{}, zo{};
+  auto base = Position::from_parts(zx, zo, 4, TieState::NullFirstMove).value();
+  // (a) every cell x every seat: 162 single-mark variants
+  for (int b = 0; b < 9; ++b) for (int c = 0; c < 9; ++c) {
+    auto mx = zx; mx[b] = uint16_t(1u << c);
+    auto px = Position::from_parts(mx, zo, 4, TieState::O).value();
+    auto mo = zo; mo[b] = uint16_t(1u << c);
+    auto po = Position::from_parts(zx, mo, 4, TieState::X).value();
+    CHECK(px.key != base.key); CHECK(po.key != base.key); CHECK(px.key != po.key);
+    CHECK(zobrist_tag_full(px) != zobrist_tag_full(po));
+  }
+  // (b) all ten forced states pairwise-distinct on otherwise-equal positions
+  //     (board 4 marked once so tie != Null is importable; forced must name an
+  //      open board or ANY — all boards open here)
+  std::array<uint16_t, 9> one{}; one[4] = 1;  // X at (4,0)
+  std::array<uint64_t, 10> keys{};
+  for (int f = 0; f < 9; ++f)
+    keys[f] = Position::from_parts(one, zo, int8_t(f), TieState::O).value().key;
+  keys[9] = Position::from_parts(one, zo, kForcedAny, TieState::O).value().key;
+  for (int i = 0; i < 10; ++i) for (int j = i + 1; j < 10; ++j) CHECK(keys[i] != keys[j]);
+  // (c) all three tie states distinct (empty board admits NullFirstMove;
+  //      marked board admits X/O)
+  auto tn = base.key;
+  auto tx = Position::from_parts(one, zo, 4, TieState::X).value().key;
+  auto to = Position::from_parts(one, zo, 4, TieState::O).value().key;
+  CHECK(tx != to);
+  CHECK(tn != tx); CHECK(tn != to);   // differ in cell AND tie; the pure tie pair is tx vs to
+}
+TEST_CASE("secondary tag is not a fold of the primary") {
+  // Structural guarantee is by construction (independent table); assert the
+  // observable consequence on the (b) population: equal-tag pairs are not
+  // forced by equal-key pairs — spot-check that tag differences occur across
+  // the forced-state variants too.
+  std::array<uint16_t, 9> one{}; one[4] = 1; std::array<uint16_t, 9> zo{};
+  auto a = Position::from_parts(one, zo, 0, TieState::O).value();
+  auto b = Position::from_parts(one, zo, 1, TieState::O).value();
+  CHECK(zobrist_tag_full(a) != zobrist_tag_full(b));
 }
 ```
 
-The forced-only / tie-only constructions are scripted explicitly in the test (two short move sequences each; the writer verifies the intended field diff with REQUIRE on the fields before comparing keys).
+`from_parts` (Task 5) is the mechanical builder here — no routing invention (PR2).
 
 - [ ] **Step 2: Run to verify failure.** **Step 3: Implement tables + full recompute + incremental maintenance.** **Step 4: Build + ctest.** **Step 5: Commit** `"engine: stable-seed Zobrist keying, incremental == recompute, per-input sensitivity"`.
 
@@ -575,19 +685,19 @@ These are regression pins (they detect movegen/apply drift), not external truths
 // margin-sign rule on the fixture's stated margin.
 ```
 
-The Position-from-fixture builder validates via a `Position::from_parts(...)` factory added in this task (same file as position.cpp): it takes cell masks/forced/tie, recomputes tern/macro/closed/key, and REJECTS (returns `std::expected` error) any local board whose table entry is invalid (DD §6 import validation) or whose forced/tie values are out of domain — with tests using a hand-built invalid dual-winner import.
+The Position-from-fixture builder is `Position::from_parts` (Task 5).
+This task adds rejection tests for EVERY ImportError class (PR6): overlapping masks; invalid local (dual-winner AND same-player-disjoint-lines imports); forced out of domain; non-ANY forced naming a closed board (build a closed board 0 via masks, import with forced = 0); NullFirstMove with a mark present; tie out of domain.
 
 - [ ] **Step 2: Run against theory/fixtures if present; else verify the explicit-fail path fires.** **Step 3: Build + ctest.** **Step 4: Commit** `"engine: theory fixture ingestion (legality/routing/terminal) + import validation"`.
 
 ---
 
-### Task 10: Vendored JSON + wire types + adapter
+### Task 10: Wire types + adapter (JSON already vendored in Task 1)
 
 **Files:**
-- Create: `engine/third_party/nlohmann/json.hpp`, `engine/third_party/nlohmann/LICENSE.MIT`
 - Create: `engine/src/adapter/wire.hpp`, `engine/src/adapter/wire.cpp`, `engine/src/adapter/policy.hpp`, `engine/src/adapter/main.cpp`
 - Create: `engine/tests/test_wire.cpp`
-- Modify: `engine/CMakeLists.txt` (add `uttt_engine` binary; nlohmann include ONLY on adapter + test targets)
+- Modify: `engine/CMakeLists.txt` (add `uttt_engine` binary; nlohmann include ONLY on adapter + test targets, never `uttt_core`)
 
 **Interfaces:**
 - Consumes: harness protocol v1 (DD-harness-c1 @ 11ac4efc85…): referee→engine `hello` `{type, protocol, game_id, you, rules, time_ms, grace_ms, budget}`; engine→referee hello `{type, protocol, name, version, author?}`; turn request `{type, protocol, game_id, request_id, ply, attempt, you, board[9 strings], forced: 0-8|null, legal: [[b,c]...], budgets: {X, O}, tie_owner: "X"|"O"|null, time_ms}`; turn reply `{type, protocol, request_id, bid, move: [b,c], info?}`; `game_end` (read and ignored beyond loop exit bookkeeping).
@@ -595,32 +705,46 @@ The Position-from-fixture builder validates via a `Position::from_parts(...)` fa
 
 ```c++
 namespace uttt::wire {
+// The DD-locked canonicalization target is Position + RootContext (PR4).
 struct TurnRequest { std::string game_id, request_id; int ply, attempt;
-  Seat you; Position pos; int64_t budget_x, budget_o; int64_t time_ms;
+  RootContext ctx;               // seat from `you`, canonical X/O budgets
+  Position pos;                  // via Position::from_parts (all ImportError classes fail-closed)
+  int64_t time_ms;
   std::vector<Move> legal; };
 struct Info { std::string quality;  // "exact"|"bound"|"estimate"
   std::optional<double> lo, hi; int depth; bool complete; };
 struct TurnReply { std::string request_id; int64_t bid; Move move; Info info; };
-// Parse + validate one line; unknown keys ignored; missing/type-invalid
-// required keys -> std::unexpected(ParseError) (fail-closed, no stdout).
+struct HelloRequest { int protocol; std::string game_id, rules; Seat you;
+  int64_t time_ms, grace_ms, budget; };
+// Strict parse + validate, ALL THREE referee->engine message types (PR6);
+// unknown keys ignored; missing/type-invalid required keys ->
+// std::unexpected(error string) (fail-closed, no stdout).
+enum class MsgType { Hello, Turn, GameEnd };
+std::expected<MsgType, std::string> classify(std::string_view line);
+std::expected<HelloRequest, std::string> parse_hello(std::string_view line);
 std::expected<TurnRequest, std::string> parse_turn(std::string_view line);
+std::expected<void, std::string> validate_game_end(std::string_view line);  // type/protocol checked, payload tolerated
 std::string serialize_reply(const TurnReply&);
 std::string serialize_hello();
 }
 namespace uttt {
-struct Policy { virtual wire::TurnReply choose(const wire::TurnRequest&) = 0; virtual ~Policy() = default; };
+struct Policy { virtual wire::TurnReply choose(const wire::TurnRequest&, Clock&) = 0; virtual ~Policy() = default; };
 // Placeholder until the search DD lands: bid 0 (legal per R3), move = first
 // entry of the request's legal list, info{quality:"estimate", depth:0, complete:true}.
-struct PlaceholderPolicy final : Policy { wire::TurnReply choose(const wire::TurnRequest&) override; };
+// Takes Clock so the seam exists end-to-end; the placeholder reads now_ms() once
+// and ignores it (documented as deliberate).
+struct PlaceholderPolicy final : Policy { wire::TurnReply choose(const wire::TurnRequest&, Clock&) override; };
 }
 ```
 
-- Validation in `parse_turn` (DD §6): protocol major == 1; board strings shape 9×9 over `./X/O`; budgets in [0, 10^9] ints; `tie_owner` null only at ply 0; `forced` null ↔ free choice; build Position via `Position::from_parts` (Task 9) which rejects invalid locals; CROSS-CHECK the request's `legal` list against own `legal_moves` — mismatch is fail-closed (return error, log diff to stderr).
-- `main.cpp` loop: read lines; `hello` → reply hello; `turn` → parse, policy, serialize (echo `request_id`), write single line, flush; `game_end` → exit 0; parse error → stderr diagnostic, NO stdout line, continue; EOF → exit 0.
+- Validation in `parse_turn` (DD §6): protocol major == 1; board strings shape 9×9 over `./X/O`; budgets in [0, 10^9] ints; `tie_owner` null only at ply 0; `forced` null ↔ `kForcedAny`; build Position via `Position::from_parts` (every ImportError class fails closed); CROSS-CHECK the request's `legal` list against own `legal_moves` — mismatch is fail-closed (return error, log diff to stderr).
+- Validation in `parse_hello` (PR6): protocol major == 1; `you` ∈ {"X","O"}; required numeric fields present and non-negative.
+- `validate_game_end` (PR6): type/protocol checked strictly; payload fields tolerated (unknown-key rule) — a malformed game_end is a stderr diagnostic, not a crash.
+- `main.cpp` loop: read lines; classify; `hello` → validate, reply hello; `turn` → parse, `policy.choose(req, clock)` with a `SteadyClock`, serialize (echo `request_id`), write single line, flush; `game_end` → validate, exit 0; parse error → stderr diagnostic, NO stdout line, continue; EOF → exit 0.
+- Conformance corpus (PR6): the harness-owned schemas/normative transcript land under `docs/protocol/` per the harness DD. Add a corpus-driven test that replays every referee→engine line of the normative transcript through classify/parse (expect: all parse clean) IF the corpus exists; if absent, the test FAILS with "harness conformance corpus not present — criterion 3 pending" unless env `UTTT_ALLOW_MISSING_CORPUS=1` (same honesty pattern as Task 9; acceptance runs unset it).
 
-- [ ] **Step 1: Vendor nlohmann/json single header (latest 3.x), verify MIT license text, commit vendoring separately** `"engine: vendor nlohmann/json 3.x (MIT), adapter-only"`.
-- [ ] **Step 2: Write failing wire tests** — round-trip a literal turn-request line copied from the harness DD example (ply 0, forced 4, tie_owner null); assert parsed fields; assert legal-list cross-check failure on a doctored list; assert missing `request_id` fails closed; assert reply serialization echoes request_id and emits `move` always; assert unknown keys ignored.
-- [ ] **Step 3: Run to verify failure. Implement wire.cpp + policy + main.** **Step 4: Build + ctest.** **Step 5: Commit** `"engine: protocol v1 adapter (hello/turn/game_end), fail-closed validation, placeholder policy"`.
+- [ ] **Step 1: Write failing wire tests** — round-trip the harness DD's literal ply-0 turn-request line (forced 4, tie_owner null); parse_hello on the DD's hello line; validate_game_end happy + wrong-type cases; legal-list cross-check failure on a doctored list; missing `request_id` fails closed; tie_owner "X" at ply 1 parses, tie_owner null at ply 1 fails; reply serialization echoes request_id and always emits `move`; unknown keys ignored; corpus test wired per the note above.
+- [ ] **Step 2: Run to verify failure. Implement wire.cpp + policy + main.** **Step 3: Build + ctest.** **Step 4: Commit** `"engine: protocol v1 adapter (hello/turn/game_end), fail-closed validation, placeholder policy"`.
 
 ---
 
@@ -651,23 +775,30 @@ struct PlaceholderPolicy final : Policy { wire::TurnReply choose(const wire::Tur
 - Create: `engine/bench/bench_playout.cpp`, `engine/bench/README.md`
 - Modify: `engine/CMakeLists.txt` (target `uttt_bench`, RelWithDebInfo/-O3)
 
-**Interfaces (DD §2 ordering rule + §13 criterion 4, verbatim discipline):**
-- `uttt_bench --reference --runs 10 --out engine/bench/baseline.json`: measures the NAIVE path (`naive::RefPosition` playouts), fixed seed set, per run: full random playouts until ≥ 2,000,000 plies; records median ns/ply over runs plus environment `{cpu: sysctl machdep.cpu.brand_string, compiler: __VERSION__, flags, date}`; volatile/`DoNotOptimize`-style sinks on every loop result.
-- `uttt_bench --candidate --runs 10 --baseline engine/bench/baseline.json`: measures the optimized `Position` path the same way, then prints PASS/FAIL of BOTH predicates — median candidate ≤ 1.0 × median reference AND median candidate ≤ 100 ns/ply — exiting nonzero on FAIL.
-- ORDER (anti-tautology): the reference run is executed and `baseline.json` COMMITTED before the candidate mode is ever run for acceptance; candidate never writes the baseline file.
+**Interfaces (DD §2 ordering rule + §13 criterion 4; PR7 session mechanics):**
+- One acceptance command, single process, single session: `uttt_bench --acceptance --measured-runs 10 --warmup-runs 2 --out engine/bench/baseline.json`. In-process order: (1) capture identity — own executable sha256 (hash argv[0] bytes), `__VERSION__`, compile flags (baked in via a CMake-configured header), `sysctl machdep.cpu.brand_string`, fixed seed list, and a fresh session UUID; (2) run the REFERENCE (naive::RefPosition) — 2 warmup runs discarded, then EXACTLY the requested ≥ 10 MEASURED runs (warmup is additional to, never subtracted from, the measured count — PR7), each run ≥ 2,000,000 plies of fixed-seed full playouts, `asm volatile` sinks on every result; (3) WRITE `baseline.json` = {median_ref_ns_per_ply, per-run values, identity block, session UUID}; (4) run the CANDIDATE (optimized Position) with the same warmup/measured discipline in the same process; (5) verdict: PASS iff median_cand ≤ 1.0 × median_ref AND median_cand ≤ 100.0, printed with both medians, exit nonzero on FAIL. The candidate code path can never write or influence step 3's file (write completes before step 4 begins), satisfying reference-first with same-binary/same-flags/same-session identity by construction.
+- Re-verification mode `--verify --baseline engine/bench/baseline.json`: recomputes the identity block and REFUSES (exit nonzero, no measurement) on any mismatch of executable digest, compiler, flags, or CPU string; on match, reruns candidate-only against the stored median. This is the regression-guard entry point for later commits.
 
-- [ ] **Step 1: Write bench_playout.cpp** (both modes share the playout driver via a template on the position type; sink pattern: `asm volatile("" :: "r"(value));`).
-- [ ] **Step 2: Build; run --reference; commit baseline** `"engine: benchmark baseline artifact (naive reference path, median of 10 runs, env captured)"`.
-- [ ] **Step 3: Run --candidate; record PASS output in the commit message body; commit** `"engine: benchmark candidate PASS vs committed baseline (ratio + absolute ceiling)"`. If FAIL: stop, do not tune the predicate; profile, fix, re-run; the predicate itself only changes via a design amendment.
-- [ ] **Step 4: Write bench/README.md** documenting the methodology (runs, seeds, warmup = first run discarded, flags, cpu capture, fixture-dir env vars) in full sentences on their own lines.
+- [ ] **Step 1: Write bench_playout.cpp** (modes share the playout driver via a template on the position type; identity header configured by CMake).
+- [ ] **Step 2: Build; run --acceptance; commit `engine/bench/baseline.json` together with the PASS verdict pasted into the commit message body** `"engine: benchmark acceptance PASS — reference-first baseline + both predicates, same session"`. If FAIL: stop, do not tune the predicate; profile, fix, re-run; the predicate changes only via a design amendment.
+- [ ] **Step 3: Write bench/README.md** documenting the methodology (identity capture, warmup separate from ≥ 10 measured runs, seeds, flags, cpu capture, --verify refusal rules, fixture/corpus env vars) in full sentences on their own lines.
 
 ---
 
-### Task 13: Acceptance sweep and completion evidence
+### Task 13: Acceptance truth table and completion evidence (PR8)
 
-- [ ] **Step 1: Full clean build + ctest** — all tests pass, including fixture tests with real `theory/fixtures` if published (unset `UTTT_ALLOW_MISSING_FIXTURES`; if theory has not landed, record criterion 1 as pending with the env-var evidence line).
-- [ ] **Step 2: Map results to DD §13:** criterion 1 (fixtures) → ctest fixture suite; criterion 2 (properties/table proof/lifecycle/Zobrist/perft) → ctest; criterion 3 (adapter round-trip + stdout discipline) → ctest e2e; criterion 4 (benchmark predicate) → bench PASS output. Paste the ctest summary and bench verdict into the implementation report.
-- [ ] **Step 3: Commit any stragglers; produce the IMPL report relay per protocol with ACTIONS_GIT_REF `engine/rules-core-c1@<sha>`.**
+- [ ] **Step 1: Full clean build + ctest with ALL honesty overrides UNSET** (`UTTT_ALLOW_MISSING_FIXTURES`, `UTTT_ALLOW_MISSING_CORPUS`).
+- [ ] **Step 2: Produce the acceptance TRUTH TABLE — one row per DD §13 criterion, each row exactly one of `green-E2` (artifact present, consumed, suite green; cite the ctest/bench output) or `pending-blocked` (owner artifact absent; cite the exact absence command + output). Overridden, skipped, or copied-example runs may NEVER be summarized as green-E2:**
+
+```text
+criterion 1 (theory fixtures)        -> green-E2 | pending-blocked (ls theory/fixtures output)
+criterion 2 (properties/table/perft) -> green-E2 (no owner dependency)
+criterion 3 (adapter + corpus)       -> green-E2 | pending-blocked (ls docs/protocol output)
+criterion 4 (benchmark predicate)    -> green-E2 (bench --acceptance verdict)
+criterion 5                          -> deferred by design (theory Stage-1 + successor DD)
+```
+
+- [ ] **Step 3: Commit any stragglers; produce the IMPL report relay per protocol carrying the truth table verbatim, with ACTIONS_GIT_REF `engine/rules-core-c1@<sha>`. A report claiming completion while any row is pending-blocked must say so in its first line.**
 
 ---
 
@@ -685,8 +816,8 @@ No-consumer action: not applicable.
 - Search math of any kind (backup, cutoffs, TT, widening, eval, bid matrix) — successor DD.
 - Protocol schema or fixture schema changes — owner-routed only.
 - Multithreading, SIMD, ML.
-- Any file outside `engine/` (the sprint relay/plan tree excepted for the report relay + INDEX row).
-- The injected-clock seam (DD §7): it exists to make the search soft-stop testable, no search loop exists in this plan to consume it, and it ships with the search PLAN; the adapter's `time_ms` is parsed and carried but unused by the placeholder policy.
+- Any file outside `engine/` (the sprint relay tree excepted for the report relay).
+- (The injected-clock seam is IN scope — Task 2 — per the locked DD §7; the earlier deferral was a design deviation and is withdrawn per PLAN-REVIEW PR4.)
 
 ## Anti-half-fix guards
 
@@ -697,7 +828,7 @@ No-consumer action: not applicable.
 
 ## Verification target
 
-E2 for every acceptance criterion executable now (DD §13 criteria 1–4; criterion 1 conditionally pending theory fixture publication); criterion 5 explicitly deferred (theory Stage-1 + successor DD).
+E2 per criterion via the Task 13 truth table (PR8): criteria 2 and 4 are executable now with no owner dependency; criteria 1 and 3 are green-E2 only when the theory fixtures and the harness conformance corpus are respectively present and consumed — otherwise they are reported pending-blocked with absence evidence, never summarized as complete; criterion 5 explicitly deferred (theory Stage-1 + successor DD).
 
 ## Operator-judgment items
 
