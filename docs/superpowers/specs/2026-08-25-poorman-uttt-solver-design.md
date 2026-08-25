@@ -55,8 +55,10 @@ Backup operator (subject to validation): with `a = min over X moves of T(child, 
 - if `a ≤ b`: `T = b / (1 - a + b)`, critical bid fraction `r = (b - a) / (1 - a + b)` of the combined budget;
 - if `a > b` (zero-bid zugzwang): both players bid 0, the tie owner `h` wins the tie and is forced to move, so `T = a` when `h = X` and `T = b` when `h = O`.
 
-The tie owner `h` is a pure alternation flag — the player who did not move last (coin flip on the first move) — matching the reference derivation exactly.
-Stack sizes play no role in bid-tie resolution, so `T(s, h)` is budget-independent as written and the transposition-table key carries one tie-owner bit.
+The tie owner `h` is the opponent of the actual mover: after the auction winner `w` places a mark, the child tie owner is `opponent(w)`.
+It therefore persists when the same player wins consecutive paid auctions and toggles only when the current tie owner moves — it is NOT an unconditional per-ply alternation flag (amendment 2026-08-25, reviewer correction 2).
+At the first-move root `h = null` per operator ruling R1 (hidden coin, consulted only on an actual first-move tie).
+Stack sizes play no role in bid-tie resolution, so `T(s, h)` is budget-independent as written; the transposition-table key carries the ternary tie state `{X, O, NULL_FIRST_MOVE}`, with the final representation theory-gated.
 
 ### Open math questions (block the engine math lock)
 

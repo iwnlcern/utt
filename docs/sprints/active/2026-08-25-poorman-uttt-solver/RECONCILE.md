@@ -6,7 +6,8 @@ Sections are appended by PHASE: RECONCILE relays; each relay cites the exact sec
 ## Section c1-audits — reconciliation of the four paired AUDIT cycles (2026-08-25)
 
 Inputs: eight independent audit returns (theory/engine/harness/ui × planner/implementer), relay paths under `.relays/s1/<pair>-c1/`.
-All eight: PRIMARY_BUCKET still-open; greenfield confirmed (E1/E2); no duplicate implementation exists anywhere (external sweeps found only Richman-payment or alternating-turn artifacts).
+All eight: PRIMARY_BUCKET still-open; local greenfield confirmed (E1/E2).
+External duplicate absence is E0: no known drop-in was found in the bounded multi-angle sweeps (which surfaced only Richman-payment or alternating-turn artifacts); absence is not provable, and the named prior-art overlap edges are preserved (corrected per reviewer correction 4).
 Agreement between paired seats was high everywhere; divergences were complementary coverage, not contradiction.
 
 ### Operator rulings obtained (2026-08-25, this session)
@@ -14,7 +15,9 @@ Agreement between paired seats was high everywhere; divergences were complementa
 R1. First-move tie owner is NOT disclosed to engines; `h` accepts `null` (move 1 only); coin consulted only if a first-move tie occurs. Theory owns `T(s, null)`.
 R2. Fault rule: faulted submission → opponent wins the auction at no cost; double-fault → re-request up to 3 attempts; 3 double-faults → game killed/voided.
 R3. Bid domain: integer units, 0 ≤ bid ≤ budget inclusive; zero and all-in legal.
-R4. Numeric policy: doubles in engine, integers in referee/wire, exact rationals only in theory's Stage-1 oracle; no separate math-lock ratification gate for knife-edge semantics.
+R4. Numeric policy: doubles in engine, integers in referee/wire, exact rationals only in theory's Stage-1 oracle.
+Correction (reviewer correction 1): R4 selects numeric types only.
+It does not define the authoritative classification at representable p = T, nor an approximation tolerance / exact-discrete fallback contract; those remain owned theory DESIGN/Stage-1 obligations with the human-decision flag preserved — theory proposes, the operator ratifies at the math lock.
 
 All four rulings are baked into the design spec (commit follows this section) — evidence: spec canonical rules 3, 4 and "Open math questions" section.
 
@@ -24,7 +27,7 @@ All four rulings are baked into the design spec (commit follows this section) �
 - T-P edge cases 1–15 and T-I fixture list (converge, T-I adds h-persistence and knife-edge scale cases) → owned obligation: theory DESIGN fixture schema v1 — evidence: both lists compared line-by-line; union adopted.
 - T-I F5 (h = opponent(actual mover), not unconditional toggle) → owned obligation: theory fixtures + a spec-reading note in the findings doc — evidence: re-derived against spec rule 4; T-I derivation correct.
 - T-I F6 (regret matching needs averaged-strategy + exploitability contract; LP as reference oracle) → overlap edge to engine DESIGN (root bid matrix), theory supplies the LP reference — evidence: Zinkevich et al. Thm 2 citation.
-- T-I operator items 1–2 (p=T semantics, continuous tolerance) → verified closure via rulings R1/R4 — evidence: operator session rulings above.
+- T-I operator items 1–2 (p=T semantics, continuous tolerance) → owned obligation: theory DESIGN/Stage-1 defines the equality classification and the tolerance + exact-discrete fallback contract; human-decision flag preserved (operator ratifies theory's proposal at the math lock) — evidence: none — reclassified per reviewer correction 1; R1/R4 do not cover these items.
 - T-P operator item 1 (bid bounds) → verified closure via R3 — evidence: ruling above.
 - T-P/T-I duplicate gates (dm0n3y/biddingTTT Richman oracle, Avni 2023 ECAI, Kalai 101.84 reproduction target, nelhage/ultimattt) → owned obligation: theory DESIGN lists cross-check oracles (reference-only; no license = no reuse) — evidence: URLs in returns; license check noted per artifact.
 - T-P risk (fixed-point non-uniqueness precedent) → owned obligation: Stage-1 computes by backward induction on the finite DAG, flags any non-forced state — evidence: charging-paper precedent cited in return.
@@ -67,4 +70,6 @@ All four rulings are baked into the design spec (commit follows this section) �
 1. theory DESIGN and harness DESIGN dispatch now, in parallel (disjoint surfaces; the shared object — fixture schema conventions on coordinates/forced/ANY — is named in both dispatches with theory as owner).
 2. engine DESIGN dispatches now, scoped to rules core + representation + adapter boundary + test seam; search-math sections stay gated on theory findings.
 3. ui DESIGN waits for the harness protocol lock; ui's contract needs travel inside the harness dispatch.
-4. INDEX inversions from the boot storm (rows 17/19) and one audit-wave inversion (row 31 area) stay registered, not repaired; monotonic-from ratification remains an open operator option, non-blocking.
+4. INDEX inversions from the boot storm (rows 17/19) and one audit-wave inversion (row 31) stay registered, not repaired (scoped per reviewer correction 3).
+   Design work and non-authority relays may continue, but a red relay-root lint blocks delegated dispatch, merge, and automated adapter consumption: before any pair-planner delegated DISPATCH IMPL or merge grant, the INDEX must lint green or carry an operator-ratified monotonic-from marker or explicit operator waiver.
+   Marker insertion is operator-only; no seat self-inserts.
