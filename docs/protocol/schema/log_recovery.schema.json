@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Poor Man's UTTT recovery log event",
+  "type": "object",
+  "$defs": {
+    "raw": {
+      "type": "object",
+      "required": ["b64", "truncated", "bytes_total"],
+      "properties": {
+        "b64": {"type": "string"},
+        "truncated": {"type": "boolean"},
+        "bytes_total": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "hello": {
+      "type": "object",
+      "required": ["validation", "elapsed_ms"],
+      "properties": {
+        "validation": {"enum": ["ok", "timeout", "eof_or_crash", "invalid_utf8", "invalid_json", "schema_violation", "wrong_request_id", "extra_protocol_line", "oversize_line", "illegal_bid", "illegal_move"]},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "name": {"type": "string"},
+        "version": {"type": "string"},
+        "author": {"type": "string"},
+        "raw": {"$ref": "#/$defs/raw"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["event", "seat", "ply", "trigger_request_id", "fault", "hello"],
+  "properties": {
+    "event": {"const": "recovery"},
+    "seat": {"enum": ["X", "O"]},
+    "ply": {"type": "integer", "minimum": 0},
+    "trigger_request_id": {"type": "string"},
+    "fault": {"enum": ["timeout", "eof_or_crash", "invalid_utf8", "invalid_json", "schema_violation", "wrong_request_id", "extra_protocol_line", "oversize_line", "illegal_bid", "illegal_move"]},
+    "hello": {"$ref": "#/$defs/hello"}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Poor Man's UTTT game-end log event",
+  "type": "object",
+  "$defs": {
+    "budgets": {
+      "type": "object",
+      "required": ["X", "O"],
+      "properties": {
+        "X": {"type": "integer", "minimum": 0},
+        "O": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["event", "result", "reason", "budgets", "budget_margin", "plies", "delivery"],
+  "properties": {
+    "event": {"const": "game_end"},
+    "result": {"enum": ["X", "O", "draw", "void"]},
+    "reason": {"enum": ["macro_win", "chip_count", "exact_tie_draw", "hello_fault", "recovery_fault", "triple_double_fault_void"]},
+    "budgets": {"$ref": "#/$defs/budgets"},
+    "budget_margin": {"type": "integer"},
+    "plies": {"type": "integer", "minimum": 0},
+    "delivery": {
+      "type": "object",
+      "required": ["X", "O"],
+      "properties": {"X": {"enum": ["ok", "failed"]}, "O": {"enum": ["ok", "failed"]}},
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

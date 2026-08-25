@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Poor Man's UTTT turn reply",
+  "type": "object",
+  "$defs": {
+    "move": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "integer", "minimum": 0, "maximum": 8},
+        {"type": "integer", "minimum": 0, "maximum": 8}
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    }
+  },
+  "required": ["type", "protocol", "request_id", "bid", "move"],
+  "properties": {
+    "type": {"const": "turn"},
+    "protocol": {"const": 1},
+    "request_id": {"type": "string"},
+    "bid": {"type": "integer", "minimum": 0},
+    "move": {"$ref": "#/$defs/move"},
+    "info": {"type": "object"}
+  },
+  "additionalProperties": true
+}
