@@ -22,7 +22,8 @@ add_executable(uttt_tests
   tests/test_position.cpp
   tests/test_lifecycle.cpp
   tests/test_zobrist.cpp
-  tests/test_perft.cpp)
+  tests/test_perft.cpp
+  tests/test_fixtures.cpp)
 target_link_libraries(uttt_tests PRIVATE uttt_core)
 target_include_directories(uttt_tests PRIVATE third_party)
 
