@@ -12,7 +12,7 @@ Relay substrate: `.relays/s1/` under this sprint root; **tracked in git** (opera
 | theory | Literature review (gates engine math lock); exact Stage-1 3×3 auction-TTT solver (Python, independent implementation); canonical rules fixtures | `theory/` |
 | engine | C++26 rules core, threshold search, evaluator, protocol I/O | `engine/` |
 | harness | Interop protocol spec (owner), referee, baseline bots, tournament runner (Python) | `referee/`, `docs/protocol/` |
-| ui | Vite/React web UI: play, replay, analysis | `ui/` |
+| ui | Vite/React web UI: replay + analysis-from-logs (play-vs-engine deferred post-s1 per operator ruling R5 in GRILL-harness-c1) | `ui/` |
 
 Orchestrator Reviewer seat: `s1.orchestrator-reviewer`.
 

@@ -108,7 +108,9 @@ The protocol must be implementable by the friend's engine in an afternoon, in an
 
 ## Component 4: ui (Vite + React + TypeScript)
 
-- Play against the engine through the referee's local bridge.
+Scope amendment (operator grill decision R5, 2026-08-25, GRILL-harness-c1): the browser bridge is deferred from protocol v1, so s1 ui scope is replay + analysis-from-logs; play-vs-engine is a later additive supplement.
+
+- Play against the engine through the referee's local bridge (deferred post-s1 per R5).
 - Replay game logs move by move.
 - Analysis view: threshold `T`, actual share `p`, budget margin, critical bid, and both conditional best moves (if-X-wins / if-O-wins), chess-engine style.
 - Layout ideas borrowed from github.com/ultimate-ttt/ultimate-ttt (2021 CRA app); no code reuse — its alternating-turn state machine doesn't fit bidding.

@@ -34,13 +34,13 @@ struct Position {
 
 Semantics are value-copy immutable: search copies the parent and applies one move; there is no make/unmake.
 `tie` is the deterministic tie owner; the transition is `tie' = opponent(actual mover)` (spec as amended @ 2aef375); `NULL_FIRST_MOVE` is valid only before the first mark (R1).
-Budgets never enter Position; they live in a root-side `BudgetContext` (section 9).
+Budgets never enter Position; they live in the root-side `RootContext` (section 9).
 
 Evidence (E2, DIRECTIONAL microbenchmark, Homebrew clang 22.1.8 `-O3 -std=c++2c`, Apple M5 Pro, 2026-08-25):
 this layout and a `__uint128_t`-per-player layout are indistinguishable on the random-playout probe — both `sizeof == 80` with the shared caches, 23–24 ns/ply including movegen + value copy + apply + table lookup (~42M plies/s single-thread).
 Evidence scope correction (must-revise M5): the throwaway bench's pure-copy and repeated-movegen probes were optimizable (the copy loop's state perturbation had identical conditional arms, permitting collapse), so no "copy ≈ 0" claim is made; the playout number is directional layout-comparison evidence only, not a durable baseline.
 Decision (stands on the playout comparison plus simplicity): direct per-local indexing, no 128-bit shift/extract code, natural fixture/debug reads.
-Durable performance evidence is a PLAN deliverable: a committed benchmark harness under `engine/` with dead-code-elimination guards (e.g. `DoNotOptimize`/volatile sinks), documented warmup/iteration counts, compiler flags, and CPU state, from which a fresh regression baseline is measured; acceptance criteria reference THAT baseline, never the /tmp number.
+Durable performance evidence is a PLAN deliverable with an explicit ordering rule (must-revise MR2): the committed benchmark harness under `engine/` (dead-code-elimination guards such as `DoNotOptimize`/volatile sinks; documented warmup/iteration counts, compiler flags, CPU state) first measures a FIXED REFERENCE PATH — the naive 81-cell reference implementation the property tests already require — and that measurement is stored as a named baseline artifact (value + environment) BEFORE the optimized implementation under test is evaluated; the acceptance criterion compares candidate to that stored artifact. Measuring the candidate and calling the same measurement its own baseline is tautological and prohibited.
 The 30 s/move budget is still assessed non-binding for the rules core (directional evidence + prior art); search strength will be bounded by tree shape and cutoff math (successor DD), not representation.
 
 ## 3. Local lookup table
@@ -48,7 +48,7 @@ The 30 s/move budget is still assessed non-binding for the rules core (direction
 One global table of 19,683 entries (3^9 local-board states), indexed by the incrementally maintained ternary code `tern[b]` (cell c contributes `{empty:0, X:1, O:2} * 3^c`).
 Each entry packs into one `uint64_t` (total 157 KB, L2-resident):
 
-- `valid` (1 bit): 0 for locally unreachable states — any assignment where both players hold a completed line (a board closes on the first win, so dual-winner states cannot arise in play). Invalid entries carry defined bytes (`status = full-draw` convention, masks zeroed) but are never consulted by play; the adapter's import validation rejects any external position whose local board maps to an invalid entry (must-revise M3).
+- `valid` (1 bit): 1 iff the assignment is LOCALLY REACHABLE under immediate closure, defined mechanically (must-revise MR1): an open or full-draw board is reachable iff it contains NO completed line; a won board is reachable iff exactly one player holds completed lines AND at least one of that player's marks lies on EVERY completed line and its removal leaves no completed line (the closing mark completed all existing lines simultaneously — a board closes at its first completed line, so nothing is marked afterward). This excludes dual-winner boards AND same-player multi-line boards with no common closing mark (e.g. two disjoint X rows). Sufficiency holds because line-completion is monotone in the mark set and bidding lets either player mark consecutively, so any prefix order of a reachable board avoids premature completion. Invalid entries carry defined bytes (`status = full-draw` convention, masks zeroed) but are never consulted by play; the adapter's import validation rejects any external position whose local board maps to an invalid entry.
 - `status` (2 bits): open / X-won / O-won / full-draw.
 - `empties` (9 bits): empty-cell mask.
 - `win_x`, `win_o` (9 bits each): cells completing a local three-in-a-row for that player now (immediate wins; doubles as the opponent's block mask).
@@ -56,7 +56,8 @@ Each entry packs into one `uint64_t` (total 157 KB, L2-resident):
 
 Rationale: the same lookup that closes boards feeds move ordering (macro wins, local wins, blocks, forks) without per-node recomputation.
 Cells of closed boards never change, so `tern[b]` of a closed board is frozen and its entry stays valid.
-Table proof obligation: an exhaustive test compares ALL 19,683 entries — validity, status, empties, win masks, fork masks — against an independent naive evaluator (section 7).
+Table proof obligation: an exhaustive test compares ALL 19,683 entries — validity (per the MR1 reachability rule, independently reimplemented), status, empties, win masks, fork masks — against an independent naive evaluator (section 7), with named fixtures for both invalidity classes: dual-winner boards and same-player disjoint-line boards.
+Packed entry width is 48 bits (valid 1 + status 2 + empties 9 + win masks 18 + fork masks 18), comfortably inside the uint64 entry.
 
 ## 4. Moves, movegen, terminal detection
 
@@ -95,7 +96,7 @@ Locked boundary properties (schema-independent):
 
 - Fixture ingestion: a test-only reader consumes theory's fixture schema verbatim (theory publishes the schema section early; engine requests it via the orchestrator if absent when needed). Fixtures drive: legal-move sets, closure/forced/ANY routing, terminal outcomes, and (small cases) expected thresholds and critical bids.
 - Property tests: movegen equals a naive 81-cell reference implementation on random positions; closed boards never accept marks; forced-routing including closed-board→ANY; `tern[b]` always equals recomputation from masks; macro/closed caches always equal recomputation.
-- Table proof (M3): exhaustive comparison of all 19,683 LocalTable entries (validity, status, empties, win masks, fork masks) against an independent naive evaluator.
+- Table proof (M3/MR1): exhaustive comparison of all 19,683 LocalTable entries (validity per the section 3 reachability rule, status, empties, win masks, fork masks) against an independent naive evaluator that reimplements the reachability rule from its definition; named fixtures for dual-winner and same-player disjoint-line invalid boards.
 - Terminal and rejection tests (M2): named fixtures proving `legal_moves = ∅` at both terminal kinds (macro win with open cells remaining; all-closed), and apply-rejection without parent mutation for post-terminal, occupied-cell, closed-board, out-of-range, and wrong-forced-board moves; adapter rejection fixtures for invalid local states and inconsistent caches/closure/forced/tie imports.
 - State-lifecycle tests (M4): initial state is `forced = 4` with `tie = NULL_FIRST_MOVE`; `tie' = opponent(actual mover)` including consecutive marks by the same player; NULL_FIRST_MOVE is gone after the first mark and never reappears; parent Position is byte-identical across identity fields after any child apply (value-copy immutability).
 - Zobrist completeness (M4): the incrementally maintained key equals full recomputation on random positions, and changing ANY single key input (any cell, forced state, tie state) changes the key.
@@ -139,7 +140,7 @@ GRILL_REQUIRED: yes
 GRILL_SOURCE:
 - plan/design/audit relay read: DESIGN dispatch 065713 + amendment 073330; both engine-c1 AUDIT returns; RECONCILE.md c1-audits + reviewer corrections 070120; design spec @ 2aef375
 - code/docs inspected: greenfield repo; /tmp layout microbenchmark (E2); toolchain probes from AUDIT (E2)
-- questions answered from codebase: Position layout (benchmark: layouts equal → simplicity wins); copy-vs-make/unmake (copy ≈ free at 80 B); table width (uint64 packing fits 47 bits); R2 idempotence (spec text: re-request is a fresh stateless request; bit-identical replies not required); TT verification need (acceptance criteria demand oracle-grade exactness → full-key mode in tests)
+- questions answered from codebase: Position layout (playout benchmark: the two copy-based layouts directionally indistinguishable → simplicity selected the array layout; the isolated copy probe was collapsible and proves nothing — MR2 correction); table width (uint64 packing fits the 48-bit payload: valid 1 + status 2 + empties 9 + win 18 + fork 18 — MR2 correction); R2 idempotence (spec text: re-request is a fresh stateless request; bit-identical replies not required); TT verification need (acceptance criteria demand oracle-grade exactness → full-key mode in tests)
 - questions asked operator: 4 (design-direction approval; JSON dependency; value-quality metadata shape; oracle-match tolerance)
 
 Resolved decisions:
@@ -178,7 +179,7 @@ No-consumer action: not applicable — consumers named.
 1. All theory fixtures pass (legal moves, closures, routing, terminals) — E2.
 2. Property tests, the exhaustive 19,683-entry table proof, terminal/rejection/lifecycle/Zobrist tests, and pinned both-mover perft counts pass — E2.
 3. Adapter round-trips the harness conformance corpus (against the APPROVED owner schema, per section 6); stdout discipline verified — E2.
-4. Rules-core microbench regression guard: playout within 2× of the baseline measured by the COMMITTED benchmark harness on this laptop (PLAN deliverable per section 2; the /tmp design-evidence number is not the baseline) — E2.
+4. Rules-core microbench regression guard: candidate playout compared against the NAMED BASELINE ARTIFACT produced per section 2's ordering rule (fixed reference path measured first by the committed harness; artifact stores value + environment; the /tmp design-evidence number is not the baseline and the candidate is never its own baseline) — E2.
 5. Oracle threshold equality within section 7's parameter on every Stage-1-reachable position — E2 — listed for continuity but EXECUTABLE only after theory's Stage-1 and the successor search DD land; it does not gate the rules-core PLAN.
 
 ## 14. Risks
