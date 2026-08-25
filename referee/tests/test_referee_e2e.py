@@ -7,9 +7,11 @@ from jsonschema import Draft202012Validator
 
 from poorman_referee.gamelog import read_log, replay_frames
 from poorman_referee.referee import GameConfig, play_game
+from poorman_referee.seeds import pair_coin_seat, pair_seed
 
 
 STUB = Path(__file__).with_name("stub_engine.py")
+BOT_ROOT = Path(__file__).parents[1] / "bots"
 SCHEMAS = Path(__file__).parents[2] / "docs" / "protocol" / "schema"
 FAULT_CASES = {
     "timeout": "timeout",
@@ -27,6 +29,10 @@ FAULT_CASES = {
 
 def cmd(*args):
     return [sys.executable, str(STUB), *args]
+
+
+def bot(name, *args):
+    return [sys.executable, str(BOT_ROOT / f"{name}_bot.py"), *args]
 
 
 def config(tmp_path, x_cmd=None, o_cmd=None, *, coin="X", name="game"):
@@ -319,3 +325,94 @@ def test_hello_crash_is_forfeit_and_failed_terminal_delivery(tmp_path):
     assert (result.result, result.reason, result.plies) == ("O", "hello_fault", 0)
     assert events[-1]["delivery"] == {"X": "failed", "O": "ok"}
     validate_log(events)
+
+
+@pytest.mark.parametrize(
+    ("name", "extra"),
+    [
+        ("random", []),
+        ("zero", []),
+        ("fraction", ["--fraction-ppb", "125000000"]),
+        ("allin_tactical", []),
+    ],
+)
+def test_every_baseline_bot_completes_against_zero(tmp_path, name, extra):
+    cfg = config(
+        tmp_path,
+        bot(name, "--seed", "7", *extra),
+        bot("zero", "--seed", "8"),
+        name=f"bot-{name}",
+    )
+    cfg.time_ms = 1000
+
+    result = play_game(cfg)
+    events = read_log(cfg.log_path)
+
+    assert result.result in {"X", "O", "draw"}
+    assert result.reason in {"macro_win", "chip_count", "exact_tie_draw"}
+    validate_log(events)
+
+
+class FrozenCounterClock:
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        return 0.0
+
+
+def test_seeded_bots_with_injected_clock_produce_byte_identical_logs(tmp_path):
+    first = config(
+        tmp_path,
+        bot("fraction", "--seed", "17", "--fraction-ppb", "100000000"),
+        bot("random", "--seed", "19"),
+        name="determinism-a",
+    )
+    second = config(
+        tmp_path,
+        bot("fraction", "--seed", "17", "--fraction-ppb", "100000000"),
+        bot("random", "--seed", "19"),
+        name="determinism-b",
+    )
+    first.clock = FrozenCounterClock()
+    second.clock = FrozenCounterClock()
+
+    assert play_game(first) == play_game(second)
+    assert Path(first.log_path).read_bytes() == Path(second.log_path).read_bytes()
+    assert first.clock.calls > 0
+    assert second.clock.calls > 0
+
+
+@pytest.mark.parametrize("wanted_parity", [0, 1])
+def test_pair_coin_seat_favors_opposite_engines_after_seat_swap(
+    tmp_path, wanted_parity
+):
+    round_ = 1
+    while True:
+        seed = pair_seed("pairing", "A", "B", round_)
+        if seed[0] % 2 == wanted_parity:
+            break
+        round_ += 1
+    coin = pair_coin_seat(seed)
+    game_results = []
+    for game_no, seat_ids in enumerate(
+        ({"X": "A", "O": "B"}, {"X": "B", "O": "A"}), 1
+    ):
+        cfg = config(
+            tmp_path,
+            cmd("--bid", "0", "--seed", "31"),
+            cmd("--bid", "0", "--seed", "32"),
+            coin=coin,
+            name=f"parity-{wanted_parity}-{game_no}",
+        )
+        cfg.engine_ids = seat_ids
+        cfg.pair_seed = seed
+        cfg.game_seed = bytes([game_no]) * 32
+        play_game(cfg)
+        start, first_auction = read_log(cfg.log_path)[:2]
+        assert start["pair_coin_seat"] == coin
+        assert first_auction["resolution"]["winner"] == coin
+        game_results.append(start["engines"][coin]["engine_id"])
+
+    assert game_results == ["A" if coin == "X" else "B", "B" if coin == "X" else "A"]
