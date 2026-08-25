@@ -55,6 +55,13 @@ std::vector<Move> sorted_moves(const json& values) {
   return result;
 }
 
+bool has_recognized_expectation(const json& fixture) {
+  if (fixture.contains("expected_legal_moves") || fixture.contains("expected_result")) return true;
+  return fixture.contains("move") &&
+      (fixture.contains("expected_forced") || fixture.contains("expected_closures") ||
+       fixture.contains("expected_terminal"));
+}
+
 void run_engine_fixture(const json& fixture) {
   const auto imported = position_from_state(fixture.at("state"));
   REQUIRE(imported.has_value());
@@ -97,6 +104,7 @@ void run_engine_fixture(const json& fixture) {
     const auto terminal = p.terminal();
     if (result == "X") CHECK((terminal == TerminalKind::MacroWinX || terminal == TerminalKind::AllClosed));
     if (result == "O") CHECK((terminal == TerminalKind::MacroWinO || terminal == TerminalKind::AllClosed));
+    if (result == "draw") CHECK(terminal == TerminalKind::AllClosed);
     if (fixture.contains("chip_margin")) {
       const int64_t margin = fixture.at("chip_margin").get<int64_t>();
       const ChipResult expected = margin > 0 ? ChipResult::XWins
@@ -107,6 +115,23 @@ void run_engine_fixture(const json& fixture) {
 }
 
 }  // namespace
+
+TEST_CASE("fixture consumption requires a recognized engine expectation") {
+  json fixture = {{"state", json::object()}};
+  CHECK_FALSE(has_recognized_expectation(fixture));
+
+  fixture["move"] = {0, 0};
+  CHECK_FALSE(has_recognized_expectation(fixture));
+
+  fixture["expected_forced"] = nullptr;
+  CHECK(has_recognized_expectation(fixture));
+
+  fixture.erase("move");
+  CHECK_FALSE(has_recognized_expectation(fixture));
+
+  fixture["expected_result"] = "draw";
+  CHECK(has_recognized_expectation(fixture));
+}
 
 TEST_CASE("theory schema-v1 UTTT fixtures") {
   const char* override_dir = std::getenv("UTTT_FIXTURES_DIR");
@@ -131,6 +156,8 @@ TEST_CASE("theory schema-v1 UTTT fixtures") {
               fixture.at("consumed_by").end()) continue;
       CAPTURE(path.string());
       CAPTURE(fixture.at("id").get<std::string>());
+      REQUIRE_MESSAGE(has_recognized_expectation(fixture),
+                      "fixture has no recognized engine expectation key");
       run_engine_fixture(fixture);
       ++consumed;
     }
