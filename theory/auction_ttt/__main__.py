@@ -89,6 +89,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--output-dir", type=Path, default=_default_results_dir()
     )
     args = parser.parse_args(argv)
+    if args.command == "sweep" and args.spots is not None:
+        if sorted(args.spots) != [64, 128]:
+            parser.error("--spots requires exactly 64 and 128")
+        args.spots = [64, 128]
 
     solved = solve_continuous()
     if args.command == "solve":
@@ -120,8 +124,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         _write_sweep_reports(payloads, args.output_dir)
         return 1 if any(report.out_of_band_mismatches for report in reports) else 0
     else:
-        if any(scale not in (64, 128) for scale in args.spots):
-            parser.error("--spots accepts only the fixed scales 64 and 128")
         _values_32, masks_32 = solve_discrete(32)
         targets = select_spot_targets(solved, masks_32, 32)
         if not targets:

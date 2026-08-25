@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from fractions import Fraction
+from itertools import groupby
 
 import numpy as np
 
@@ -223,27 +224,69 @@ def targeted_report(
     if not targets:
         raise RuntimeError("targeted spot set is empty")
 
-    V_disc = {}
-    masks = {}
+    ordered_targets = sorted(targets)
     target_details: list[dict[str, object]] = []
-    by_board = {}
-    for board, _h in targets:
-        if board not in by_board:
-            by_board[board] = solve_targeted(board, N)
+    out_of_band_mismatches: list[Mismatch] = []
+    r_mis = Fraction(0)
+    r_mis_state: State | None = None
+    max_inband_ratio = Fraction(0)
+    excluded_m0_points = 0
+    offmask_diagnostics = 0
+    population = {
+        "masked_positive_total": 0,
+        "in_band": 0,
+        "out_of_band": 0,
+    }
 
-    for board, h in targets:
-        key = (board, h)
-        result = by_board[board]
-        mask = np.asarray(result.mask[key], dtype=bool)
-        if not mask.any():
-            raise RuntimeError(f"target {key!r} has an empty mask at scale {N}")
-        V_disc[key] = result.values[key]
-        masks[key] = result.mask[key]
-        counts = population_counts({key: solved_cont[key]}, {key: masks[key]}, N)
-        target_details.append({"board": board, "h": h, "population": counts})
+    for board, grouped_targets in groupby(ordered_targets, key=lambda key: key[0]):
+        board_targets = list(grouped_targets)
+        result = solve_targeted(board, N)
+        board_values = {}
+        board_masks = {}
 
-    report = check(solved_cont, V_disc, masks, N)
-    return report, population_counts(solved_cont, masks, N), target_details
+        for key in board_targets:
+            _board, h = key
+            mask = np.asarray(result.mask[key], dtype=bool)
+            if not mask.any():
+                raise RuntimeError(f"target {key!r} has an empty mask at scale {N}")
+            board_values[key] = result.values[key]
+            board_masks[key] = result.mask[key]
+            counts = population_counts(
+                {key: solved_cont[key]}, {key: board_masks[key]}, N
+            )
+            target_details.append(
+                {"board": board, "h": h, "population": counts}
+            )
+
+        board_report = check(solved_cont, board_values, board_masks, N)
+        board_population = population_counts(solved_cont, board_masks, N)
+        out_of_band_mismatches.extend(board_report.out_of_band_mismatches)
+        if board_report.r_mis > r_mis:
+            r_mis = board_report.r_mis
+            r_mis_state = board_report.r_mis_state
+        max_inband_ratio = max(max_inband_ratio, board_report.max_inband_ratio)
+        excluded_m0_points += board_report.excluded_m0_points
+        offmask_diagnostics += board_report.offmask_diagnostics
+        for name in population:
+            population[name] += board_population[name]
+
+        del result, board_values, board_masks, mask, board_report, board_population
+
+    report = BandReport(
+        scale=N,
+        out_of_band_mismatches=out_of_band_mismatches,
+        r_mis=r_mis,
+        r_mis_state=r_mis_state,
+        max_inband_ratio=max_inband_ratio,
+        inband_fraction=Fraction(
+            population["in_band"], population["masked_positive_total"]
+        )
+        if population["masked_positive_total"]
+        else Fraction(0),
+        excluded_m0_points=excluded_m0_points,
+        offmask_diagnostics=offmask_diagnostics,
+    )
+    return report, population, target_details
 
 
 def fraction_text(value: Fraction) -> str:
