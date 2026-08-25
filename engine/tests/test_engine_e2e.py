@@ -87,6 +87,20 @@ def spawn(binary: Path) -> subprocess.Popen[str]:
     )
 
 
+def rss_kib(process: subprocess.Popen[str]) -> int:
+    output = subprocess.check_output(
+        ["ps", "-o", "rss=", "-p", str(process.pid)], text=True
+    )
+    return int(output.strip())
+
+
+def assert_silent_and_alive(process: subprocess.Popen[str], message: str) -> None:
+    assert process.stdout is not None
+    ready, _, _ = select.select([process.stdout], [], [], 0.2)
+    assert not ready, f"{message} produced stdout"
+    assert process.poll() is None, f"{message} killed the engine"
+
+
 def run_basic(binary: Path) -> None:
     process = spawn(binary)
     send(process, HELLO)
@@ -98,10 +112,22 @@ def run_basic(binary: Path) -> None:
     assert reply["info"]["quality"] == "estimate"
 
     send(process, '{"type":')
-    assert process.stdout is not None
-    ready, _, _ = select.select([process.stdout], [], [], 0.2)
-    assert not ready, "malformed input produced stdout"
-    assert process.poll() is None, "malformed input killed the engine"
+    assert_silent_and_alive(process, "malformed input")
+
+    # The reader must stop buffering at 32 KiB while it drains an overlong line.
+    # A getline-based implementation retains this entire 64 MiB partial line.
+    assert process.stdin is not None
+    chunk = "x" * (1024 * 1024)
+    for _ in range(64):
+        process.stdin.write(chunk)
+        process.stdin.flush()
+    assert rss_kib(process) < 32 * 1024, "oversize partial line was buffered in memory"
+    process.stdin.write("\n")
+    process.stdin.flush()
+    assert_silent_and_alive(process, "oversize line")
+
+    send(process, "[" * 512 + "0" + "]" * 512)
+    assert_silent_and_alive(process, "deeply nested JSON")
 
     send(process, GAME_END)
     assert process.wait(timeout=2.0) == 0

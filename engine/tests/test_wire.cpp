@@ -95,8 +95,18 @@ TEST_CASE("strict game_end battery") {
 }
 
 TEST_CASE("line ceiling rejects before parsing") {
-  CHECK_FALSE(classify(std::string(32769, '{')).has_value());
+  auto malformed_oversize = classify(std::string(kMaxLineBytes + 1, '{'));
+  REQUIRE_FALSE(malformed_oversize.has_value());
+  CHECK(malformed_oversize.error() == "oversize line");
+
+  const std::string well_formed_oversize =
+      json{{"type", "hello"}, {"padding", std::string(kMaxLineBytes, 'x')}}.dump();
+  REQUIRE(well_formed_oversize.size() > kMaxLineBytes);
+  auto well_formed_result = classify(well_formed_oversize);
+  REQUIRE_FALSE(well_formed_result.has_value());
+  CHECK(well_formed_result.error() == "oversize line");
+
   std::string boundary = kHello;
-  boundary.append(32768 - boundary.size(), ' ');
+  boundary.append(kMaxLineBytes - boundary.size(), ' ');
   CHECK(classify(boundary).has_value());
 }
