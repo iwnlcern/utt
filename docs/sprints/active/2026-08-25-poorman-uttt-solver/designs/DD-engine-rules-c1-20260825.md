@@ -1,7 +1,8 @@
 # DD-engine-rules-c1-20260825 — Engine rules core, representation, adapter boundary, and test seam
 
 DESIGN_DOC_ID: DD-engine-rules-c1-20260825
-Status: revision 3, awaiting successor Implementer DESIGN-REVIEW.
+Status: revision 4, awaiting successor Implementer DESIGN-REVIEW.
+Revision 4 (2026-08-25) folds review `.relays/s1/engine-c1/DESIGN-REVIEW-pair-implementer-20260825-083215.md`: the benchmark guard gains a falsifiable two-part pass/fail predicate with a pinned statistic and aggregation rule (§13 criterion 4); §6 heading and carrier wording updated to the approved-schema reality.
 Revision 3 (2026-08-25) folds review `.relays/s1/engine-c1/DESIGN-REVIEW-pair-implementer-20260825-081432.md` and the orchestrator boundary routing `.relays/s1/engine-c1/SITREP-orchestrator-planner-20260825-082114.md`: MR1 mechanical local-reachability rule replacing the dual-winner shorthand (§3, §7); MR2 grill ledger made internally truthful (48-bit payload, collapsible copy probe, make/unmake never measured) and non-self-referential baseline ordering rule (§2, §11, §13); consistency: RootContext naming unified (§2); §6 now consumes the LOCKED harness schema as-is at its approved digest, with the addressed alignment routing satisfying the pre-PLAN acknowledgment gate (§6, §12).
 Revision 2 (2026-08-25) folds all five must-revise findings from `.relays/s1/engine-c1/DESIGN-REVIEW-pair-implementer-20260825-075718.md`: M1 adapter narrowed to an abstract boundary (§6, §9 RootContext); M2 total terminal legality (§4); M3 table validity bit + mechanical fork definition + exhaustive proof (§3, §7); M4 lifecycle/Zobrist/budget-terminal/perft test obligations and the Position→T notation fix (§7, §9); M5 benchmark evidence rescoped to directional, durable baseline moved to a committed PLAN deliverable (§2, §13).
 Author: engine.planner.
@@ -77,7 +78,7 @@ This matches the spec's budget-independence claim for `T(s, h)`; if theory's fin
 Collision policy: play mode stores a 32-bit secondary verification tag per entry (different Zobrist fold); acceptance/fixture mode runs with full-key verification so oracle-equality tests can never be polluted by a silent collision.
 Full-key verification is a FIELDWISE comparison over the identity-bearing Position fields (`x`, `o`, `forced`, `tie`) — never a padding-sensitive `memcmp`, and never over derived caches (`tern`, `macro_*`, `closed`) unless cache consistency has been separately verified (reviewer clarification, adopted).
 
-## 6. Protocol adapter boundary (abstract boundary only; concrete wire bytes deferred)
+## 6. Protocol adapter boundary (consumes the approved harness schema v1, pinned by digest)
 
 The owner schema is now design-locked and this section consumes it AS-IS: DD-harness-c1-20260825, Implementer-APPROVED at digest 11ac4efc8520d4baa306dbb4f7d902bbcfe5b5738afc1fd0a71941b3e7890440 (`.relays/s1/harness-c1/DESIGN-REVIEW-pair-implementer-20260825-081315.md`), routed to this consumer by the addressed orchestrator alignment relay `.relays/s1/engine-c1/SITREP-orchestrator-planner-20260825-082114.md` — that routing satisfies the pre-PLAN owner/consumer acknowledgment gate named on both sides (must-revise M1; consistency correction, review 081432).
 Concrete consumption obligations, from the approved schema: hello/turn/game_end message envelopes (not bare per-line requests); canonical X/O marks and budget keys with seat delivery via `you` (engine derives mine/theirs once); explicit `tie_owner` field — `last_mover` does not exist on the wire; `request_id` echo in every turn reply; the request's complete `legal` move list cross-checked against own movegen (divergence is a diagnostic + fail-closed condition); reply `move` always a member of `legal`; the optional `info` object carries section 10's value-quality metadata and is logged verbatim by the referee.
@@ -93,7 +94,7 @@ Locked boundary properties (schema-independent):
 - The engine is stateless per request, which satisfies R2's re-request semantics structurally; a re-requested auction is just another request.
 - Bit-identical replies on re-request are NOT promised (the time budget makes search depth wall-clock-dependent); R2 requires a legal reply, not a reproducible one.
 - Malformed input, out-of-range values, or EOF produce a diagnostic on stderr and (for malformed requests) no stdout line — faulting is the referee's judgment, not the engine's.
-- The engine's value-quality metadata (section 10) rides the owner schema's optional analysis carrier (`info` in the current harness draft); the metadata SEMANTICS are engine-owned, the carrier is harness-owned.
+- The engine's value-quality metadata (section 10) rides the owner schema's optional analysis carrier (`info` in the approved harness schema); the metadata SEMANTICS are engine-owned, the carrier is harness-owned.
 
 ## 7. Test seam
 
@@ -182,7 +183,7 @@ No-consumer action: not applicable — consumers named.
 1. All theory fixtures pass (legal moves, closures, routing, terminals) — E2.
 2. Property tests, the exhaustive 19,683-entry table proof, terminal/rejection/lifecycle/Zobrist tests, and pinned both-mover perft counts pass — E2.
 3. Adapter round-trips the harness conformance corpus (against the APPROVED owner schema, per section 6); stdout discipline verified — E2.
-4. Rules-core microbench regression guard: candidate playout compared against the NAMED BASELINE ARTIFACT produced per section 2's ordering rule (fixed reference path measured first by the committed harness; artifact stores value + environment; the /tmp design-evidence number is not the baseline and the candidate is never its own baseline) — E2.
+4. Rules-core microbench regression guard, falsifiable predicate (MR2 residual): PASS iff BOTH hold — (i) median candidate ns/ply ≤ 1.0 × median reference ns/ply (the optimized core is never slower than the naive reference path), AND (ii) median candidate ns/ply ≤ 100 ns/ply absolute on this laptop (4× headroom over the 24 ns/ply directional design evidence). Statistic and aggregation pinned: ns/ply = total playout nanoseconds / total plies over a fixed-seed workload of full random playouts; median taken over ≥ 10 repeated runs of the same committed binary and flags, reference and candidate measured by the same harness in the same session; the reference measurement is the named baseline artifact of section 2 (fixed-reference-first ordering, stored environment, DCE guards, candidate never its own baseline). What it proves: the rules core cannot silently regress below the naive implementation nor above an absolute ceiling with wide evidence-backed margin — E2.
 5. Oracle threshold equality within section 7's parameter on every Stage-1-reachable position — E2 — listed for continuity but EXECUTABLE only after theory's Stage-1 and the successor search DD land; it does not gate the rules-core PLAN.
 
 ## 14. Risks
