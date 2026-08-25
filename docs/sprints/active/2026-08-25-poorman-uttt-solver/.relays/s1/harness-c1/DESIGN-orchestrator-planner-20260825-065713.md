@@ -36,4 +36,5 @@ Boundary-contract changes route through s1.orchestrator-planner.
 
 Implementation, scaffolding beyond the design doc, plan authoring, or any relaxation of the theory/harness gates named above.
 
+ACTIONS_GIT_REF: none — dispatch relay; no edits, commits, or PRs claimed by this relay
 FINAL_GIT_STATUS_SHORT: unavailable — dispatch relay authored at filing time between commits; no work actions claimed by this relay
