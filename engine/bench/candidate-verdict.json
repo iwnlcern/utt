@@ -1,34 +1,38 @@
 {
   "absolute_100ns_predicate": true,
-  "baseline_session_uuid": "de987051-f2ed-13dd-518e-8b5c80fff6e5",
+  "baseline_session_uuid": "1cd8258f-40bb-8984-359e-1370479d8ee5",
   "identity": {
-    "compile_flags": "-std=c++2c -O3 -Wall -Wextra -Werror",
+    "build_type": "RelWithDebInfo",
+    "compile_flags": "-O2 -g -DNDEBUG -std=c++26 -Wall -Wextra -Werror -O3",
     "compiler": "Homebrew Clang 22.1.8",
     "cpu": "Apple M5 Pro",
-    "executable_sha256": "6f0fa01ef2b7ed80539466481c2711bc55da0c633bebb4a141e9522a67526fbf",
+    "executable_sha256": "6ab2f819a1673c78df6604072402daae8cfcc77d38b6f8153aed1a42fc9429de",
     "seeds": [
       1311768467463790320,
       1089357896855742840,
       15118214566308024884,
       11936128519239483119
     ],
-    "session_uuid": "de987051-f2ed-13dd-518e-8b5c80fff6e5"
+    "session_uuid": "1cd8258f-40bb-8984-359e-1370479d8ee5"
   },
-  "median_cand_ns_per_ply": 48.39288525,
-  "median_ref_ns_per_ply": 875.76523975,
+  "measured_runs": 10,
+  "median_cand_ns_per_ply": 50.47830225,
+  "median_ref_ns_per_ply": 883.24801025,
   "per_run_ns_per_ply": [
-    48.4680205,
-    48.299979,
-    48.044875,
-    48.1269375,
-    49.702125,
-    50.9947085,
-    48.7978125,
-    48.625333,
-    48.31775,
-    48.074875
+    50.9327915,
+    50.7027915,
+    49.968604,
+    50.4094585,
+    50.561875,
+    50.654333,
+    50.0988335,
+    49.609646,
+    49.437833,
+    50.547146
   ],
-  "ratio": 0.05525782830089769,
+  "plies_per_run": 2000000,
+  "ratio": 0.05715076814689037,
   "ratio_predicate": true,
-  "verdict": "PASS"
+  "verdict": "PASS",
+  "warmup_runs": 2
 }
