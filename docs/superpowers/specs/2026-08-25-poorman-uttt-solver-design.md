@@ -20,12 +20,18 @@ These override any variant found in reference material.
 2. Budgets: both players start with 1.0, represented as 10^9 fixed-point units.
    Bids are integers in units; this is effectively continuous for an at-most-81-move game while keeping bid equality exact.
 3. Each turn both players submit sealed simultaneous bids plus an intended move.
+   Bids are integers in fixed-point units, 0 ≤ bid ≤ current budget inclusive; zero bids and all-in bids are both legal (operator ruling 2026-08-25).
    The higher bidder pays their bid to the bank (money is destroyed — Poorman), and must place their mark (won bids must result in a move).
+   Fault rule (operator ruling 2026-08-25): a faulted submission (timeout, malformed reply, illegal bid, or illegal intended move) hands the opponent the auction at no cost — the opponent's intended move is applied and nothing is paid.
+   If both players fault, the same auction is re-requested, up to 3 attempts total; three consecutive double-faults kill the game (voided, excluded from stats).
+   Retries occur only on double-faults, so a legal player's sealed bid never leaks.
 4. Bid ties resolve in order:
    a. The player who did not move last wins the tie.
-   b. On the first move (no previous move exists), a coin flip decides.
+   b. On the first move (no previous move exists), a referee coin flip decides.
    Stack sizes play no role in bid-tie resolution.
    The tie winner is the auction winner: they pay the tied bid and must move.
+   The first-move coin outcome is NOT disclosed to engines before move 1 (operator ruling 2026-08-25): the tie-owner state `h` accepts `null`, valid only at move 1, and the coin is consulted only if a first-move bid tie actually occurs.
+   Engines therefore bid at the root under 50/50 tie-owner uncertainty; theory owns the `T(s, null)` root case.
 5. The first move is forced into the center local board.
 6. A local board is closed when it is won or completely full.
    A mark in cell c of a local board forces the next move — whoever wins the next auction, including the same player — into local board c, unless board c is closed, in which case the next move may be any empty cell in any open board.
@@ -56,8 +62,9 @@ Stack sizes play no role in bid-tie resolution, so `T(s, h)` is budget-independe
 
 The variant is still not textbook Poorman: leftover budget has terminal value (drawn board → chip leader wins), entering the theory as the `T = 1/2` terminal.
 Published Poorman results (threshold existence/uniqueness, pure-strategy sufficiency, the backup formula's derivation) were proven for standard win/lose reachability objectives and must be checked against this terminal rule rather than assumed.
-Knife-edge behavior at exactly `p = T` under fixed-point budgets also needs a precise ruling.
-The theory pair resolves both via literature review plus the Stage-1 exact solver, before the engine pair locks its search design.
+Numeric policy (operator ruling 2026-08-25): doubles are canonical for engine analysis values (T, eval, search); integers are canonical for referee facts (budgets, bids, tie and draw comparisons); exact rational arithmetic lives only inside theory's Stage-1 validation oracle, where float noise near the zugzwang branch flip would mask formula bugs.
+The knife edge `p = T` is engine-internal (the referee's rules are already exact); the engine explores ±1–2 integer units around its rounded bid at the root.
+The theory pair validates the operator and the `T(s, null)` first-move case via literature review plus the Stage-1 exact solver, before the engine pair locks its search design.
 
 ## Component 1: theory (Python)
 
