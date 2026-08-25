@@ -20,7 +20,8 @@ add_executable(uttt_tests
   tests/test_naive_local.cpp
   tests/test_local_table.cpp
   tests/test_position.cpp
-  tests/test_lifecycle.cpp)
+  tests/test_lifecycle.cpp
+  tests/test_zobrist.cpp)
 target_link_libraries(uttt_tests PRIVATE uttt_core)
 target_include_directories(uttt_tests PRIVATE third_party)
 

@@ -1,6 +1,7 @@
 #include "core/position.hpp"
 
 #include "core/local_table.hpp"
+#include "core/zobrist.hpp"
 
 namespace uttt {
 namespace {
@@ -18,7 +19,11 @@ TieState tie_for(Seat seat) {
 
 }  // namespace
 
-Position Position::initial() { return Position{}; }
+Position Position::initial() {
+  Position p;
+  p.key = zobrist_full(p);
+  return p;
+}
 
 TerminalKind Position::terminal() const {
   if (completed(macro_x)) return TerminalKind::MacroWinX;
@@ -59,6 +64,9 @@ std::expected<Position, ApplyError> Position::applied(Move mv, Seat mover) const
   }
 
   Position next = *this;
+  const auto& z = ZobristTables::instance();
+  const int old_forced_index = forced == kForcedAny ? 9 : forced;
+  const int old_tie_index = static_cast<uint8_t>(tie);
   auto& marks = mover == Seat::X ? next.x : next.o;
   marks[mv.board] |= bit;
   next.tern[mv.board] = ternary_code(next.x[mv.board], next.o[mv.board]);
@@ -72,7 +80,11 @@ std::expected<Position, ApplyError> Position::applied(Move mv, Seat mover) const
       ? kForcedAny
       : static_cast<int8_t>(mv.cell);
   next.tie = tie_for(opponent(mover));
-  next.key = 0;
+  const int new_forced_index = next.forced == kForcedAny ? 9 : next.forced;
+  const int new_tie_index = static_cast<uint8_t>(next.tie);
+  next.key = key ^ z.forced[old_forced_index] ^ z.tie[old_tie_index]
+      ^ z.cell[9 * mv.board + mv.cell][mover == Seat::X ? 0 : 1]
+      ^ z.forced[new_forced_index] ^ z.tie[new_tie_index];
   return next;
 }
 
@@ -118,7 +130,7 @@ std::expected<Position, ImportError> Position::from_parts(
   if (any_mark && p.tie == TieState::NullFirstMove) {
     return std::unexpected(ImportError::TieNullAfterFirstMark);
   }
-  p.key = 0;
+  p.key = zobrist_full(p);
   return p;
 }
 
