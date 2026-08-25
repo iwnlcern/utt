@@ -1,5 +1,7 @@
 # Engine Rules Core Implementation Plan (PL-engine-rules-c1-20260825)
 
+Revision 7 (2026-08-25) is the mechanical lineage carrier update required by PLAN-REVIEW `engine-c1-plan-review-7` MR7 and authorized by the approving amendment review `engine-c1-design-review-5`: the governing design digest becomes 1d13153f… (DD-engine-rules-c1 amendment 1, harness owner-digest refresh); no plan task, staged set, schema case, benchmark, or acceptance byte changes.
+
 Revision 6 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-6` (relay 145314), single finding MR6: the consumed harness owner-contract digest is refreshed to the approved amended bytes (c935c29c…), with the recorded disposition that amendment 1 changes only harness-owned recovery-event/log ordering — no engine-facing message shape, adapter requirement, or task byte changes; no accepted task or benchmark content reopened.
 
 Revision 5 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-5` (relay 143850), both residuals: MR1-R2 every test-adding task's Files block and expected staged set now carries `Modify: engine/CMakeLists.txt`, and the smoke test is deterministically RETAINED (no optional deletion); MR4-R2 `result` is named an enum ({"X","O","draw","void"}) in the interface, budgets are pinned as a JSON object with integer canonical X/O values, and the negative battery adds well-typed out-of-enum result, type-invalid reason, non-object budgets, and non-integer/type-invalid budget-value cases.
@@ -18,7 +20,7 @@ Revision 2 (2026-08-25) folds PLAN-REVIEW `engine-c1-plan-review-1` (relay 09063
 
 **Tech Stack:** C++26 (`-std=c++2c`), Homebrew LLVM 22.1.8, CMake ≥ 3.28 + Ninja, doctest (vendored single header, MIT), nlohmann/json (vendored single header, MIT, adapter-only).
 
-**Spec:** docs/sprints/active/2026-08-25-poorman-uttt-solver/designs/DD-engine-rules-c1-20260825.md @ sha256 265773e3a98adcd7f8e297e9ca9fc394581ba2506bd660e248b000320ea03f47 (locked; approving review engine-c1-design-review-4).
+**Spec:** docs/sprints/active/2026-08-25-poorman-uttt-solver/designs/DD-engine-rules-c1-20260825.md @ sha256 1d13153f2af22d1f2f55023292eef49827d78d8e0230f93dbdec2e66e48c8f62 (locked; amendment 1 approved by engine-c1-design-review-5, which supersedes the engine-c1-design-review-4 lineage for this plan).
 Consumed owner contracts: harness protocol v1 = DD-harness-c1-20260825 @ c935c29c0ee603df1750c49c40dabcd5432f70105070b60552728f1e6dc24a6e (approved amendment 1 included — its recovery-event/log-ordering changes are harness-owned and out of engine scope, and it leaves the five engine-facing message shapes and all adapter requirements unchanged; MR6); theory fixture schema v1 = DD-theory-c1-20260825 §3 (`theory/fixtures/SCHEMA.md`, `schema-v1.json`).
 
 ## Global Constraints
