@@ -17,6 +17,26 @@ describe('TPChart', () => {
     expect(container.querySelectorAll('[data-testid="tp-cursor-marker"]')).toHaveLength(1)
   })
 
+  it('marks every isolated T point with a circle and isolated p point with a square without bridging gaps', () => {
+    render(
+      <TPChart
+        cursor={2}
+        series={{ t: [null, 0.2, null, 0.8, null], p: [0.1, null, null, 0.9, null] }}
+      />,
+    )
+
+    const chart = screen.getByRole('img')
+    const tMarkers = within(chart).getAllByTestId('tp-isolated-point-t')
+    const pMarkers = within(chart).getAllByTestId('tp-isolated-point-p')
+    expect(tMarkers).toHaveLength(2)
+    expect(pMarkers).toHaveLength(2)
+    expect(tMarkers.every((marker) => marker.tagName.toLowerCase() === 'circle')).toBe(true)
+    expect(pMarkers.every((marker) => marker.tagName.toLowerCase() === 'rect')).toBe(true)
+    for (const line of within(chart).getAllByTestId(/tp-line-[tp]/)) {
+      expect(line.getAttribute('points')?.trim().split(/\s+/)).toHaveLength(1)
+    }
+  })
+
   it('puts the cursor marker at the current series value and describes both current values', () => {
     render(<TPChart cursor={1} series={{ t: [0.2, 0.7], p: [0.1, 0.4] }} />)
 

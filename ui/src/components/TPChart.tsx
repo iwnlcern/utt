@@ -55,9 +55,10 @@ function SeriesLines({ name, values, maxLength }: {
   values: readonly (number | null)[]
   maxLength: number
 }) {
+  const seriesSegments = segments(values)
   return (
     <g aria-label={`${name} series`} className={`tp-chart__series tp-chart__series--${name}`} data-series={name}>
-      {segments(values).map((segment) => (
+      {seriesSegments.map((segment) => (
         <polyline
           data-testid={`tp-line-${name}`}
           fill="none"
@@ -66,6 +67,15 @@ function SeriesLines({ name, values, maxLength }: {
           {...(name === 'p' ? { strokeDasharray: '6 4' } : {})}
         />
       ))}
+      {seriesSegments.filter((segment) => segment.length === 1).map((segment) => {
+        const point = segment[0]
+        if (point === undefined) return null
+        const x = pointX(point.index, maxLength)
+        const y = pointY(point.value)
+        return name === 't'
+          ? <circle className="tp-chart__isolated" cx={x} cy={y} data-testid="tp-isolated-point-t" key={`point-${name}-${point.index}`} r="4" />
+          : <rect className="tp-chart__isolated" data-testid="tp-isolated-point-p" height="8" key={`point-${name}-${point.index}`} width="8" x={x - 4} y={y - 4} />
+      })}
     </g>
   )
 }

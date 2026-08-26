@@ -81,15 +81,22 @@
 }
 
 .tp-chart__series--t polyline,
+.tp-chart__series--t circle,
 .tp-chart__cursor [data-series='t'] {
   stroke: var(--chart-t);
   fill: var(--chart-t);
 }
 
 .tp-chart__series--p polyline,
+.tp-chart__series--p rect,
 .tp-chart__cursor [data-series='p'] {
   stroke: var(--chart-p);
   fill: var(--chart-p);
+}
+
+.tp-chart__isolated {
+  stroke: var(--surface);
+  stroke-width: 1.5;
 }
 
 .tp-chart__cursor line {
