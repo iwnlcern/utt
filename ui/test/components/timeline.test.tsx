@@ -76,8 +76,18 @@ describe('Timeline', () => {
     expect(screen.getByTestId('intent-O-0').textContent).toContain(`[${first.attempts[0]?.turns.O.move?.join(', ')}]`)
     expect(screen.getByTestId('resolution-0').textContent).toContain(first.resolution.reason)
     expect(screen.getByTestId('payment-0').textContent).toContain(`${formatUnits(first.resolution.payment)} units`)
-    expect(screen.getByTestId('post-budgets-0').textContent).toContain(`X ${formatUnits(first.post.budgets.X)}`)
+    expect(screen.getByTestId('post-budgets-0').textContent).toBe(
+      'post budgets: X 33.33% (500\u202f000\u202f000 units) · O 66.67% (1\u202f000\u202f000\u202f000 units)',
+    )
     expect(screen.getByTestId('forced-next-0').textContent).toContain(String(first.resolution.forced_next))
+  })
+
+  it('uses n/a post-budget shares while retaining exact zero units at both-zero', () => {
+    render(<Timeline model={fixtureModel('both-zero.jsonl')} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('post-budgets-34').textContent).toBe(
+      'post budgets: X n/a — both budgets exhausted (0 units) · O n/a — both budgets exhausted (0 units)',
+    )
   })
 
   it('labels a bid against one zero seat budget without claiming both budgets are exhausted', () => {

@@ -12,6 +12,10 @@ function intent(turn: TurnRecord): string {
   return turn.move === undefined ? 'none' : `[${turn.move.join(', ')}]`
 }
 
+function budgetShare(units: number, combined: number): string {
+  return `${formatPercent(share(units, combined))} (${formatUnits(units)} units)`
+}
+
 function Bid({ seat, turn, budget, ply }: {
   seat: Mark
   turn: TurnRecord
@@ -148,7 +152,9 @@ function AuctionRow({ step, index, onSelect }: {
           <>
             <p data-testid={`payment-${step.ply}`}>payment: {formatUnits(step.resolution.payment)} units</p>
             <p data-testid={`post-budgets-${step.ply}`}>
-              post budgets: X {formatUnits(step.post.budgets.X)} units · O {formatUnits(step.post.budgets.O)} units
+              post budgets: X {budgetShare(step.post.budgets.X, step.post.budgets.X + step.post.budgets.O)}
+              {' · '}
+              O {budgetShare(step.post.budgets.O, step.post.budgets.X + step.post.budgets.O)}
             </p>
             <p data-testid={`forced-next-${step.ply}`}>
               forced_next: {step.resolution.forced_next ?? 'any'}

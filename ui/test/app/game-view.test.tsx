@@ -203,6 +203,14 @@ describe('GameView', () => {
     expect(screen.getByTestId('local-board-3').getAttribute('data-forced')).toBe('true')
   })
 
+  it('composes logged post-budget shares and exact units in the timeline', () => {
+    render(<GameView game={fixtureGame('both-zero.jsonl')} />)
+
+    expect(screen.getByTestId('post-budgets-34').textContent).toBe(
+      'post budgets: X n/a — both budgets exhausted (0 units) · O n/a — both budgets exhausted (0 units)',
+    )
+  })
+
   it('shows both test-enabled conditional ghosts only on their pending pre-auction position', () => {
     PV_PIN.pinned = true
     PV_PIN.source = 'test-only ghost association seam'
