@@ -9,7 +9,7 @@ import { fixtureManifest } from '../fixtures/manifest'
 import { PV_PIN, PV_UNAVAILABLE_MESSAGE } from '../src/analysis/extract'
 import GameView from '../src/app/GameView'
 import { formatUnits } from '../src/format/money'
-import type { LogEvent } from '../src/log/types'
+import type { FaultClass, LogEvent } from '../src/log/types'
 import { LogError, parseGameLog } from '../src/log/validate'
 import { deriveReplayModel } from '../src/replay/derive'
 
@@ -18,6 +18,51 @@ const fixtureText = (path: string) =>
 
 const realTranscriptText = () =>
   readFileSync(resolve(import.meta.dirname, '../../docs/protocol/transcript-v1.jsonl'), 'utf8')
+
+const conformanceRoot = resolve(import.meta.dirname, '../../referee/tests/fixtures')
+const conformanceFixtures = [
+  'fault-eof_or_crash.jsonl',
+  'fault-extra_protocol_line.jsonl',
+  'fault-illegal_bid.jsonl',
+  'fault-illegal_move.jsonl',
+  'fault-invalid_json.jsonl',
+  'fault-invalid_utf8.jsonl',
+  'fault-oversize_line.jsonl',
+  'fault-schema_violation.jsonl',
+  'fault-timeout.jsonl',
+  'fault-wrong_request_id.jsonl',
+  'parity-even/game-0001-r0001-g1.jsonl',
+  'parity-even/game-0001-r0001-g2.jsonl',
+  'parity-odd/game-0001-r0001-g1.jsonl',
+  'parity-odd/game-0001-r0001-g2.jsonl',
+  'recovery-both-fail.jsonl',
+  'recovery-double-one-fail.jsonl',
+  'recovery-single-fail.jsonl',
+  'success.jsonl',
+  'terminal-fault-won-no-recovery.jsonl',
+] as const
+const faultClasses = [
+  'timeout',
+  'eof_or_crash',
+  'invalid_utf8',
+  'invalid_json',
+  'schema_violation',
+  'wrong_request_id',
+  'extra_protocol_line',
+  'oversize_line',
+  'illegal_bid',
+  'illegal_move',
+] as const satisfies readonly FaultClass[]
+
+const conformanceText = (path: string) => readFileSync(resolve(conformanceRoot, path), 'utf8')
+
+const conformanceFilesOnDisk = (directory = conformanceRoot, prefix = ''): string[] =>
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
+    return entry.isDirectory()
+      ? conformanceFilesOnDisk(resolve(directory, entry.name), relative)
+      : entry.name.endsWith('.jsonl') ? [relative] : []
+  })
 
 const fixtureGame = (path: string) => parseGameLog(fixtureText(path))
 
@@ -103,6 +148,28 @@ describe('UI v1 composed acceptance', () => {
         expect(screen.getByTestId(`terminal-${expected.terminal.reason}`).textContent)
           .toContain(`(${expected.terminal.result})`)
       }
+    },
+  )
+
+  it('pins the complete landed harness/referee conformance inventory and every fault class', () => {
+    expect(conformanceFilesOnDisk().sort()).toEqual([...conformanceFixtures].sort())
+    expect(
+      conformanceFixtures.filter((path) => path.startsWith('fault-')).sort(),
+    ).toEqual(faultClasses.map((fault) => `fault-${fault}.jsonl`).sort())
+  })
+
+  it.each(conformanceFixtures)(
+    'opens owner conformance %s through parse, derive, and GameView',
+    (path) => {
+      const game = parseGameLog(conformanceText(path))
+      const model = deriveReplayModel(game)
+
+      render(createElement(GameView, { game }))
+
+      expect(screen.getByRole('heading', { name: 'Game replay' })).not.toBeNull()
+      expect(within(screen.getByRole('region', { name: 'UTTT board' })).getAllByRole('button')).toHaveLength(81)
+      expect(screen.getByRole('region', { name: 'auction timeline' })).not.toBeNull()
+      expect(model.positions.length).toBeGreaterThan(0)
     },
   )
 
