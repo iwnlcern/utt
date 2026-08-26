@@ -22,6 +22,23 @@ export interface MetricsPanelProps {
 
 const seats: readonly Mark[] = ['X', 'O']
 const MISSING_THRESHOLD_MESSAGE = 'unavailable — t not present in analysis'
+const MALFORMED_THRESHOLD_MESSAGE = 'unavailable — malformed t in logged analysis'
+const loggedFieldNames: Readonly<Record<string, string>> = {
+  criticalBid: 'critical_bid',
+  pvIfWin: 'pv_if_win',
+  pvIfLose: 'pv_if_lose',
+}
+const loggedFieldOrder = [
+  't',
+  'critical_bid',
+  'pv_if_win',
+  'pv_if_lose',
+  'quality',
+  'lo',
+  'hi',
+  'depth',
+  'complete',
+] as const
 
 function dualShare(value: number, combined: number): string {
   if (combined === 0) {
@@ -84,17 +101,28 @@ function Metrics({ entry, p, combined }: {
   combined: number
 }) {
   const threshold = entry.t
+  const thresholdUnavailable = entry.degraded.includes('t')
+    ? MALFORMED_THRESHOLD_MESSAGE
+    : MISSING_THRESHOLD_MESSAGE
+  const degradedFieldSet = new Set(entry.degraded.map((field) => loggedFieldNames[field] ?? field))
+  const degradedFields = [
+    ...loggedFieldOrder.filter((field) => degradedFieldSet.delete(field)),
+    ...degradedFieldSet,
+  ]
+  const degradationMessage = degradedFields.length === 0
+    ? undefined
+    : `Malformed logged analysis fields ignored: ${degradedFields.join(', ')}`
   const displayedMargin = p.kind === 'ok' && threshold !== undefined
     ? percentBasisPoints({ kind: 'ok', value: p.value - threshold })
     : undefined
   const margin = p.kind === 'na'
     ? formatPercent({ kind: 'na', why: 'both budgets exhausted' })
     : threshold === undefined
-      ? MISSING_THRESHOLD_MESSAGE
+      ? thresholdUnavailable
       : formatPercentBasisPoints(displayedMargin ?? 0)
   const favored = favoredLabel(displayedMargin)
   const thresholdText = threshold === undefined
-    ? MISSING_THRESHOLD_MESSAGE
+    ? thresholdUnavailable
     : p.kind === 'na'
       ? formatPercent(p)
       : dualShare(threshold, combined)
@@ -121,6 +149,11 @@ function Metrics({ entry, p, combined }: {
         </p>
       )}
       <ConditionalLines entry={entry} />
+      {degradationMessage !== undefined && (
+        <p aria-label={degradationMessage} className="metrics__unavailable" role="status">
+          {degradationMessage}
+        </p>
+      )}
     </div>
   )
 }

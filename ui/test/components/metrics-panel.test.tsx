@@ -94,20 +94,44 @@ describe('MetricsPanel', () => {
     expect(screen.getByText('both budgets exhausted')).not.toBeNull()
   })
 
-  it('keeps missing t semantics explicit for a usable degraded analysis at nonzero budgets', () => {
+  it('distinguishes a malformed t from an absent t', () => {
     render(<MetricsPanelHarness analyses={{ X: { kind: 'ok', criticalBid: 100_000_000, degraded: ['t'] } }} position={position()} />)
+
+    expect(screen.getByText('T: unavailable — malformed t in logged analysis')).not.toBeNull()
+    expect(screen.getByText('margin p−T: unavailable — malformed t in logged analysis')).not.toBeNull()
+    expect(screen.getByRole('status', { name: 'Malformed logged analysis fields ignored: t' })).not.toBeNull()
+    expect(screen.queryByText('margin p−T: n/a — both budgets exhausted')).toBeNull()
+
+    cleanup()
+    render(<MetricsPanelHarness analyses={{ X: { kind: 'ok', criticalBid: 100_000_000, degraded: [] } }} position={position()} />)
 
     expect(screen.getByText('T: unavailable — t not present in analysis')).not.toBeNull()
     expect(screen.getByText('margin p−T: unavailable — t not present in analysis')).not.toBeNull()
-    expect(screen.queryByText('margin p−T: n/a — both budgets exhausted')).toBeNull()
+    expect(screen.queryByRole('status', { name: /malformed logged analysis fields/i })).toBeNull()
   })
 
   it('gives a zero combined budget precedence for p and margin when t is missing', () => {
     render(<MetricsPanelHarness analyses={{ X: { kind: 'ok', criticalBid: 1, degraded: ['t'] } }} position={position({ X: 0, O: 0 })} />)
 
-    expect(screen.getByText('T: unavailable — t not present in analysis')).not.toBeNull()
+    expect(screen.getByText('T: unavailable — malformed t in logged analysis')).not.toBeNull()
     expect(screen.getByText('p: n/a — both budgets exhausted')).not.toBeNull()
     expect(screen.getByText('margin p−T: n/a — both budgets exhausted')).not.toBeNull()
+  })
+
+  it('names ignored fields using the logged analysis schema', () => {
+    render(<MetricsPanelHarness analyses={{
+      X: {
+        kind: 'ok',
+        t: 0.5,
+        degraded: ['criticalBid', 'quality', 'lo', 'hi', 'complete'],
+      },
+    }} position={position()} />)
+
+    const diagnostic = screen.getByRole('status', {
+      name: 'Malformed logged analysis fields ignored: critical_bid, quality, lo, hi, complete',
+    })
+    expect(diagnostic.textContent).toBe('Malformed logged analysis fields ignored: critical_bid, quality, lo, hi, complete')
+    expect(screen.queryByText(/criticalBid/)).toBeNull()
   })
 
   it('marks bound interval percentages not applicable when both budgets are zero', () => {

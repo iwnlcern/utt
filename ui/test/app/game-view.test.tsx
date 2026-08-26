@@ -52,7 +52,15 @@ const gameWithInvalidThreshold = () => {
   const game = fixtureGame('ghost-divergence.jsonl')
   const firstAuction = game.events.find((event) => event.event === 'auction')
   if (firstAuction === undefined) throw new Error('ghost divergence fixture must contain an auction')
-  firstAuction.attempts[0].turns.X.info = { t: -0.001, critical_bid: 100_000_000 }
+  firstAuction.attempts[0].turns.X.info = {
+    t: -0.001,
+    critical_bid: -1,
+    quality: 'bound',
+    lo: -0.1,
+    hi: 1.1,
+    depth: 4,
+    complete: 'unknown',
+  }
   return game
 }
 
@@ -217,12 +225,16 @@ describe('GameView', () => {
     expect(screen.getByRole('img', { name: /current t: unavailable; current p: 50\.00%/i })).not.toBeNull()
   })
 
-  it('uses the same degraded threshold in pending metrics and the chart series', () => {
+  it('surfaces partial malformed analysis while using the same degraded threshold in the chart', () => {
     render(<GameView game={gameWithInvalidThreshold()} />)
 
     expect(screen.getByRole('region', { name: 'analysis metrics' }).textContent).toContain(
-      'T: unavailable — t not present in analysis',
+      'T: unavailable — malformed t in logged analysis',
     )
+    expect(screen.getByRole('status', {
+      name: 'Malformed logged analysis fields ignored: t, critical_bid, quality, lo, hi, complete',
+    })).not.toBeNull()
+    expect(screen.getByText('depth: 4')).not.toBeNull()
     expect(screen.getByRole('img', { name: /current t: unavailable; current p: 50\.00%/i })).not.toBeNull()
   })
 
