@@ -197,6 +197,97 @@ describe('deriveReplayModel', () => {
     )
   })
 
+  it('rejects an O-only trailing recovery prefix', () => {
+    const events = fixtureText('trailing-recovery-xo.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    events.splice(1, 1)
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 2,
+        event_index: 1,
+        reason: 'trailing recovery prefix at event 1 must start with seat X',
+      } satisfies Partial<LogError>),
+    )
+  })
+
+  it('rejects an X/X trailing recovery prefix', () => {
+    const events = fixtureText('trailing-recovery-xo.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    events[2].seat = 'X'
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 3,
+        event_index: 2,
+        reason: 'trailing recovery prefix at event 2 must continue with seat O',
+      } satisfies Partial<LogError>),
+    )
+  })
+
+  it('rejects trailing recoveries with mismatched trigger request ids', () => {
+    const events = fixtureText('trailing-recovery-xo.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const triggerRequestId = events[1].trigger_request_id
+    events[2].trigger_request_id = `${triggerRequestId}-different`
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 3,
+        event_index: 2,
+        reason: `trailing recovery prefix at event 2 must share trigger_request_id ${triggerRequestId}`,
+      } satisfies Partial<LogError>),
+    )
+  })
+
+  it('rejects a trailing recovery prefix longer than two events', () => {
+    const events = fixtureText('trailing-recovery-xo.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    events.push({ ...events[2] })
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 4,
+        event_index: 3,
+        reason: 'trailing recovery prefix at event 3 exceeds two events',
+      } satisfies Partial<LogError>),
+    )
+  })
+
+  it('rejects a second trailing recovery group', () => {
+    const events = fixtureText('trailing-recovery-xo.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const secondTrigger = `${events[1].trigger_request_id}-second-group`
+    events.push({ ...events[1], trigger_request_id: secondTrigger })
+    events.push({ ...events[2], trigger_request_id: secondTrigger })
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 4,
+        event_index: 3,
+        reason: 'trailing recovery prefix at event 3 exceeds two events',
+      } satisfies Partial<LogError>),
+    )
+  })
+
+  it('rejects a trailing recovery trigger id reused from a prior auction', () => {
+    const events = fixtureText('success-macro-win.jsonl').trimEnd().split('\n').slice(0, 2).map((line) => JSON.parse(line))
+    const priorRequestId = events[1].attempts[0].request_id
+    const recovery = JSON.parse(fixtureText('trailing-recovery.jsonl').split('\n')[1])
+    recovery.ply = 1
+    recovery.trigger_request_id = priorRequestId
+    events.push(recovery)
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 3,
+        event_index: 2,
+        reason: `trailing recovery trigger_request_id at event 2 reuses prior auction request_id ${priorRequestId}`,
+      } satisfies Partial<LogError>),
+    )
+  })
+
   it('rejects duplicate request ids within one auction before recovery association', () => {
     const events = fixtureText('double-fault-retry.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
     const auction = events.find((event) => event.event === 'auction')

@@ -29,6 +29,85 @@ const makeStorage = (): Storage => {
   } as Storage
 }
 
+type InvalidTrailingRecoveryKind =
+  | 'wrong-ply'
+  | 'o-only'
+  | 'x-x'
+  | 'mismatched-trigger'
+  | 'too-long'
+  | 'second-group'
+  | 'prior-request-collision'
+
+const invalidTrailingRecovery = (kind: InvalidTrailingRecoveryKind) => {
+  if (kind === 'prior-request-collision') {
+    const events = fixtureText('success-macro-win.jsonl').trimEnd().split('\n').slice(0, 2).map((line) => JSON.parse(line))
+    const priorRequestId = events[1].attempts[0].request_id
+    const recovery = JSON.parse(fixtureText('trailing-recovery.jsonl').split('\n')[1])
+    recovery.ply = 1
+    recovery.trigger_request_id = priorRequestId
+    events.push(recovery)
+    return {
+      text: `${events.map(JSON.stringify).join('\n')}\n`,
+      line: 3,
+      eventIndex: 2,
+      reason: `trailing recovery trigger_request_id at event 2 reuses prior auction request_id ${priorRequestId}`,
+    }
+  }
+
+  const events = fixtureText('trailing-recovery-xo.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+  const triggerRequestId = events[1].trigger_request_id
+  if (kind === 'wrong-ply') {
+    events[1].ply = 1
+    events.splice(2, 1)
+    return {
+      text: `${events.map(JSON.stringify).join('\n')}\n`,
+      line: 2,
+      eventIndex: 1,
+      reason: 'recovery at event 1 references missing auction ply 1; next expected absent auction ply is 0',
+    }
+  }
+  if (kind === 'o-only') {
+    events.splice(1, 1)
+    return {
+      text: `${events.map(JSON.stringify).join('\n')}\n`,
+      line: 2,
+      eventIndex: 1,
+      reason: 'trailing recovery prefix at event 1 must start with seat X',
+    }
+  }
+  if (kind === 'x-x') {
+    events[2].seat = 'X'
+    return {
+      text: `${events.map(JSON.stringify).join('\n')}\n`,
+      line: 3,
+      eventIndex: 2,
+      reason: 'trailing recovery prefix at event 2 must continue with seat O',
+    }
+  }
+  if (kind === 'mismatched-trigger') {
+    events[2].trigger_request_id = `${triggerRequestId}-different`
+    return {
+      text: `${events.map(JSON.stringify).join('\n')}\n`,
+      line: 3,
+      eventIndex: 2,
+      reason: `trailing recovery prefix at event 2 must share trigger_request_id ${triggerRequestId}`,
+    }
+  }
+  if (kind === 'too-long') {
+    events.push({ ...events[2] })
+  } else {
+    const secondTrigger = `${triggerRequestId}-second-group`
+    events.push({ ...events[1], trigger_request_id: secondTrigger })
+    events.push({ ...events[2], trigger_request_id: secondTrigger })
+  }
+  return {
+    text: `${events.map(JSON.stringify).join('\n')}\n`,
+    line: 4,
+    eventIndex: 3,
+    reason: 'trailing recovery prefix at event 3 exceeds two events',
+  }
+}
+
 describe('Home', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'localStorage', { configurable: true, value: makeStorage() })
@@ -236,6 +315,30 @@ describe('Home', () => {
     expect(screen.getByText('Line 2')).toBeTruthy()
     expect(screen.getByText('Event 1')).toBeTruthy()
     expect(screen.getByText('recovery at event 1 references missing auction ply 0 in a complete log')).toBeTruthy()
+    expect(window.localStorage.getItem(RECENTS_STORAGE_KEY)).toBeNull()
+    expect(onLoaded).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['wrong missing-auction ply', 'wrong-ply'],
+    ['O-only prefix', 'o-only'],
+    ['X/X prefix', 'x-x'],
+    ['mismatched trigger IDs', 'mismatched-trigger'],
+    ['prefix longer than two events', 'too-long'],
+    ['second recovery group', 'second-group'],
+    ['trigger collision with a prior auction', 'prior-request-collision'],
+  ] as const)('rejects an incomplete trailing recovery with %s before acquisition', async (_name, kind) => {
+    const onLoaded = vi.fn()
+    const invalid = invalidTrailingRecovery(kind)
+    const fileName = `invalid-trailing-${kind}.jsonl`
+    render(<Home onLoaded={onLoaded} />)
+
+    await dropFile(new File([invalid.text], fileName))
+
+    expect(await screen.findByRole('heading', { name: `Could not open ${fileName}` })).toBeTruthy()
+    expect(screen.getByText(`Line ${invalid.line}`)).toBeTruthy()
+    expect(screen.getByText(`Event ${invalid.eventIndex}`)).toBeTruthy()
+    expect(screen.getByText(invalid.reason)).toBeTruthy()
     expect(window.localStorage.getItem(RECENTS_STORAGE_KEY)).toBeNull()
     expect(onLoaded).not.toHaveBeenCalled()
   })

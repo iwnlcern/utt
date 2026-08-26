@@ -136,6 +136,43 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
     }
   }
 
+  let trailingTriggerRequestId: string | undefined
+  for (const [trailingIndex, { recovery, eventIndex }] of trailingRecoveryRecords.entries()) {
+    if (trailingIndex >= 2) {
+      throw new LogError(
+        eventIndex + 1,
+        eventIndex,
+        `trailing recovery prefix at event ${eventIndex} exceeds two events`,
+      )
+    }
+    const expectedSeat: Mark = trailingIndex === 0 ? 'X' : 'O'
+    if (recovery.seat !== expectedSeat) {
+      throw new LogError(
+        eventIndex + 1,
+        eventIndex,
+        trailingIndex === 0
+          ? `trailing recovery prefix at event ${eventIndex} must start with seat X`
+          : `trailing recovery prefix at event ${eventIndex} must continue with seat O`,
+      )
+    }
+    if (requestIds.has(recovery.trigger_request_id)) {
+      throw new LogError(
+        eventIndex + 1,
+        eventIndex,
+        `trailing recovery trigger_request_id at event ${eventIndex} reuses prior auction request_id ${recovery.trigger_request_id}`,
+      )
+    }
+    if (trailingIndex === 0) {
+      trailingTriggerRequestId = recovery.trigger_request_id
+    } else if (recovery.trigger_request_id !== trailingTriggerRequestId) {
+      throw new LogError(
+        eventIndex + 1,
+        eventIndex,
+        `trailing recovery prefix at event ${eventIndex} must share trigger_request_id ${trailingTriggerRequestId}`,
+      )
+    }
+  }
+
   return {
     setup: { start: game.start },
     auctions,
