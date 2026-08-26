@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { PV_PIN, PV_UNAVAILABLE_MESSAGE, type AnalysisEntry } from '../analysis/extract'
 import {
+  compareRawShares,
   formatPercent,
   formatPercentBasisPoints,
   formatUnits,
@@ -36,14 +37,10 @@ function dualShare(value: number, combined: number): string {
 }
 
 function favoredLabel(p: Share, threshold: number | undefined): string | undefined {
-  const actualBasisPoints = percentBasisPoints(p)
-  const thresholdBasisPoints = threshold === undefined
-    ? undefined
-    : percentBasisPoints({ kind: 'ok', value: threshold })
-  if (actualBasisPoints === undefined || thresholdBasisPoints === undefined) return undefined
-  const marginBasisPoints = actualBasisPoints - thresholdBasisPoints
-  if (marginBasisPoints > 0) return 'X favored'
-  if (marginBasisPoints < 0) return 'O favored'
+  if (p.kind === 'na' || threshold === undefined) return undefined
+  const comparison = compareRawShares(p.value, threshold)
+  if (comparison > 0) return 'X favored'
+  if (comparison < 0) return 'O favored'
   return 'knife-edge at p = T'
 }
 
@@ -96,15 +93,11 @@ function Metrics({ entry, p, combined }: {
   combined: number
 }) {
   const threshold = entry.t
-  const actualBasisPoints = percentBasisPoints(p)
-  const thresholdBasisPoints = threshold === undefined
-    ? undefined
-    : percentBasisPoints({ kind: 'ok', value: threshold })
-  const margin = actualBasisPoints === undefined
+  const margin = p.kind === 'na'
     ? formatPercent({ kind: 'na', why: 'both budgets exhausted' })
-    : thresholdBasisPoints === undefined
+    : threshold === undefined
       ? MISSING_THRESHOLD_MESSAGE
-      : formatPercentBasisPoints(actualBasisPoints - thresholdBasisPoints)
+      : formatPercent({ kind: 'ok', value: p.value - threshold })
   const favored = favoredLabel(p, threshold)
   const thresholdText = threshold === undefined
     ? MISSING_THRESHOLD_MESSAGE

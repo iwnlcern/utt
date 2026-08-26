@@ -138,11 +138,16 @@ describe('MetricsPanel', () => {
     expect(screen.getByText(label)).not.toBeNull()
   })
 
-  it('treats display-equal float shares as a knife edge with a zero display margin', () => {
-    render(<MetricsPanel analyses={{ X: { kind: 'ok', t: 0.2 + 0.1, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
+  it('uses raw-share signs while treating only arithmetic noise as a knife edge', () => {
+    const { rerender } = render(<MetricsPanel analyses={{ X: { kind: 'ok', t: 0.2 + 0.1, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
 
     expect(screen.getByText('margin p−T: 0.00%')).not.toBeNull()
     expect(screen.getByText('knife-edge at p = T')).not.toBeNull()
+
+    rerender(<MetricsPanel analyses={{ X: { kind: 'ok', t: 0.30004, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
+    expect(screen.getByText('margin p−T: 0.00%')).not.toBeNull()
+    expect(screen.getByText('O favored')).not.toBeNull()
+    expect(screen.queryByText('knife-edge at p = T')).toBeNull()
   })
 
   it('formats T and bound units from the raw share rather than rounded display basis points', () => {
