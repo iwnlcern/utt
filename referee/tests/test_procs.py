@@ -1,3 +1,4 @@
+import io
 import os
 import signal
 import subprocess
@@ -7,8 +8,14 @@ from pathlib import Path
 
 import pytest
 
+import poorman_referee.procs as procs
 from poorman_referee.procs import Engine, collect_both
-from poorman_referee.protocol import ParsedReply, hello_request, parse_turn_reply
+from poorman_referee.protocol import (
+    ParsedReply,
+    canonical_dumps,
+    hello_request,
+    parse_turn_reply,
+)
 
 
 STUB = Path(__file__).with_name("stub_engine.py")
@@ -66,6 +73,100 @@ def started_engine(seat="X", *args, **kwargs):
 def assert_group_gone(pgid):
     with pytest.raises(ProcessLookupError):
         os.killpg(pgid, 0)
+
+
+def test_stdin_capture_receives_exactly_written_bytes():
+    capture = io.BytesIO()
+    engine = started_engine(stdin_capture=capture)
+    try:
+        assert engine.hello(hello_req(), 500)[0].validation == "ok"
+        request = turn_req()
+        assert engine.send_line(request) is None
+        assert capture.getvalue() == (
+            (canonical_dumps(hello_req()) + "\n").encode("utf-8")
+            + (canonical_dumps(request) + "\n").encode("utf-8")
+        )
+    finally:
+        engine.kill()
+
+
+def test_stdin_capture_skips_unwritten_faulted_send():
+    capture = io.BytesIO()
+    engine = started_engine(
+        "X", "--fault", "unsolicited_between_plies:1", stdin_capture=capture
+    )
+    try:
+        assert engine.hello(hello_req(), 500)[0].validation == "ok"
+        first = turn_req()
+        assert engine.send_line(first) is None
+        assert engine.read_reply(time.monotonic() + 1)[1] is None
+        before = capture.getvalue()
+        time.sleep(0.15)
+
+        assert (
+            engine.send_line(turn_req(request_id="g1-p1-a1", ply=1))
+            == "extra_protocol_line"
+        )
+        assert capture.getvalue() == before
+    finally:
+        engine.kill()
+
+
+def test_delivery_loop_decisive_sequences(monkeypatch):
+    payload = (canonical_dumps(hello_req()) + "\n").encode("utf-8")
+    real_write = os.write
+
+    capture = io.BytesIO()
+    engine = started_engine(stdin_capture=capture)
+    try:
+
+        def short_write(fd, data):
+            return real_write(fd, data[: max(1, len(data) // 2)])
+
+        monkeypatch.setattr(procs.os, "write", short_write)
+        assert engine.send_line(hello_req()) is None
+        assert capture.getvalue() == payload
+    finally:
+        engine.kill()
+
+    for write_impl in (
+        lambda _fd, _data: 0,
+        lambda _fd, _data: (_ for _ in ()).throw(OSError("write failed")),
+    ):
+        capture = io.BytesIO()
+        engine = started_engine(stdin_capture=capture)
+        try:
+            monkeypatch.setattr(procs.os, "write", write_impl)
+            assert engine.send_line(hello_req()) == "eof_or_crash"
+            assert capture.getvalue() == b""
+        finally:
+            engine.kill()
+
+
+class _ShortSink(io.BytesIO):
+    def write(self, data):
+        super().write(data[:-1])
+        return len(data) - 1
+
+
+class _RaisingSink(io.BytesIO):
+    def write(self, data):
+        raise OSError("sink write failed")
+
+
+class _FlushRaisingSink(io.BytesIO):
+    def flush(self):
+        raise OSError("sink flush failed")
+
+
+@pytest.mark.parametrize("sink_type", [_ShortSink, _RaisingSink, _FlushRaisingSink])
+def test_capture_sink_defects_raise_not_engine_fault(sink_type):
+    engine = started_engine(stdin_capture=sink_type())
+    try:
+        with pytest.raises(RuntimeError, match="stdin capture"):
+            engine.send_line(hello_req())
+    finally:
+        engine.kill()
 
 
 def test_clean_hello_returns_identity_and_elapsed():
