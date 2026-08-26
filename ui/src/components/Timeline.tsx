@@ -21,6 +21,13 @@ function Bid({ seat, turn, budget, ply }: {
   if (turn.bid === undefined) {
     return <span data-testid={`bid-${seat}-${ply}`} title="no bid recorded">{seat}: n/a</span>
   }
+  if (budget === 0) {
+    return (
+      <span data-testid={`bid-${seat}-${ply}`} title={`${formatUnits(turn.bid)} units`}>
+        {seat}: n/a — seat budget is zero
+      </span>
+    )
+  }
 
   return (
     <span data-testid={`bid-${seat}-${ply}`} title={`${formatUnits(turn.bid)} units`}>

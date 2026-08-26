@@ -80,6 +80,22 @@ describe('Timeline', () => {
     expect(screen.getByTestId('forced-next-0').textContent).toContain(String(first.resolution.forced_next))
   })
 
+  it('labels a bid against one zero seat budget without claiming both budgets are exhausted', () => {
+    const model = fixtureModel('success-macro-win.jsonl')
+    const first = model.auctions[0]
+    if (first === undefined) throw new Error('fixture must begin with an auction')
+    first.pre = { ...first.pre, budgets: { X: 1, O: 0 } }
+    const oBid = first.attempts.at(-1)?.turns.O.bid
+    if (oBid === undefined) throw new Error('fixture must contain a logged O bid')
+
+    render(<Timeline model={model} onSelect={vi.fn()} />)
+
+    const bid = screen.getByTestId('bid-O-0')
+    expect(bid.textContent).toBe('O: n/a — seat budget is zero')
+    expect(bid.getAttribute('title')).toBe(`${formatUnits(oBid)} units`)
+    expect(bid.textContent).not.toContain('both budgets exhausted')
+  })
+
   it('renders raw-ordered pre-auction recoveries above an expandable two-attempt retry', () => {
     const model = fixtureModel('double-fault-retry.jsonl')
     render(<Timeline model={model} onSelect={vi.fn()} />)
