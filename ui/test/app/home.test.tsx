@@ -259,6 +259,26 @@ describe('Home', () => {
     expect(onLoaded).not.toHaveBeenCalled()
   })
 
+  it('shows a structured error when a later auction reuses an earlier request id', async () => {
+    const onLoaded = vi.fn()
+    const events = fixtureText('success-macro-win.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const auctions = events.filter((event) => event.event === 'auction')
+    auctions[1].attempts[0].request_id = auctions[0].attempts[0].request_id
+    const duplicateRequestId = auctions[0].attempts[0].request_id
+    render(<Home onLoaded={onLoaded} />)
+
+    await dropFile(new File([`${events.map(JSON.stringify).join('\n')}\n`], 'duplicate-request.jsonl'))
+
+    expect(await screen.findByRole('heading', { name: 'Could not open duplicate-request.jsonl' })).toBeTruthy()
+    expect(screen.getByText('Line 3')).toBeTruthy()
+    expect(screen.getByText('Event 2')).toBeTruthy()
+    expect(screen.getByText(
+      `attempt request_id values must be unique at event 2: duplicate ${duplicateRequestId}`,
+    )).toBeTruthy()
+    expect(window.localStorage.getItem(RECENTS_STORAGE_KEY)).toBeNull()
+    expect(onLoaded).not.toHaveBeenCalled()
+  })
+
   it('shows a structured error for an auction after a final unresolved auction', async () => {
     const onLoaded = vi.fn()
     const events = fixtureText('recovery-fault-abort.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))

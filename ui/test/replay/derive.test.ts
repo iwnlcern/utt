@@ -213,6 +213,22 @@ describe('deriveReplayModel', () => {
     )
   })
 
+  it('rejects a request id reused by a later auction at the later event coordinate', () => {
+    const events = fixtureText('success-macro-win.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const auctions = events.filter((event) => event.event === 'auction')
+    auctions[1].attempts[0].request_id = auctions[0].attempts[0].request_id
+    const duplicateRequestId = auctions[0].attempts[0].request_id
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 3,
+        event_index: 2,
+        reason: `attempt request_id values must be unique at event 2: duplicate ${duplicateRequestId}`,
+      } satisfies Partial<LogError>),
+    )
+  })
+
   it('retains a voided auction without advancing the replay position', () => {
     const model = deriveReplayModel(fixtureRecord('void-triple-double-fault.jsonl'))
     const finalStep = model.auctions.at(-1)

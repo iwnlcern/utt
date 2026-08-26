@@ -26,6 +26,7 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
   )
   let expectedPly = 0
   let unresolvedPly: number | undefined
+  const requestIds = new Set<string>()
 
   for (const [eventIndex, event] of game.events.entries()) {
     if (event.event !== 'auction') continue
@@ -46,7 +47,6 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
     }
     expectedPly += 1
 
-    const requestIds = new Set<string>()
     for (const [attemptIndex, attempt] of event.attempts.entries()) {
       const expectedAttempt = attemptIndex + 1
       if (attempt.attempt !== expectedAttempt) {
