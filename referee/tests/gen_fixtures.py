@@ -18,6 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REFEREE_ROOT = REPO_ROOT / "referee"
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures"
 DEFAULT_MANIFEST = FIXTURE_ROOT / "matrix.json"
+ENGINE_STREAM_ROOT = Path("engine-stdin")
+FAULTED_STREAM_ROOT = Path("engine-stdin-faulted")
 ALLOWLISTED_SIDECARS = {
     "03f5d3f90d8b2d5c6e8308ad73f97366a54d4c5993ec071ab6d6ce2c2e2e6e75.X.stderr",
     "03f5d3f90d8b2d5c6e8308ad73f97366a54d4c5993ec071ab6d6ce2c2e2e6e75.O.stderr",
@@ -133,16 +135,67 @@ def _log_relative_paths(matrix: dict) -> set[Path]:
     return {_safe_relative(row["output"]) for row in matrix["rows"]}
 
 
-def expected_generated_paths(matrix: dict) -> set[Path]:
+def is_engine_conforming_stream(path: Path) -> bool:
+    """Return whether a captured input stream has the normal engine shape."""
+
+    message_types = [
+        json.loads(line)["type"]
+        for line in path.read_text(encoding="utf-8").splitlines()
+    ]
+    return (
+        len(message_types) >= 2
+        and message_types[0] == "hello"
+        and message_types[-1] == "game_end"
+        and all(message_type == "turn" for message_type in message_types[1:-1])
+    )
+
+
+def _stream_identity(log: Path, seat: str) -> Path:
+    return log.parent / f"{log.stem}.{seat}.jsonl"
+
+
+def _route_generated_streams(row: dict, fixture_root: Path) -> set[Path]:
+    log = _safe_relative(row["output"])
+    routed = set()
+    for seat in ("X", "O"):
+        identity = _stream_identity(log, seat)
+        staged = fixture_root / ENGINE_STREAM_ROOT / identity
+        if is_engine_conforming_stream(staged):
+            routed.add(ENGINE_STREAM_ROOT / identity)
+            continue
+        destination = fixture_root / FAULTED_STREAM_ROOT / identity
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        staged.replace(destination)
+        routed.add(FAULTED_STREAM_ROOT / identity)
+    return routed
+
+
+def expected_generated_paths(matrix: dict, streams: set[Path]) -> set[Path]:
     logs = _log_relative_paths(matrix)
-    streams = {
-        Path("engine-stdin") / log.parent / f"{log.stem}.{seat}.jsonl"
+    expected_stream_identities = {
+        _stream_identity(log, seat)
         for log in logs
         for seat in ("X", "O")
     }
+    observed_stream_identities = {
+        relative.relative_to(relative.parts[0]) for relative in streams
+    }
+    engine_streams = {
+        relative for relative in streams if relative.parts[0] == ENGINE_STREAM_ROOT.name
+    }
+    faulted_streams = {
+        relative for relative in streams if relative.parts[0] == FAULTED_STREAM_ROOT.name
+    }
     sidecars = {Path(name) for name in ALLOWLISTED_SIDECARS}
     expected = logs | streams | sidecars
-    if len(logs) != 19 or len(streams) != 38 or len(expected) != 59:
+    if (
+        len(logs) != 19
+        or len(engine_streams) != 23
+        or len(faulted_streams) != 15
+        or len(streams) != 38
+        or observed_stream_identities != expected_stream_identities
+        or len(expected) != 59
+    ):
         raise ValueError("matrix does not map bijectively to the required corpus")
     return expected
 
@@ -168,22 +221,24 @@ def _make_config(row: dict, temp_root: Path, clock: SelectAdvancedClock) -> Game
         hello_timeout_ms=time_control["hello_timeout_ms"],
         shutdown_grace_ms=time_control["shutdown_grace_ms"],
         log_path=str(fixture_root / _safe_relative(row["output"])),
-        stream_dir=str(fixture_root / "engine-stdin"),
+        stream_dir=str(fixture_root / ENGINE_STREAM_ROOT),
         clock=clock,
     )
 
 
-def generate_into(matrix: dict, temp_root: Path) -> Path:
+def generate_into(matrix: dict, temp_root: Path) -> tuple[Path, set[Path]]:
     copy_engine_scripts(matrix, temp_root)
     fixture_root = temp_root / "referee" / "tests" / "fixtures"
     fixture_root.mkdir(parents=True, exist_ok=True)
     previous_cwd = Path.cwd()
+    streams = set()
     try:
         os.chdir(temp_root)
         for row in matrix["rows"]:
             clock = SelectAdvancedClock(row["clock"]["initial"])
             with _deterministic_select(clock):
                 play_game(_make_config(row, temp_root, clock))
+            streams.update(_route_generated_streams(row, fixture_root))
     finally:
         os.chdir(previous_cwd)
 
@@ -199,7 +254,7 @@ def generate_into(matrix: dict, temp_root: Path) -> Path:
         if relative.as_posix() not in ALLOWLISTED_SIDECARS:
             sidecar.unlink()
 
-    expected = expected_generated_paths(matrix)
+    expected = expected_generated_paths(matrix, streams)
     actual = _fixture_inventory(fixture_root)
     if actual != expected:
         missing = sorted(path.as_posix() for path in expected - actual)
@@ -207,11 +262,13 @@ def generate_into(matrix: dict, temp_root: Path) -> Path:
         raise RuntimeError(
             f"generated inventory mismatch; missing={missing}, unexpected={unexpected}"
         )
-    return fixture_root
+    return fixture_root, expected
 
 
-def _validate_committed_inventory(matrix: dict, *, allow_missing: bool = False) -> None:
-    expected = expected_generated_paths(matrix) | {Path("matrix.json")}
+def _validate_committed_inventory(
+    expected_generated: set[Path], *, allow_missing: bool = False
+) -> None:
+    expected = expected_generated | {Path("matrix.json")}
     actual = _fixture_inventory(FIXTURE_ROOT)
     unexpected = actual - expected
     missing = expected - actual
@@ -223,23 +280,23 @@ def _validate_committed_inventory(matrix: dict, *, allow_missing: bool = False) 
         )
 
 
-def _compare_generated(matrix: dict, generated_root: Path) -> None:
-    _validate_committed_inventory(matrix)
+def _compare_generated(generated_root: Path, expected: set[Path]) -> None:
+    _validate_committed_inventory(expected)
     mismatches = []
-    for relative in sorted(expected_generated_paths(matrix)):
+    for relative in sorted(expected):
         if (generated_root / relative).read_bytes() != (FIXTURE_ROOT / relative).read_bytes():
             mismatches.append(relative.as_posix())
     if mismatches:
         raise RuntimeError(f"generated bytes differ: {mismatches}")
 
 
-def _promote_generated(matrix: dict, generated_root: Path) -> None:
-    _validate_committed_inventory(matrix, allow_missing=True)
-    for relative in sorted(expected_generated_paths(matrix)):
+def _promote_generated(generated_root: Path, expected: set[Path]) -> None:
+    _validate_committed_inventory(expected, allow_missing=True)
+    for relative in sorted(expected):
         target = FIXTURE_ROOT / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(generated_root / relative, target)
-    _validate_committed_inventory(matrix)
+    _validate_committed_inventory(expected)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -249,11 +306,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     matrix = load_manifest(args.manifest.resolve())
     with tempfile.TemporaryDirectory(prefix="poorman-fixtures-") as raw_temp:
-        generated_root = generate_into(matrix, Path(raw_temp))
+        generated_root, expected = generate_into(matrix, Path(raw_temp))
         if args.check:
-            _compare_generated(matrix, generated_root)
+            _compare_generated(generated_root, expected)
         else:
-            _promote_generated(matrix, generated_root)
+            _promote_generated(generated_root, expected)
     return 0
 
 
