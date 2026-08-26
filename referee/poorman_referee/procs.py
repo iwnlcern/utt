@@ -5,6 +5,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
+from typing import BinaryIO
 
 from .protocol import (
     MAX_LINE,
@@ -43,6 +44,7 @@ class Engine:
         stderr_cap: int = 65536,
         clock=time.monotonic,
         stderr_sink: StderrSink | None = None,
+        stdin_capture: BinaryIO | None = None,
     ):
         self.cmd = list(cmd)
         self.seat = seat
@@ -55,6 +57,7 @@ class Engine:
         self._stdout_eof = False
         self._last_fault_raw: bytes | None = None
         self._stderr_sink = stderr_sink or StderrSink(stderr_cap)
+        self._stdin_capture = stdin_capture
         if self._stderr_sink.cap != stderr_cap:
             raise ValueError("shared stderr sink cap does not match stderr_cap")
         self._stderr_thread: threading.Thread | None = None
@@ -167,12 +170,32 @@ class Engine:
         if self._stdout_eof:
             self._last_fault_raw = b""
             return "eof_or_crash"
+        payload = (canonical_dumps(obj) + "\n").encode("utf-8")
+        remaining = memoryview(payload)
         try:
-            process.stdin.write((canonical_dumps(obj) + "\n").encode("utf-8"))
-            process.stdin.flush()
+            fd = process.stdin.fileno()
+            while remaining:
+                written = os.write(fd, remaining)
+                if written <= 0:
+                    self._last_fault_raw = b""
+                    return "eof_or_crash"
+                remaining = remaining[written:]
         except (BrokenPipeError, OSError, ValueError):
             self._last_fault_raw = b""
             return "eof_or_crash"
+        if self._stdin_capture is not None:
+            try:
+                captured = self._stdin_capture.write(payload)
+                if captured != len(payload):
+                    raise RuntimeError(
+                        "stdin capture short write: "
+                        f"expected {len(payload)} bytes, wrote {captured!r}"
+                    )
+                self._stdin_capture.flush()
+            except RuntimeError:
+                raise
+            except Exception as exc:
+                raise RuntimeError("stdin capture delivery failed") from exc
         return None
 
     def read_reply(self, deadline: float) -> tuple[bytes | None, str | None]:
