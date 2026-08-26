@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Poor Man's UTTT hello request",
+  "type": "object",
+  "required": ["type", "protocol", "game_id", "you", "rules", "time_ms", "grace_ms", "budget"],
+  "properties": {
+    "type": {"const": "hello"},
+    "protocol": {"const": 1},
+    "game_id": {"type": "string"},
+    "you": {"enum": ["X", "O"]},
+    "rules": {"const": "poorman-uttt-v1"},
+    "time_ms": {"type": "integer", "minimum": 0},
+    "grace_ms": {"type": "integer", "minimum": 0},
+    "budget": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": true
+}

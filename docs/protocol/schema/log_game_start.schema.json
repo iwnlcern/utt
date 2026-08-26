@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Poor Man's UTTT game-start log event",
+  "type": "object",
+  "$defs": {
+    "budgets": {
+      "type": "object",
+      "required": ["X", "O"],
+      "properties": {
+        "X": {"type": "integer", "minimum": 0},
+        "O": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "engine": {
+      "type": "object",
+      "required": ["engine_id", "cmd"],
+      "properties": {
+        "engine_id": {"type": "string"},
+        "cmd": {"type": "array", "items": {"type": "string"}, "minItems": 1}
+      },
+      "additionalProperties": true
+    },
+    "raw": {
+      "type": "object",
+      "required": ["b64", "truncated", "bytes_total"],
+      "properties": {
+        "b64": {"type": "string"},
+        "truncated": {"type": "boolean"},
+        "bytes_total": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "hello": {
+      "type": "object",
+      "required": ["validation", "elapsed_ms"],
+      "properties": {
+        "validation": {"enum": ["ok", "timeout", "eof_or_crash", "invalid_utf8", "invalid_json", "schema_violation", "wrong_request_id", "extra_protocol_line", "oversize_line", "illegal_bid", "illegal_move"]},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "name": {"type": "string"},
+        "version": {"type": "string"},
+        "author": {"type": "string"},
+        "raw": {"$ref": "#/$defs/raw"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"validation": {"const": "ok"}}, "required": ["validation"]},
+          "then": {"required": ["name", "version"], "not": {"required": ["raw"]}},
+          "else": {"required": ["raw"]}
+        }
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": ["event", "log_version", "protocol", "rules", "game_id", "tournament_id", "engines", "pair_seed", "game_seed", "pair_coin_seat", "hellos", "time_control", "budgets"],
+  "properties": {
+    "event": {"const": "game_start"},
+    "log_version": {"const": 1},
+    "protocol": {"const": 1},
+    "rules": {"const": "poorman-uttt-v1"},
+    "game_id": {"type": "string"},
+    "tournament_id": {"type": ["string", "null"]},
+    "engines": {
+      "type": "object",
+      "required": ["X", "O"],
+      "properties": {"X": {"$ref": "#/$defs/engine"}, "O": {"$ref": "#/$defs/engine"}},
+      "additionalProperties": true
+    },
+    "pair_seed": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "game_seed": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "pair_coin_seat": {"enum": ["X", "O"]},
+    "hellos": {
+      "type": "object",
+      "required": ["X", "O"],
+      "properties": {"X": {"$ref": "#/$defs/hello"}, "O": {"$ref": "#/$defs/hello"}},
+      "additionalProperties": true
+    },
+    "time_control": {
+      "type": "object",
+      "required": ["time_ms", "grace_ms", "hello_timeout_ms", "shutdown_grace_ms"],
+      "properties": {
+        "time_ms": {"type": "integer", "minimum": 0},
+        "grace_ms": {"type": "integer", "minimum": 0},
+        "hello_timeout_ms": {"type": "integer", "minimum": 0},
+        "shutdown_grace_ms": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "budgets": {"$ref": "#/$defs/budgets"}
+  },
+  "additionalProperties": true
+}

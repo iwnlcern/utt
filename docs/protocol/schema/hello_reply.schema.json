@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Poor Man's UTTT hello reply",
+  "type": "object",
+  "required": ["type", "protocol", "name", "version"],
+  "properties": {
+    "type": {"const": "hello"},
+    "protocol": {"const": 1},
+    "name": {"type": "string"},
+    "version": {"type": "string"},
+    "author": {"type": "string"}
+  },
+  "additionalProperties": true
+}

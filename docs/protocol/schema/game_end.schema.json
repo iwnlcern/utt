@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Poor Man's UTTT game-end message",
+  "type": "object",
+  "$defs": {
+    "budgets": {
+      "type": "object",
+      "required": ["X", "O"],
+      "properties": {
+        "X": {"type": "integer", "minimum": 0},
+        "O": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["type", "protocol", "result", "reason", "budgets"],
+  "properties": {
+    "type": {"const": "game_end"},
+    "protocol": {"const": 1},
+    "result": {"enum": ["X", "O", "draw", "void"]},
+    "reason": {"enum": ["macro_win", "chip_count", "exact_tie_draw", "hello_fault", "recovery_fault", "triple_double_fault_void"]},
+    "budgets": {"$ref": "#/$defs/budgets"}
+  },
+  "additionalProperties": true
+}
