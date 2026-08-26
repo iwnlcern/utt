@@ -112,6 +112,21 @@ describe('deriveReplayModel', () => {
     expect(model.auctions[1]?.recoveries).toEqual([])
   })
 
+  it('fails closed when a recovery trigger request id does not belong to its auction ply', () => {
+    const events = fixtureText('fault-single.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const recovery = events.find((event) => event.event === 'recovery')
+    recovery.trigger_request_id = 'stale-request-id'
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 3,
+        event_index: 2,
+        reason: 'recovery trigger_request_id does not match an attempt at ply 0',
+      } satisfies Partial<LogError>),
+    )
+  })
+
   it('retains a voided auction without advancing the replay position', () => {
     const model = deriveReplayModel(fixtureRecord('void-triple-double-fault.jsonl'))
     const finalStep = model.auctions.at(-1)
