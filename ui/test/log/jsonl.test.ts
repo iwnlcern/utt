@@ -30,6 +30,16 @@ describe('splitJsonl', () => {
     })
   })
 
+  it('keeps newline-terminated invalid JSON for Task 4 validation', () => {
+    expect(splitJsonl('{"event":"game_start"}\nnot-json\n')).toEqual({
+      lines: [
+        { raw: '{"event":"game_start"}', line: 1 },
+        { raw: 'not-json', line: 2 },
+      ],
+      discardedTail: null,
+    })
+  })
+
   it('returns no records for an empty file', () => {
     expect(splitJsonl('')).toEqual({ lines: [], discardedTail: null })
   })

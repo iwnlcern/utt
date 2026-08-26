@@ -1,5 +1,13 @@
 export type Mark = 'X' | 'O'
 
+export type Cell = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+
+export type SeatMap<T> = {
+  X: T
+  O: T
+  [key: string]: unknown
+}
+
 export type FaultClass =
   | 'timeout'
   | 'eof_or_crash'
@@ -43,7 +51,7 @@ export interface FaultHelloRecord {
 
 export type HelloRecord = OkHelloRecord | FaultHelloRecord
 
-export type Move = [number, number]
+export type Move = [Cell, Cell]
 
 export interface OkTurnRecord {
   validation: 'ok'
@@ -70,7 +78,7 @@ export type TurnRecord = OkTurnRecord | FaultTurnRecord
 export interface Attempt {
   request_id: string
   attempt: number
-  turns: Record<Mark, TurnRecord>
+  turns: SeatMap<TurnRecord>
   [key: string]: unknown
 }
 
@@ -87,7 +95,7 @@ export interface EngineRecord {
 }
 
 export interface Closure {
-  local: number
+  local: Cell
   result: Mark | 'full'
   [key: string]: unknown
 }
@@ -99,8 +107,8 @@ export interface Resolution {
   payment: number
   move: Move
   closures: Closure[]
-  macro_line: [number, number, number] | null
-  forced_next: number | null
+  macro_line: [Cell, Cell, Cell] | null
+  forced_next: Cell | null
   [key: string]: unknown
 }
 
@@ -132,11 +140,11 @@ export interface GameStartEvent {
   rules: 'poorman-uttt-v1'
   game_id: string
   tournament_id: string | null
-  engines: Record<Mark, EngineRecord>
+  engines: SeatMap<EngineRecord>
   pair_seed: string
   game_seed: string
   pair_coin_seat: Mark
-  hellos: Record<Mark, HelloRecord>
+  hellos: SeatMap<HelloRecord>
   time_control: {
     time_ms: number
     grace_ms: number
@@ -178,8 +186,8 @@ export interface GameEndEvent {
   budgets: Budgets
   budget_margin: number
   plies: number
-  delivery: Record<Mark, 'ok' | 'failed'>
-  stderr?: Record<Mark, StderrRecord>
+  delivery: SeatMap<'ok' | 'failed'>
+  stderr?: SeatMap<StderrRecord>
   [key: string]: unknown
 }
 
