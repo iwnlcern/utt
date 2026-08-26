@@ -146,7 +146,7 @@ function AuctionRow({ step, index, onSelect }: {
 
 export function Timeline({ model, onSelect }: TimelineProps) {
   return (
-    <section aria-label="auction timeline">
+    <section aria-label="auction timeline" className="timeline">
       {model.auctions.map((step, index) => (
         <AuctionRow index={index} key={step.ply} onSelect={onSelect} step={step} />
       ))}

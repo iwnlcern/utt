@@ -87,7 +87,7 @@ function Home({ onLoaded }: HomeProps) {
   if (failure !== null) {
     const { error, source } = failure
     return (
-      <main>
+      <main className="home home--failure">
         <h1>Could not open {source.name}</h1>
         <p role="alert">{error instanceof LogError ? 'This log is malformed.' : error.message}</p>
         {error instanceof LogError && (
@@ -109,7 +109,7 @@ function Home({ onLoaded }: HomeProps) {
   }
 
   return (
-    <main>
+    <main className="home">
       <h1>Poorman UTTT Replay</h1>
       <p>Open a recorded game to replay its logged moves and analysis.</p>
       {notice !== null && <p role="alert">{notice}</p>}
