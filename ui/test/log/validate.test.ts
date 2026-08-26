@@ -62,6 +62,45 @@ describe('parseGameLog', () => {
     expect(() => parseGameLog(text)).toThrow(/version/i)
   })
 
+  it('rejects a duplicate game_start at its exact event coordinate', () => {
+    const events = fixtureText('success-macro-win.jsonl').trimEnd().split('\n')
+    events.splice(1, 0, events[0])
+
+    expect(() => parseGameLog(`${events.join('\n')}\n`)).toThrow(
+      expect.objectContaining({
+        line: 2,
+        event_index: 1,
+        reason: 'game_start must be the single leading event',
+      } satisfies Partial<LogError>),
+    )
+  })
+
+  it('rejects a duplicate game_end at its exact event coordinate', () => {
+    const events = fixtureText('success-macro-win.jsonl').trimEnd().split('\n')
+    events.push(events.at(-1)!)
+
+    expect(() => parseGameLog(`${events.join('\n')}\n`)).toThrow(
+      expect.objectContaining({
+        line: 72,
+        event_index: 71,
+        reason: 'game_end must appear at most once',
+      } satisfies Partial<LogError>),
+    )
+  })
+
+  it('rejects a complete event after game_end at its exact event coordinate', () => {
+    const events = fixtureText('success-macro-win.jsonl').trimEnd().split('\n')
+    events.push(events[1])
+
+    expect(() => parseGameLog(`${events.join('\n')}\n`)).toThrow(
+      expect.objectContaining({
+        line: 72,
+        event_index: 71,
+        reason: 'game_end must be the final complete event',
+      } satisfies Partial<LogError>),
+    )
+  })
+
   it('accepts unknown keys throughout nested schema records', () => {
     const complete = fixtureText('success-macro-win.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
     const start = complete[0]

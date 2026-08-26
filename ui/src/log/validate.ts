@@ -119,6 +119,7 @@ export function parseGameLog(text: string): GameRecord {
   if (split.lines.length === 0) throw new LogError(1, 0, 'first event must be game_start')
 
   const events: LogEvent[] = []
+  let sawGameEnd = false
   for (let index = 0; index < split.lines.length; index++) {
     const line = split.lines[index]
     let parsed: unknown
@@ -131,6 +132,19 @@ export function parseGameLog(text: string): GameRecord {
       throw new LogError(line.line, index, 'unsupported log version')
     }
     if (!validEvent(parsed)) throw new LogError(line.line, index, 'event fails schema validation')
+    if (index === 0 && parsed.event !== 'game_start') {
+      throw new LogError(line.line, index, 'first event must be game_start')
+    }
+    if (index > 0 && parsed.event === 'game_start') {
+      throw new LogError(line.line, index, 'game_start must be the single leading event')
+    }
+    if (sawGameEnd) {
+      const reason = parsed.event === 'game_end'
+        ? 'game_end must appear at most once'
+        : 'game_end must be the final complete event'
+      throw new LogError(line.line, index, reason)
+    }
+    if (parsed.event === 'game_end') sawGameEnd = true
     events.push(parsed)
   }
 
