@@ -1,9 +1,14 @@
+import hashlib
+import importlib.util
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 from jsonschema import Draft202012Validator
 
 from poorman_referee.gamelog import read_log, replay_frames
+from poorman_referee.protocol import canonical_dumps
 
 
 ROOT = Path(__file__).parents[2]
@@ -11,6 +16,9 @@ SCHEMA_ROOT = ROOT / "docs" / "protocol" / "schema"
 SPEC = ROOT / "docs" / "protocol" / "poorman-uttt-protocol-v1.md"
 TRANSCRIPT = ROOT / "docs" / "protocol" / "transcript-v1.jsonl"
 FIXTURES = Path(__file__).parent / "fixtures"
+STREAM_FIXTURES = FIXTURES / "engine-stdin"
+MATRIX = FIXTURES / "matrix.json"
+GENERATOR = Path(__file__).parent / "gen_fixtures.py"
 MESSAGE_SCHEMAS = (
     "hello_request",
     "hello_reply",
@@ -72,7 +80,8 @@ def test_real_transcript_validates_and_replays_losslessly():
 
 
 def test_every_conformance_jsonl_validates_and_replays():
-    paths = sorted(FIXTURES.rglob("*.jsonl"))
+    paths = sorted(FIXTURES.glob("*.jsonl"))
+    paths.extend(sorted(FIXTURES.glob("parity-*/*.jsonl")))
     assert len(paths) >= 19
     for path in paths:
         events = read_log(path)
@@ -161,3 +170,158 @@ def test_both_pair_seed_parity_fixtures_swap_engine_favoritism():
             (end["result"], end["reason"]) == ("draw", "exact_tie_draw")
             for end in all_closed
         )
+
+
+def event_log_paths():
+    paths = sorted(FIXTURES.glob("*.jsonl"))
+    paths.extend(sorted(FIXTURES.glob("parity-*/*.jsonl")))
+    return paths
+
+
+def expected_stream_path(log_path, seat):
+    relative = log_path.relative_to(FIXTURES).with_suffix("")
+    return STREAM_FIXTURES / relative.parent / f"{relative.name}.{seat}.jsonl"
+
+
+def fixture_tree_hashes():
+    return {
+        path.relative_to(FIXTURES).as_posix(): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in sorted(FIXTURES.rglob("*"))
+        if path.is_file()
+    }
+
+
+def run_generator(*args, check=True):
+    return subprocess.run(
+        [sys.executable, str(GENERATOR), *map(str, args)],
+        cwd=ROOT,
+        check=check,
+        capture_output=True,
+        text=True,
+    )
+
+
+def load_generator_module():
+    spec = importlib.util.spec_from_file_location("fixture_generator", GENERATOR)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_stream_mapping_is_bijective_over_all_logs():
+    logs = event_log_paths()
+    expected = {
+        expected_stream_path(log_path, seat)
+        for log_path in logs
+        for seat in ("X", "O")
+    }
+
+    assert len(logs) == 19
+    assert len(expected) == 38
+    assert all(path.is_file() for path in expected)
+    assert set(STREAM_FIXTURES.rglob("*.jsonl")) == expected
+
+
+def test_every_stream_file_round_trips_through_referee_reader():
+    schema_for_type = {
+        "hello": Draft202012Validator(schema("hello_request")),
+        "turn": Draft202012Validator(schema("turn_request")),
+        "game_end": Draft202012Validator(schema("game_end")),
+    }
+    stream_paths = sorted(STREAM_FIXTURES.rglob("*.jsonl"))
+    assert len(stream_paths) == 38
+    for path in stream_paths:
+        objects = read_log(path)
+        lines = path.read_bytes().splitlines(keepends=True)
+        assert len(objects) == len(lines)
+        for obj, line in zip(objects, lines):
+            schema_for_type[obj["type"]].validate(obj)
+            assert (canonical_dumps(obj) + "\n").encode() == line
+            assert "elapsed_ms" not in json.dumps(obj, sort_keys=True)
+
+
+def test_log_corpus_globs_and_stream_glob_are_disjoint_and_exact():
+    logs = event_log_paths()
+    streams = sorted(STREAM_FIXTURES.rglob("*.jsonl"))
+
+    assert len(logs) == 19
+    assert len(streams) == 38
+    assert set(logs).isdisjoint(streams)
+    assert all(STREAM_FIXTURES not in path.parents for path in logs)
+
+
+def test_generator_check_mode_passes_on_committed_artifacts():
+    run_generator("--check")
+
+
+def test_check_mode_leaves_committed_tree_untouched():
+    before = fixture_tree_hashes()
+    run_generator("--check")
+    assert fixture_tree_hashes() == before
+
+
+def test_matrix_manifest_is_the_runtime_source(tmp_path):
+    matrix = json.loads(MATRIX.read_text(encoding="utf-8"))
+    matrix["rows"][0]["game_seed"] = "00" * 32
+    matrix["rows"][0]["game_id"] = "00" * 32
+    changed = tmp_path / "matrix.json"
+    changed.write_text(json.dumps(matrix), encoding="utf-8")
+
+    result = run_generator("--check", "--manifest", changed, check=False)
+
+    assert result.returncode != 0
+
+
+def test_generator_runs_manifest_argv_unchanged_from_temp_root(tmp_path):
+    module = load_generator_module()
+    matrix = json.loads(MATRIX.read_text(encoding="utf-8"))
+    module.copy_engine_scripts(matrix, tmp_path)
+    cmd = matrix["rows"][0]["cmds"]["O"]
+    hello = {
+        "type": "hello",
+        "protocol": 1,
+        "game_id": "0" * 64,
+        "you": "O",
+        "time_ms": 100,
+        "grace_ms": 250,
+        "budget": 10**9,
+    }
+    game_end = {
+        "type": "game_end",
+        "protocol": 1,
+        "game_id": "0" * 64,
+        "result": "draw",
+        "reason": "exact_tie_draw",
+    }
+
+    result = subprocess.run(
+        cmd,
+        cwd=tmp_path,
+        input=(canonical_dumps(hello) + "\n" + canonical_dumps(game_end) + "\n").encode(),
+        check=True,
+        capture_output=True,
+    )
+
+    assert json.loads(result.stdout) == {
+        "name": "stub",
+        "protocol": 1,
+        "type": "hello",
+        "version": "1",
+    }
+
+
+def test_protocol_pins_all_three_corpus_locations_and_stream_shape():
+    markdown = SPEC.read_text(encoding="utf-8")
+
+    assert "`docs/protocol/transcript-v1.jsonl`" in markdown
+    assert "`referee/tests/fixtures/*.jsonl`" in markdown
+    assert "`referee/tests/fixtures/parity-*/*.jsonl`" in markdown
+    assert "`referee/tests/fixtures/engine-stdin/**/*.jsonl`" in markdown
+    assert "`<log-relative-path minus .jsonl>.<seat>.jsonl`" in markdown
+    assert (
+        "raw canonical JSONL bytes written to that seat's standard input, "
+        "with no wrapper, envelope, or extra fields"
+    ) in markdown

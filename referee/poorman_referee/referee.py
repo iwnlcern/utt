@@ -1,6 +1,7 @@
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import BinaryIO
 
 from .auction import resolve
 from .gamelog import GameLogWriter, hello_record, turn_record
@@ -34,6 +35,7 @@ class GameConfig:
     hello_timeout_ms: int = 10000
     shutdown_grace_ms: int = 2000
     log_path: str
+    stream_dir: str | None = None
     clock: object = field(default=time.monotonic, repr=False)
 
 
@@ -63,7 +65,10 @@ def _other(seat: str) -> str:
 
 
 def _new_engine(
-    cfg: GameConfig, seat: str, stderr_sinks: dict[str, StderrSink]
+    cfg: GameConfig,
+    seat: str,
+    stderr_sinks: dict[str, StderrSink],
+    stream_sinks: dict[str, BinaryIO | None],
 ) -> Engine:
     return Engine(
         cfg.cmds[seat],
@@ -71,7 +76,43 @@ def _new_engine(
         shutdown_grace_ms=cfg.shutdown_grace_ms,
         clock=cfg.clock,
         stderr_sink=stderr_sinks[seat],
+        stdin_capture=stream_sinks[seat],
     )
+
+
+def _open_stream_sinks(
+    cfg: GameConfig, log_path: Path
+) -> dict[str, BinaryIO | None]:
+    if cfg.stream_dir is None:
+        return {seat: None for seat in ("X", "O")}
+    stream_root = Path(cfg.stream_dir)
+    relative = log_path.relative_to(stream_root.parent).with_suffix("")
+    sinks: dict[str, BinaryIO | None] = {}
+    try:
+        for seat in ("X", "O"):
+            target = stream_root / relative.parent / f"{relative.name}.{seat}.jsonl"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            sinks[seat] = target.open("wb")
+    except Exception:
+        for sink in sinks.values():
+            if sink is not None:
+                sink.close()
+        raise
+    return sinks
+
+
+def _close_stream_sinks(sinks: dict[str, BinaryIO | None]) -> None:
+    first_error: Exception | None = None
+    for sink in sinks.values():
+        if sink is None:
+            continue
+        try:
+            sink.close()
+        except Exception as exc:
+            if first_error is None:
+                first_error = exc
+    if first_error is not None:
+        raise RuntimeError("stdin capture close failed") from first_error
 
 
 def _game_start_event(
@@ -121,16 +162,18 @@ def play_game(cfg: GameConfig) -> GameResult:
         raise ValueError("pair_coin_seat must be X or O")
     game_id = cfg.game_seed.hex()
     budgets = {"X": STARTING_BUDGET, "O": STARTING_BUDGET}
-    stderr_sinks = {seat: StderrSink(65536) for seat in ("X", "O")}
-    engines = {
-        seat: _new_engine(cfg, seat, stderr_sinks) for seat in ("X", "O")
-    }
     path = Path(cfg.log_path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    stream_sinks = _open_stream_sinks(cfg, path)
+    stderr_sinks = {seat: StderrSink(65536) for seat in ("X", "O")}
+    engines = {
+        seat: _new_engine(cfg, seat, stderr_sinks, stream_sinks)
+        for seat in ("X", "O")
+    }
 
-    with path.open("w", encoding="utf-8") as fh:
-        log = GameLogWriter(fh)
-        try:
+    try:
+        with path.open("w", encoding="utf-8") as fh:
+            log = GameLogWriter(fh)
             parsed_hellos = {}
             hello_records = {}
             started = set()
@@ -282,6 +325,7 @@ def play_game(cfg: GameConfig) -> GameResult:
                                 cfg,
                                 engines,
                                 stderr_sinks,
+                                stream_sinks,
                                 faulters,
                                 log,
                                 game_id,
@@ -326,6 +370,7 @@ def play_game(cfg: GameConfig) -> GameResult:
                         cfg,
                         engines,
                         stderr_sinks,
+                        stream_sinks,
                         ["X", "O"],
                         log,
                         game_id,
@@ -355,9 +400,10 @@ def play_game(cfg: GameConfig) -> GameResult:
                             budgets,
                             plies=ply + 1,
                         )
-        finally:
-            for engine in engines.values():
-                engine.kill()
+    finally:
+        for engine in engines.values():
+            engine.kill()
+        _close_stream_sinks(stream_sinks)
 
 
 def _auction_event(
@@ -386,6 +432,7 @@ def _recover_seats(
     cfg: GameConfig,
     engines: dict[str, Engine],
     stderr_sinks: dict[str, StderrSink],
+    stream_sinks: dict[str, BinaryIO | None],
     seats: list[str],
     log: GameLogWriter,
     game_id: str,
@@ -399,7 +446,7 @@ def _recover_seats(
         if seat not in seats:
             continue
         engines[seat].kill()
-        engines[seat] = _new_engine(cfg, seat, stderr_sinks)
+        engines[seat] = _new_engine(cfg, seat, stderr_sinks, stream_sinks)
         try:
             engines[seat].start()
         except OSError:

@@ -110,11 +110,15 @@ std::expected<Position, std::string> parse_position(const json& value, int ply) 
     if (!integer_value(value.at("forced"), 0, 8, raw)) return std::unexpected("forced invalid");
     forced = static_cast<int8_t>(raw);
   }
+  if (ply == 0 && forced != 4) {
+    return std::unexpected("ply-0 turn must carry forced 4");
+  }
   if (!value.contains("tie_owner")) return std::unexpected("tie_owner missing");
   TieState tie = TieState::NullFirstMove;
   if (value.at("tie_owner").is_null()) {
     if (ply != 0) return std::unexpected("null tie_owner only allowed at ply 0");
   } else {
+    if (ply == 0) return std::unexpected("ply-0 turn must carry null tie_owner");
     auto seat = parse_seat(value.at("tie_owner"));
     if (!seat) return std::unexpected(seat.error());
     tie = *seat == Seat::X ? TieState::X : TieState::O;

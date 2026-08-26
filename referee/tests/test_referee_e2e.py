@@ -1,3 +1,4 @@
+import io
 import json
 import sys
 from pathlib import Path
@@ -5,6 +6,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
+import poorman_referee.referee as referee_module
 from poorman_referee.gamelog import read_log, replay_frames
 from poorman_referee.referee import GameConfig, play_game
 from poorman_referee.seeds import pair_coin_seat, pair_seed
@@ -65,6 +67,141 @@ def validate_log(events):
 
 def auctions(events):
     return [event for event in events if event["event"] == "auction"]
+
+
+def stream_path(cfg, seat):
+    stream_root = Path(cfg.stream_dir)
+    relative = Path(cfg.log_path).relative_to(stream_root.parent).with_suffix("")
+    return stream_root / relative.parent / f"{relative.name}.{seat}.jsonl"
+
+
+def stream_messages(cfg, seat):
+    return [
+        json.loads(line)
+        for line in stream_path(cfg, seat).read_text(encoding="utf-8").splitlines()
+    ]
+
+
+def test_stream_files_span_recovery_generations(tmp_path):
+    once = tmp_path / "x-fault-once"
+    cfg = config(
+        tmp_path,
+        cmd("--fault", "bad_json:1", "--fault-once-file", str(once)),
+        cmd(),
+        name="stream-recovery",
+    )
+    cfg.stream_dir = str(tmp_path / "engine-stdin")
+
+    play_game(cfg)
+    types = [message["type"] for message in stream_messages(cfg, "X")]
+
+    assert types.count("hello") == 2
+    assert types.index("turn") < types.index("hello", 1)
+
+
+def test_stream_file_is_replayable_request_sequence(tmp_path):
+    cfg = config(tmp_path, name="stream-replay")
+    cfg.stream_dir = str(tmp_path / "engine-stdin")
+
+    play_game(cfg)
+    events = read_log(cfg.log_path)
+    expected_request_ids = [
+        attempt["request_id"]
+        for event in auctions(events)
+        for attempt in event["attempts"]
+    ]
+    for seat in ("X", "O"):
+        messages = stream_messages(cfg, seat)
+        assert messages[0]["type"] == "hello"
+        assert [message["type"] for message in messages[1:-1]] == [
+            "turn"
+        ] * len(expected_request_ids)
+        assert [message["request_id"] for message in messages[1:-1]] == (
+            expected_request_ids
+        )
+        assert messages[-1]["type"] == "game_end"
+
+
+def test_stream_regeneration_is_byte_identical(tmp_path):
+    first = config(tmp_path, name="stream-determinism-a")
+    second = config(tmp_path, name="stream-determinism-b")
+    first.stream_dir = str(tmp_path / "engine-stdin")
+    second.stream_dir = first.stream_dir
+    first.clock = FrozenCounterClock()
+    second.clock = FrozenCounterClock()
+
+    play_game(first)
+    play_game(second)
+
+    for seat in ("X", "O"):
+        assert stream_path(first, seat).read_bytes() == stream_path(
+            second, seat
+        ).read_bytes()
+
+
+def test_double_fault_rerequest_lines_present(tmp_path):
+    x_once = tmp_path / "x-once"
+    o_once = tmp_path / "o-once"
+    cfg = config(
+        tmp_path,
+        cmd("--fault", "bad_json:1", "--fault-once-file", str(x_once)),
+        cmd("--fault", "bad_json:1", "--fault-once-file", str(o_once)),
+        name="stream-double-once",
+    )
+    cfg.stream_dir = str(tmp_path / "engine-stdin")
+
+    play_game(cfg)
+
+    for seat in ("X", "O"):
+        request_ids = [
+            message["request_id"]
+            for message in stream_messages(cfg, seat)
+            if message["type"] == "turn"
+        ]
+        assert request_ids[:2] == [
+            f"{cfg.game_seed.hex()}-p0-a1",
+            f"{cfg.game_seed.hex()}-p0-a2",
+        ]
+
+
+def test_second_run_same_target_is_idempotent(tmp_path):
+    cfg = config(tmp_path, name="stream-idempotent")
+    cfg.stream_dir = str(tmp_path / "engine-stdin")
+
+    play_game(cfg)
+    first = {seat: stream_path(cfg, seat).read_bytes() for seat in ("X", "O")}
+    play_game(cfg)
+
+    for seat in ("X", "O"):
+        assert stream_path(cfg, seat).read_bytes() == first[seat]
+        assert stream_path(cfg, seat).stat().st_size == len(first[seat])
+
+
+class _CloseRaisingCapture(io.BytesIO):
+    def __init__(self):
+        super().__init__()
+        self.failed_once = False
+
+    def close(self):
+        if not self.failed_once:
+            self.failed_once = True
+            raise OSError("sink close failed")
+        super().close()
+
+
+def test_stream_capture_close_failure_raises_referee_defect(tmp_path, monkeypatch):
+    captures = {seat: _CloseRaisingCapture() for seat in ("X", "O")}
+    monkeypatch.setattr(
+        referee_module,
+        "_open_stream_sinks",
+        lambda _cfg, _path: captures,
+        raising=False,
+    )
+    cfg = config(tmp_path, name="stream-close-failure")
+    cfg.stream_dir = str(tmp_path / "engine-stdin")
+
+    with pytest.raises(RuntimeError, match="stdin capture close"):
+        play_game(cfg)
 
 
 def test_clean_stub_game_completes_and_log_replays(tmp_path):
