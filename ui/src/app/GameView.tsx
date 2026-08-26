@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useReducer, useState } from 'react'
+import { useEffect, useMemo, useReducer } from 'react'
 
-import { extractAnalysis, hasLoggedInfo } from '../analysis/extract'
+import { extractAnalysis, hasLoggedInfo, PV_PIN } from '../analysis/extract'
 import { buildTPSeries } from '../analysis/series'
 import { Board, type BoardAnnotations } from '../components/Board'
 import { MetricsPanel } from '../components/MetricsPanel'
@@ -25,8 +25,6 @@ function isReplayShortcutTarget(target: EventTarget | null): boolean {
 
 function GameView({ game, notice, onExit }: GameViewProps) {
   const model = useMemo(() => deriveReplayModel(game), [game])
-  const [showLosingIntent, setShowLosingIntent] = useState(true)
-  const [preferredAnalysisSeat, setPreferredAnalysisSeat] = useState<Mark | null>(null)
   const [cursorState, dispatch] = useReducer(
     cursorReducer,
     createCursorState(model.positions.length - 1, window.location.hash),
@@ -75,9 +73,10 @@ function GameView({ game, notice, onExit }: GameViewProps) {
   const pendingAnalyses = pendingStep === undefined ? {} : extractAnalysis(pendingStep)
   const usableAnalysisSeats = (['X', 'O'] as const).filter((seat) => pendingAnalyses[seat]?.kind === 'ok')
   const loggedAnalysisSeats = (['X', 'O'] as const).filter((seat) => hasLoggedInfo(pendingAnalyses[seat]))
-  const selectedAnalysisSeat = preferredAnalysisSeat !== null && loggedAnalysisSeats.includes(preferredAnalysisSeat)
-    ? preferredAnalysisSeat
-    : usableAnalysisSeats[0] ?? loggedAnalysisSeats[0] ?? preferredAnalysisSeat ?? 'X'
+  const selectedAnalysisSeat = cursorState.preferredAnalysisSeat !== null
+    && loggedAnalysisSeats.includes(cursorState.preferredAnalysisSeat)
+    ? cursorState.preferredAnalysisSeat
+    : usableAnalysisSeats[0] ?? loggedAnalysisSeats[0] ?? cursorState.preferredAnalysisSeat ?? 'X'
   const selectedAnalysis = pendingAnalyses[selectedAnalysisSeat]
   const conditionalAnalysis = selectedAnalysis?.kind === 'ok' && (
     selectedAnalysis.pvIfWin !== undefined || selectedAnalysis.pvIfLose !== undefined
@@ -178,7 +177,7 @@ function GameView({ game, notice, onExit }: GameViewProps) {
                 }),
               }}
               position={position}
-              showLosingIntent={showLosingIntent}
+              showLosingIntent={cursorState.showLosingIntent}
             />
           </div>
           {justResolved?.outcome === 'resolved' && (
@@ -189,12 +188,12 @@ function GameView({ game, notice, onExit }: GameViewProps) {
               </div>
               {annotations?.losingIntent !== undefined && (
                 <button
-                  aria-label={`${showLosingIntent ? 'Hide' : 'Show'} losing intent`}
-                  aria-pressed={showLosingIntent}
-                  onClick={() => setShowLosingIntent((shown) => !shown)}
+                  aria-label={`${cursorState.showLosingIntent ? 'Hide' : 'Show'} losing intent`}
+                  aria-pressed={cursorState.showLosingIntent}
+                  onClick={() => dispatch({ type: 'toggle-losing-intent' })}
                   type="button"
                 >
-                  {showLosingIntent ? 'Hide' : 'Show'} losing intent
+                  {cursorState.showLosingIntent ? 'Hide' : 'Show'} losing intent
                 </button>
               )}
             </div>
@@ -205,11 +204,11 @@ function GameView({ game, notice, onExit }: GameViewProps) {
             <summary>Analysis &amp; chart</summary>
             <MetricsPanel
               analyses={pendingAnalyses}
-              onSelectedSeatChange={setPreferredAnalysisSeat}
+              onSelectedSeatChange={(seat) => dispatch({ type: 'select-preferred-analysis-seat', seat })}
               position={position}
               selectedSeat={selectedAnalysisSeat}
             />
-            {conditionalAnalysis !== undefined && (
+            {conditionalAnalysis !== undefined && PV_PIN.pinned && (
               <div aria-label="Conditional move legend" className="game-view__ghost-legend">
                 <span className="game-view__ghost-legend-X">● X · if X wins</span>
                 <span className="game-view__ghost-legend-O">■ O · if O wins</span>

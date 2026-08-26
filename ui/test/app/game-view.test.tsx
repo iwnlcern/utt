@@ -273,6 +273,12 @@ describe('GameView', () => {
     expect(screen.queryByLabelText('Conditional move legend')).toBeNull()
   })
 
+  it('does not render the conditional move legend while its ghost association is unpinned', () => {
+    render(<GameView game={fixtureGame('ghost-divergence.jsonl')} />)
+
+    expect(screen.queryByLabelText('Conditional move legend')).toBeNull()
+  })
+
   it('defaults to usable analysis but permits and remembers a wholly malformed supplied seat', () => {
     render(<GameView game={gameWithMalformedOThenXOnly()} />)
 

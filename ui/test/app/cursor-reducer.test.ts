@@ -47,4 +47,20 @@ describe('cursorReducer', () => {
     expect(reduce(forward, { type: 'step', delta: -1 })).toMatchObject({ cursor: 0, revealVersion: 1 })
     expect(reduce(createCursorState(0, ''), { type: 'step', delta: 1 }).revealVersion).toBe(0)
   })
+
+  it('owns losing-intent visibility and the remembered analysis seat without changing the cursor', () => {
+    const start = createCursorState(8, '#cursor=3')
+
+    expect(start).toMatchObject({
+      cursor: 3,
+      showLosingIntent: true,
+      preferredAnalysisSeat: null,
+    })
+
+    const hidden = reduce(start, { type: 'toggle-losing-intent' })
+    expect(hidden).toMatchObject({ cursor: 3, showLosingIntent: false, preferredAnalysisSeat: null })
+
+    const preferredO = reduce(hidden, { type: 'select-preferred-analysis-seat', seat: 'O' })
+    expect(preferredO).toMatchObject({ cursor: 3, showLosingIntent: false, preferredAnalysisSeat: 'O' })
+  })
 })
