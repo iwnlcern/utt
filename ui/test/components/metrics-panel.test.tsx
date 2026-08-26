@@ -77,6 +77,14 @@ describe('MetricsPanel', () => {
     expect(screen.queryByText('margin p−T: n/a — both budgets exhausted')).toBeNull()
   })
 
+  it('gives a zero combined budget precedence for p and margin when t is missing', () => {
+    render(<MetricsPanel analyses={{ X: { kind: 'ok', criticalBid: 1, degraded: ['t'] } }} position={position({ X: 0, O: 0 })} />)
+
+    expect(screen.getByText('T: unavailable — t not present in analysis')).not.toBeNull()
+    expect(screen.getByText('p: n/a — both budgets exhausted')).not.toBeNull()
+    expect(screen.getByText('margin p−T: n/a — both budgets exhausted')).not.toBeNull()
+  })
+
   it('marks bound interval percentages not applicable when both budgets are zero', () => {
     render(<MetricsPanel analyses={{ X: bound }} position={position({ X: 0, O: 0 })} />)
 
@@ -135,6 +143,18 @@ describe('MetricsPanel', () => {
 
     expect(screen.getByText('margin p−T: 0.00%')).not.toBeNull()
     expect(screen.getByText('knife-edge at p = T')).not.toBeNull()
+  })
+
+  it('formats T and bound units from the raw share rather than rounded display basis points', () => {
+    const thirds: AnalysisEntry = {
+      kind: 'ok', t: 1 / 3, quality: 'bound', lo: 1 / 3, hi: 2 / 3, degraded: [],
+    }
+    render(<MetricsPanel analyses={{ X: thirds }} position={position({ X: 500_000_000, O: 500_000_000 })} />)
+
+    expect(screen.getByText((_, element) => element?.tagName === 'P'
+      && element.textContent === 'T: 33.33% (333\u202f333\u202f333 units)')).not.toBeNull()
+    expect(screen.getByText((_, element) => element?.tagName === 'P'
+      && element.textContent === 'interval [33.33% (333\u202f333\u202f333 units), 66.67% (666\u202f666\u202f667 units)]')).not.toBeNull()
   })
 
   it('uses an explicit not-applicable status instead of zero-valued progress bars at both-zero', () => {

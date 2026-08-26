@@ -24,6 +24,13 @@ export function formatPercentBasisPoints(basisPoints: number): string {
   return `${sign}${(Math.abs(basisPoints) / 100).toFixed(2)}%`
 }
 
+// Analysis shares are carried as numbers, so unit-side display uses the raw
+// share and a deterministic nearest-integer conversion (Math.round), never the
+// separately rounded percentage basis points.
+export function roundShareToUnits(rawShare: number, combined: number): number {
+  return Math.round(rawShare * combined)
+}
+
 export function formatUnits(units: number): string {
   const sign = units < 0 ? '-' : ''
   const digits = Math.abs(units).toString()

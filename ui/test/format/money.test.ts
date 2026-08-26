@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 
-import { formatPercent, formatPercentBasisPoints, formatUnits, percentBasisPoints, share } from '../../src/format/money'
+import { formatPercent, formatPercentBasisPoints, formatUnits, percentBasisPoints, roundShareToUnits, share } from '../../src/format/money'
 
 describe('money formatting', () => {
   it('represents a zero combined budget as typed not-applicable', () => {
@@ -26,6 +26,11 @@ describe('money formatting', () => {
     expect(percentBasisPoints({ kind: 'ok', value: 0.2 + 0.1 })).toBe(3000)
     expect(formatPercentBasisPoints(0)).toBe('0.00%')
     expect(formatPercentBasisPoints(-250)).toBe('-2.50%')
+  })
+
+  it('rounds raw shares to integer unit values without using display basis points', () => {
+    expect(roundShareToUnits(1 / 3, 1_000_000_000)).toBe(333_333_333)
+    expect(roundShareToUnits(1 / 3, 3)).toBe(1)
   })
 
   it('groups units with narrow no-break spaces', () => {

@@ -6,6 +6,7 @@ import {
   formatPercentBasisPoints,
   formatUnits,
   percentBasisPoints,
+  roundShareToUnits,
   share,
   type Share,
 } from '../format/money'
@@ -31,7 +32,7 @@ function dualShare(value: number, combined: number): string {
     return `${formatPercent(share(0, combined))} (${formatUnits(0)} units)`
   }
   const basisPoints = percentBasisPoints({ kind: 'ok', value }) ?? 0
-  return `${formatPercentBasisPoints(basisPoints)} (${formatUnits((basisPoints * combined) / 10_000)} units)`
+  return `${formatPercentBasisPoints(basisPoints)} (${formatUnits(roundShareToUnits(value, combined))} units)`
 }
 
 function favoredLabel(p: Share, threshold: number | undefined): string | undefined {
@@ -99,11 +100,11 @@ function Metrics({ entry, p, combined }: {
   const thresholdBasisPoints = threshold === undefined
     ? undefined
     : percentBasisPoints({ kind: 'ok', value: threshold })
-  const margin = actualBasisPoints !== undefined && thresholdBasisPoints !== undefined
-    ? formatPercentBasisPoints(actualBasisPoints - thresholdBasisPoints)
-    : threshold === undefined
+  const margin = actualBasisPoints === undefined
+    ? formatPercent({ kind: 'na', why: 'both budgets exhausted' })
+    : thresholdBasisPoints === undefined
       ? MISSING_THRESHOLD_MESSAGE
-      : formatPercent({ kind: 'na', why: 'both budgets exhausted' })
+      : formatPercentBasisPoints(actualBasisPoints - thresholdBasisPoints)
   const favored = favoredLabel(p, threshold)
   const thresholdText = threshold === undefined
     ? MISSING_THRESHOLD_MESSAGE
