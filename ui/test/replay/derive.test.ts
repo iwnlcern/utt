@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { deriveReplayModel } from '../../src/replay/derive'
-import type { ResolvedAuctionEvent } from '../../src/log/types'
+import type { AuctionEvent, GameEndEvent, ResolvedAuctionEvent } from '../../src/log/types'
 import { LogError, parseGameLog } from '../../src/log/validate'
 
 const fixtureText = (name: string) =>
@@ -13,6 +13,8 @@ const fixtureText = (name: string) =>
 const resolvedAuctions = (text: string) => parseGameLog(text).events.filter(
   (event): event is ResolvedAuctionEvent => event.event === 'auction' && event.outcome === 'resolved',
 )
+
+const fixtureRecord = (name: string) => parseGameLog(fixtureText(name))
 
 describe('deriveReplayModel', () => {
   it('rejects a non-sequential wire ply with its event coordinate', () => {
@@ -84,5 +86,127 @@ describe('deriveReplayModel', () => {
 
     expect(model.terminal).toBe(record.end)
     expect(model.terminal).toMatchObject(terminal)
+  })
+
+  it('attaches both double-fault recoveries to the retrying auction in raw logged order', () => {
+    const model = deriveReplayModel(fixtureRecord('double-fault-retry.jsonl'))
+    const step = model.auctions[0]
+
+    expect(step).toBeDefined()
+    expect(step?.outcome).toBe('resolved')
+    expect(step?.attempts).toHaveLength(2)
+    expect(step?.attempts[1]?.attempt).toBe(2)
+    expect(step?.recoveries.map(({ seat, ply, fault }) => ({ seat, ply, fault }))).toEqual([
+      { seat: 'X', ply: 0, fault: 'invalid_json' },
+      { seat: 'O', ply: 0, fault: 'invalid_json' },
+    ])
+  })
+
+  it('attaches a single-fault recovery backward to its resolved auction rather than the next ply', () => {
+    const model = deriveReplayModel(fixtureRecord('fault-single.jsonl'))
+
+    expect(model.auctions[0]?.recoveries).toHaveLength(1)
+    expect(model.auctions[0]?.recoveries[0]).toMatchObject({
+      seat: 'X', ply: 0, fault: 'illegal_move',
+    })
+    expect(model.auctions[1]?.recoveries).toEqual([])
+  })
+
+  it('retains a voided auction without advancing the replay position', () => {
+    const model = deriveReplayModel(fixtureRecord('void-triple-double-fault.jsonl'))
+    const finalStep = model.auctions.at(-1)
+
+    expect(finalStep).toBeDefined()
+    expect(finalStep?.outcome).toBe('voided')
+    expect(finalStep).not.toHaveProperty('post')
+    expect(model.positions).toHaveLength(model.auctions.length)
+    expect(model.positions.at(-1)).toEqual(finalStep?.pre)
+  })
+
+  it('represents a recovery fault before resolution as an aborted auction with its terminal', () => {
+    const model = deriveReplayModel(fixtureRecord('recovery-fault-abort.jsonl'))
+    const finalStep = model.auctions.at(-1)
+
+    expect(finalStep?.outcome).toBe('aborted_recovery_fault')
+    expect(finalStep).not.toHaveProperty('post')
+    expect(finalStep?.recoveries).toHaveLength(2)
+    expect(model.terminal).toMatchObject({ reason: 'recovery_fault' })
+  })
+
+  it('keeps the resolved position when the attached post-resolution recovery faults', () => {
+    const model = deriveReplayModel(fixtureRecord('recovery-fault-post-resolve.jsonl'))
+    const finalStep = model.auctions.at(-1)
+
+    expect(finalStep?.outcome).toBe('resolved')
+    expect(finalStep?.recoveries).toHaveLength(1)
+    expect(finalStep?.recoveries[0]).toMatchObject({ fault: 'invalid_json' })
+    expect(model.positions).toHaveLength(model.auctions.length + 1)
+    expect(model.terminal).toMatchObject({ reason: 'recovery_fault' })
+  })
+
+  it('derives a terminal hello fault without inventing an auction or trailing recovery', () => {
+    const model = deriveReplayModel(fixtureRecord('hello-fault.jsonl'))
+
+    expect(model.auctions).toEqual([])
+    expect(model.positions).toHaveLength(1)
+    expect(model.trailingRecoveries).toEqual([])
+    expect(model.terminal).toMatchObject({ reason: 'hello_fault' })
+  })
+
+  it('keeps an unpaired recovery tail intact and marks the model truncated', () => {
+    const model = deriveReplayModel(fixtureRecord('trailing-recovery.jsonl'))
+
+    expect(model.trailingRecoveries).toHaveLength(1)
+    expect(model.trailingRecoveries[0]).toMatchObject({
+      seat: 'X', ply: 0, fault: 'invalid_json',
+    })
+    expect(model.trailingRecoveries[0]?.trigger_request_id).toBeTruthy()
+    expect(model.trailingRecoveries[0]?.hello).toBeDefined()
+    expect(model.truncated).toBe(true)
+  })
+
+  it('preserves X then O order for multiple trailing recoveries', () => {
+    const model = deriveReplayModel(fixtureRecord('trailing-recovery-xo.jsonl'))
+
+    expect(model.trailingRecoveries.map((recovery) => recovery.seat)).toEqual(['X', 'O'])
+  })
+
+  it('attaches a post-auction recovery at EOF rather than misclassifying it as trailing', () => {
+    const model = deriveReplayModel(fixtureRecord('post-auction-recovery-eof.jsonl'))
+
+    expect(model.trailingRecoveries).toEqual([])
+    expect(model.auctions.at(-1)?.recoveries).toHaveLength(1)
+    expect(model.auctions.at(-1)?.recoveries[0]).toMatchObject({
+      seat: 'X', fault: 'invalid_json',
+    })
+  })
+
+  it('is total over every auction outcome and game-end reason represented by the fixture corpus', () => {
+    const fixtures = [
+      'success-macro-win.jsonl',
+      'chip-count.jsonl',
+      'exact-tie-draw.jsonl',
+      'hello-fault.jsonl',
+      'void-triple-double-fault.jsonl',
+      'recovery-fault-abort.jsonl',
+    ]
+    const outcomes = new Set<string>()
+    const reasons = new Set<string>()
+
+    for (const fixture of fixtures) {
+      const record = fixtureRecord(fixture)
+      expect(() => deriveReplayModel(record)).not.toThrow()
+      for (const event of record.events) {
+        if (event.event === 'auction') outcomes.add(event.outcome)
+      }
+      if (record.end !== undefined) reasons.add(record.end.reason)
+    }
+
+    expect(outcomes).toEqual(new Set<AuctionEvent['outcome']>([
+      'resolved', 'voided', 'aborted_recovery_fault',
+    ]))
+    expect(reasons).toEqual(new Set<GameEndEvent['reason']>([
+      'macro_win', 'chip_count', 'exact_tie_draw', 'hello_fault', 'recovery_fault', 'triple_double_fault_void',
+    ]))
   })
 })
