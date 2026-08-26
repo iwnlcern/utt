@@ -1,7 +1,14 @@
 import { useState } from 'react'
 
 import { PV_PIN, PV_UNAVAILABLE_MESSAGE, type AnalysisEntry } from '../analysis/extract'
-import { formatPercent, formatUnits, share, type Share } from '../format/money'
+import {
+  formatPercent,
+  formatPercentBasisPoints,
+  formatUnits,
+  percentBasisPoints,
+  share,
+  type Share,
+} from '../format/money'
 import type { Mark } from '../log/types'
 import type { Position } from '../replay/model'
 import { BudgetBars } from './BudgetBars'
@@ -19,14 +26,19 @@ function firstUsableSeat(analyses: MetricsPanelProps['analyses']): Mark | undefi
 }
 
 function dualShare(value: number, combined: number): string {
-  return `${formatPercent(share(value, 1))} (${formatUnits(value * combined)} units)`
+  const basisPoints = percentBasisPoints({ kind: 'ok', value }) ?? 0
+  return `${formatPercentBasisPoints(basisPoints)} (${formatUnits((basisPoints * combined) / 10_000)} units)`
 }
 
 function favoredLabel(p: Share, threshold: number | undefined): string | undefined {
-  if (p.kind === 'na' || threshold === undefined) return undefined
-  const margin = p.value - threshold
-  if (margin > 0) return 'X favored'
-  if (margin < 0) return 'O favored'
+  const actualBasisPoints = percentBasisPoints(p)
+  const thresholdBasisPoints = threshold === undefined
+    ? undefined
+    : percentBasisPoints({ kind: 'ok', value: threshold })
+  if (actualBasisPoints === undefined || thresholdBasisPoints === undefined) return undefined
+  const marginBasisPoints = actualBasisPoints - thresholdBasisPoints
+  if (marginBasisPoints > 0) return 'X favored'
+  if (marginBasisPoints < 0) return 'O favored'
   return 'knife-edge at p = T'
 }
 
@@ -47,7 +59,7 @@ export function MetricsPanel({ position, analyses }: MetricsPanelProps) {
   const usableSeats = seats.filter((seat) => analyses[seat]?.kind === 'ok')
   const defaultSeat = firstUsableSeat(analyses) ?? seats.find((seat) => analyses[seat] !== undefined) ?? 'X'
   const [seat, setSeat] = useState<Mark>(defaultSeat)
-  const selectedSeat = analyses[seat] === undefined ? defaultSeat : seat
+  const selectedSeat = analyses[seat]?.kind === 'ok' ? seat : defaultSeat
   const entry = analyses[selectedSeat] ?? { kind: 'unavailable', why: 'no analysis in this log' }
   const combined = position.budgets.X + position.budgets.O
   const p = share(position.budgets.X, combined)
@@ -79,8 +91,12 @@ function Metrics({ entry, p, combined }: {
   combined: number
 }) {
   const threshold = entry.t
-  const margin = p.kind === 'ok' && threshold !== undefined
-    ? formatPercent({ kind: 'ok', value: p.value - threshold })
+  const actualBasisPoints = percentBasisPoints(p)
+  const thresholdBasisPoints = threshold === undefined
+    ? undefined
+    : percentBasisPoints({ kind: 'ok', value: threshold })
+  const margin = actualBasisPoints !== undefined && thresholdBasisPoints !== undefined
+    ? formatPercentBasisPoints(actualBasisPoints - thresholdBasisPoints)
     : formatPercent({ kind: 'na', why: 'both budgets exhausted' })
   const favored = favoredLabel(p, threshold)
   const thresholdText = threshold === undefined

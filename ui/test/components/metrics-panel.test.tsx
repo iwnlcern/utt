@@ -84,6 +84,20 @@ describe('MetricsPanel', () => {
       && element.textContent === 'T: 50.00% (500\u202f000\u202f000 units)')).not.toBeNull()
   })
 
+  it('falls back to the remaining usable seat when the remembered seat becomes unavailable', () => {
+    const oEntry: AnalysisEntry = { kind: 'ok', t: 0.5, degraded: [] }
+    const { rerender } = render(<MetricsPanel analyses={{ X: bound, O: oEntry }} position={position()} />)
+    const selector = screen.getByLabelText('analysis seat')
+    fireEvent.change(selector, { target: { value: 'O' } })
+    expect(screen.getByText((_, element) => element?.tagName === 'P'
+      && element.textContent === 'T: 50.00% (500\u202f000\u202f000 units)')).not.toBeNull()
+
+    rerender(<MetricsPanel analyses={{ X: bound, O: { kind: 'unavailable', why: 'engine stopped analysis' } }} position={position()} />)
+    expect(screen.queryByLabelText('analysis seat')).toBeNull()
+    expect(screen.getByText((_, element) => element?.tagName === 'P'
+      && element.textContent === 'T: 62.50% (625\u202f000\u202f000 units)')).not.toBeNull()
+  })
+
   it('renders unavailable analysis reasons verbatim', () => {
     render(<MetricsPanel analyses={{ O: { kind: 'unavailable', why: 'engine declined this position' } }} position={position()} />)
 
@@ -98,5 +112,21 @@ describe('MetricsPanel', () => {
     render(<MetricsPanel analyses={{ X: { kind: 'ok', t, degraded: [] } }} position={position(budgets)} />)
 
     expect(screen.getByText(label)).not.toBeNull()
+  })
+
+  it('treats display-equal float shares as a knife edge with a zero display margin', () => {
+    render(<MetricsPanel analyses={{ X: { kind: 'ok', t: 0.2 + 0.1, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
+
+    expect(screen.getByText('margin p−T: 0.00%')).not.toBeNull()
+    expect(screen.getByText('knife-edge at p = T')).not.toBeNull()
+  })
+
+  it('uses an explicit not-applicable status instead of zero-valued progress bars at both-zero', () => {
+    render(<MetricsPanel analyses={{ X: bound }} position={position({ X: 0, O: 0 })} />)
+
+    expect(screen.queryByRole('progressbar', { name: 'X budget share' })).toBeNull()
+    expect(screen.queryByRole('progressbar', { name: 'O budget share' })).toBeNull()
+    expect(screen.getByRole('status', { name: 'X budget share: n/a — both budgets exhausted' })).not.toBeNull()
+    expect(screen.getByRole('status', { name: 'O budget share: n/a — both budgets exhausted' })).not.toBeNull()
   })
 })

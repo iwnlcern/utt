@@ -20,12 +20,17 @@ export function BudgetBars({ budgets }: BudgetBarsProps) {
         const budgetShare = share(budgets[seat], combined)
         return (
           <div key={seat} className={`metrics__budget metrics__budget--${seat}`}>
-            <span>{seat}: {formatPercent(budgetShare)}</span>
-            <progress
-              aria-label={`${seat} budget share`}
-              max={1}
-              value={budgetShare.kind === 'ok' ? budgetShare.value : 0}
-            />
+            <span>{seat}: </span>
+            {budgetShare.kind === 'ok' ? (
+              <>
+                <span>{formatPercent(budgetShare)}</span>
+                <progress aria-label={`${seat} budget share`} max={1} value={budgetShare.value} />
+              </>
+            ) : (
+              <span aria-label={`${seat} budget share: ${formatPercent(budgetShare)}`} role="status">
+                {formatPercent(budgetShare)}
+              </span>
+            )}
           </div>
         )
       })}

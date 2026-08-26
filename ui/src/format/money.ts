@@ -9,7 +9,19 @@ export function share(units: number, combined: number): Share {
 
 export function formatPercent(result: Share): string {
   if (result.kind === 'na') return `n/a — ${result.why}`
-  return `${(result.value * 100).toFixed(2)}%`
+  return formatPercentBasisPoints(percentBasisPoints(result) ?? 0)
+}
+
+// Percentages are displayed to two decimal places, so comparison consumers use
+// the same integer hundredth-of-a-percent representation rather than raw floats.
+export function percentBasisPoints(result: Share): number | undefined {
+  if (result.kind === 'na') return undefined
+  return Math.round(result.value * 10_000)
+}
+
+export function formatPercentBasisPoints(basisPoints: number): string {
+  const sign = basisPoints < 0 ? '-' : ''
+  return `${sign}${(Math.abs(basisPoints) / 100).toFixed(2)}%`
 }
 
 export function formatUnits(units: number): string {
