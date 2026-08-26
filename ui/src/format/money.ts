@@ -24,15 +24,6 @@ export function formatPercentBasisPoints(basisPoints: number): string {
   return `${sign}${(Math.abs(basisPoints) / 100).toFixed(2)}%`
 }
 
-// Share comparisons preserve meaningful sub-basis-point differences. The
-// tolerance covers only a few IEEE-754 rounding units at the values compared.
-export function compareRawShares(left: number, right: number): -1 | 0 | 1 {
-  const tolerance = Number.EPSILON * Math.max(1, Math.abs(left), Math.abs(right)) * 4
-  const difference = left - right
-  if (Math.abs(difference) <= tolerance) return 0
-  return difference < 0 ? -1 : 1
-}
-
 // Analysis shares are carried as numbers, so unit-side display uses the raw
 // share and a deterministic nearest-integer conversion (Math.round), never the
 // separately rounded percentage basis points.

@@ -156,23 +156,30 @@ describe('MetricsPanel', () => {
   it.each([
     ['X favored', 0.5, { X: 600_000_000, O: 400_000_000 }],
     ['O favored', 0.7, { X: 600_000_000, O: 400_000_000 }],
-    ['knife-edge at p = T', 0.6, { X: 600_000_000, O: 400_000_000 }],
+    ['no displayed edge', 0.6, { X: 600_000_000, O: 400_000_000 }],
   ])('labels the sign of p−T as %s', (label, t, budgets) => {
     render(<MetricsPanelHarness analyses={{ X: { kind: 'ok', t, degraded: [] } }} position={position(budgets)} />)
 
     expect(screen.getByText(label)).not.toBeNull()
+    expect(screen.queryByText(/p = T/i)).toBeNull()
   })
 
-  it('uses raw-share signs while treating only arithmetic noise as a knife edge', () => {
+  it('uses only the displayed basis-point margin for arithmetic noise and sub-basis-point differences', () => {
     const { rerender } = render(<MetricsPanelHarness analyses={{ X: { kind: 'ok', t: 0.2 + 0.1, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
 
     expect(screen.getByText('margin p−T: 0.00%')).not.toBeNull()
-    expect(screen.getByText('knife-edge at p = T')).not.toBeNull()
+    expect(screen.getByText('no displayed edge')).not.toBeNull()
+    expect(screen.queryByText(/p = T/i)).toBeNull()
 
     rerender(<MetricsPanelHarness analyses={{ X: { kind: 'ok', t: 0.30004, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
     expect(screen.getByText('margin p−T: 0.00%')).not.toBeNull()
+    expect(screen.getByText('no displayed edge')).not.toBeNull()
+    expect(screen.queryByText(/favored|p = T/i)).toBeNull()
+
+    rerender(<MetricsPanelHarness analyses={{ X: { kind: 'ok', t: 0.30006, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
+    expect(screen.getByText('margin p−T: -0.01%')).not.toBeNull()
     expect(screen.getByText('O favored')).not.toBeNull()
-    expect(screen.queryByText('knife-edge at p = T')).toBeNull()
+    expect(screen.queryByText(/p = T/i)).toBeNull()
   })
 
   it('formats T and bound units from the raw share rather than rounded display basis points', () => {

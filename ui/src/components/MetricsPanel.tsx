@@ -1,6 +1,5 @@
 import { PV_PIN, PV_UNAVAILABLE_MESSAGE, type AnalysisEntry } from '../analysis/extract'
 import {
-  compareRawShares,
   formatPercent,
   formatPercentBasisPoints,
   formatUnits,
@@ -32,12 +31,11 @@ function dualShare(value: number, combined: number): string {
   return `${formatPercentBasisPoints(basisPoints)} (${formatUnits(roundShareToUnits(value, combined))} units)`
 }
 
-function favoredLabel(p: Share, threshold: number | undefined): string | undefined {
-  if (p.kind === 'na' || threshold === undefined) return undefined
-  const comparison = compareRawShares(p.value, threshold)
-  if (comparison > 0) return 'X favored'
-  if (comparison < 0) return 'O favored'
-  return 'knife-edge at p = T'
+function favoredLabel(marginBasisPoints: number | undefined): string | undefined {
+  if (marginBasisPoints === undefined) return undefined
+  if (marginBasisPoints > 0) return 'X favored'
+  if (marginBasisPoints < 0) return 'O favored'
+  return 'no displayed edge'
 }
 
 function ConditionalLines({ entry }: { entry: Extract<AnalysisEntry, { kind: 'ok' }> }) {
@@ -86,12 +84,15 @@ function Metrics({ entry, p, combined }: {
   combined: number
 }) {
   const threshold = entry.t
+  const displayedMargin = p.kind === 'ok' && threshold !== undefined
+    ? percentBasisPoints({ kind: 'ok', value: p.value - threshold })
+    : undefined
   const margin = p.kind === 'na'
     ? formatPercent({ kind: 'na', why: 'both budgets exhausted' })
     : threshold === undefined
       ? MISSING_THRESHOLD_MESSAGE
-      : formatPercent({ kind: 'ok', value: p.value - threshold })
-  const favored = favoredLabel(p, threshold)
+      : formatPercentBasisPoints(displayedMargin ?? 0)
+  const favored = favoredLabel(displayedMargin)
   const thresholdText = threshold === undefined
     ? MISSING_THRESHOLD_MESSAGE
     : p.kind === 'na'
