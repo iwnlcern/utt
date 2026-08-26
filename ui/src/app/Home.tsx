@@ -117,6 +117,7 @@ function Home({ onLoaded }: HomeProps) {
         ref={inputRef}
         aria-label="Choose a JSONL game log"
         type="file"
+        tabIndex={-1}
         accept=".jsonl,application/jsonl"
         onChange={(event) => openFile(event.currentTarget.files?.[0])}
       />

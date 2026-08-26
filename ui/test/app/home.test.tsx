@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Home from '../../src/app/Home'
@@ -53,6 +54,23 @@ describe('Home', () => {
       start: { event: 'game_start' },
       end: { result: 'X', reason: 'macro_win' },
     })
+  })
+
+  it('tabs directly to the visible file chooser and activates its native input with Enter and Space', async () => {
+    const user = userEvent.setup()
+    render(<Home onLoaded={vi.fn()} />)
+    const input = screen.getByLabelText('Choose a JSONL game log')
+    const chooser = screen.getByRole('button', { name: 'Choose a .jsonl file' })
+    let pickerActivations = 0
+    input.addEventListener('click', () => { pickerActivations += 1 })
+
+    await user.tab()
+
+    expect(document.activeElement).toBe(chooser)
+    await user.keyboard('{Enter}')
+    expect(pickerActivations).toBe(1)
+    await user.keyboard(' ')
+    expect(pickerActivations).toBe(2)
   })
 
   it('persists the exact recent shape and reloads it in a new Home', async () => {
