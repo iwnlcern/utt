@@ -28,6 +28,38 @@ const renderFixture = (path: string) => {
   return { game, model, ...rendered }
 }
 
+const expectImmediatelyBefore = (markerGroup: HTMLElement, auctionRow: HTMLElement) => {
+  expect(markerGroup.parentElement).toBe(auctionRow.parentElement)
+  expect(markerGroup.nextElementSibling).toBe(auctionRow)
+  expect(auctionRow.previousElementSibling).toBe(markerGroup)
+}
+
+const expectImmediatelyAfter = (auctionRow: HTMLElement, markerGroup: HTMLElement) => {
+  expect(markerGroup.parentElement).toBe(auctionRow.parentElement)
+  expect(auctionRow.nextElementSibling).toBe(markerGroup)
+  expect(markerGroup.previousElementSibling).toBe(auctionRow)
+}
+
+const bothZeroGameWithAnalysis = () => {
+  const source = fixtureGame('both-zero.jsonl')
+  const pending = source.events.find(
+    (event): event is Extract<LogEvent, { event: 'auction' }> =>
+      event.event === 'auction' && event.ply === 35,
+  )
+  const finalAttempt = pending?.attempts.at(-1)
+  if (finalAttempt === undefined) throw new Error('both-zero fixture must carry pending ply 35')
+  finalAttempt.turns.X.info = {
+    complete: false,
+    critical_bid: 0,
+    depth: 12,
+    hi: 0.75,
+    lo: 0.5,
+    quality: 'bound',
+    t: 0.625,
+  }
+  return parseGameLog(`${source.events.map((event) => JSON.stringify(event)).join('\n')}\n`)
+}
+
 const viewableFixtures = fixtureManifest.filter(
   ({ expected }) => expected.rawJsonl !== 'malformed-interior',
 )
@@ -153,7 +185,7 @@ describe('UI v1 composed acceptance', () => {
       'recovery before ply 0: X · invalid_json · restart hello: stub',
       'recovery before ply 0: O · invalid_json · restart hello: stub',
     ])
-    expect(markers.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expectImmediatelyBefore(markers, row)
     expect(row.textContent).toContain('Attempts (2)')
   })
 
@@ -166,7 +198,7 @@ describe('UI v1 composed acceptance', () => {
     expect(model.auctions[1]?.recoveries).toEqual([])
     expect(screen.getByTestId('resolution-0').textContent).toContain('fault: illegal_move')
     expect(markers.textContent).toContain('recovery after ply 0: X · illegal_move · restart hello: stub')
-    expect(row.compareDocumentPosition(markers) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expectImmediatelyAfter(row, markers)
   })
 
   it('keeps a post-auction recovery at EOF attached instead of trailing', () => {
@@ -177,6 +209,10 @@ describe('UI v1 composed acceptance', () => {
     expect(screen.queryByTestId('trailing-recoveries')).toBeNull()
     expect(screen.getByTestId('post-recoveries-0').textContent)
       .toContain('restart hello: eof_or_crash fault')
+    expectImmediatelyAfter(
+      screen.getByTestId('auction-row-0'),
+      screen.getByTestId('post-recoveries-0'),
+    )
     expect(screen.getByText('log ends mid-game')).not.toBeNull()
   })
 
@@ -206,6 +242,10 @@ describe('UI v1 composed acceptance', () => {
     expect(model.positions).toHaveLength(1)
     expect(screen.getByTestId('resolution-0').textContent).toContain('aborted_recovery_fault')
     expect(screen.getByTestId('pre-recoveries-0').textContent).toContain('restart hello: eof_or_crash fault')
+    expectImmediatelyBefore(
+      screen.getByTestId('pre-recoveries-0'),
+      screen.getByTestId('auction-row-0'),
+    )
     expect(screen.getByTestId('terminal-recovery_fault').textContent).toBe('terminal: recovery_fault (O)')
     expect(screen.getByRole('status', { name: 'replay position' }).textContent).toBe('Position 0 of 0')
   })
@@ -217,18 +257,38 @@ describe('UI v1 composed acceptance', () => {
     expect(model.positions).toHaveLength(2)
     expect(screen.getByTestId('resolution-0').textContent).toContain('fault: invalid_json')
     expect(screen.getByTestId('post-recoveries-0').textContent).toContain('restart hello: eof_or_crash fault')
+    expectImmediatelyAfter(
+      screen.getByTestId('auction-row-0'),
+      screen.getByTestId('post-recoveries-0'),
+    )
     expect(screen.getByTestId('terminal-recovery_fault').textContent).toBe('terminal: recovery_fault (O)')
     fireEvent.click(screen.getByRole('button', { name: 'Next position' }))
     expect(screen.getByRole('status', { name: 'replay position' }).textContent).toBe('Position 1 of 1')
   })
 
-  it('renders the both-zero state with exact units and typed not-applicable shares', () => {
+  it('renders complete both-zero metric totality through the composed GameView surface', () => {
     window.history.replaceState(null, '', '#cursor=35')
-    renderFixture('both-zero.jsonl')
+    const game = bothZeroGameWithAnalysis()
+    const model = deriveReplayModel(game)
+    const pending = model.auctions[35]
+    if (pending === undefined) throw new Error('both-zero fixture must derive pending ply 35')
 
+    expect(pending.pre.budgets).toEqual({ X: 0, O: 0 })
+    render(createElement(GameView, { game }))
+
+    const metrics = screen.getByRole('region', { name: 'analysis metrics' })
     expect(screen.getByTestId('budget-units').textContent).toBe('0 / 0 units')
     expect(screen.getByRole('status', { name: 'X budget share: n/a — both budgets exhausted' })).not.toBeNull()
     expect(screen.getByRole('status', { name: 'O budget share: n/a — both budgets exhausted' })).not.toBeNull()
+    expect(metrics.textContent).toContain('T: n/a — both budgets exhausted')
+    expect(metrics.textContent).toContain('p: n/a — both budgets exhausted')
+    expect(metrics.textContent).toContain('margin p−T: n/a — both budgets exhausted')
+    expect(metrics.textContent).toContain('critical bid: 0 units (n/a — both budgets exhausted)')
+    expect(metrics.textContent).toContain(
+      'interval [n/a — both budgets exhausted (0 units), n/a — both budgets exhausted (0 units)]',
+    )
+    expect(metrics.textContent).not.toContain('T: 62.50%')
+    expect(metrics.textContent).not.toContain('interval [50.00%')
     expect(screen.getByRole('status', { name: 'replay position' }).textContent).toContain('Position 35 of')
   })
 

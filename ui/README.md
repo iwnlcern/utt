@@ -19,7 +19,9 @@ npm run dev
 
 Open the URL printed by Vite. Use the file picker, drop a `.jsonl` file, open a
 recent local log, or choose the bundled sample. Loaded logs stay in the browser;
-the UI makes no network request for replay data.
+the UI uses no remote API or network service for replay data. Opening the
+bundled sample still fetches that static asset from the Vite host serving the
+application.
 
 Create and inspect a production build with:
 
