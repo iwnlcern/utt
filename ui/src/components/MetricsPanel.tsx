@@ -1,5 +1,3 @@
-import { useState } from 'react'
-
 import { PV_PIN, PV_UNAVAILABLE_MESSAGE, type AnalysisEntry } from '../analysis/extract'
 import {
   compareRawShares,
@@ -19,14 +17,12 @@ import '../styles/tokens.css'
 export interface MetricsPanelProps {
   position: Position
   analyses: Partial<Record<Mark, AnalysisEntry>>
+  selectedSeat: Mark
+  onSelectedSeatChange: (seat: Mark) => void
 }
 
 const seats: readonly Mark[] = ['X', 'O']
 const MISSING_THRESHOLD_MESSAGE = 'unavailable — t not present in analysis'
-
-function firstUsableSeat(analyses: MetricsPanelProps['analyses']): Mark | undefined {
-  return seats.find((seat) => analyses[seat]?.kind === 'ok')
-}
 
 function dualShare(value: number, combined: number): string {
   if (combined === 0) {
@@ -57,11 +53,8 @@ function ConditionalLines({ entry }: { entry: Extract<AnalysisEntry, { kind: 'ok
   })
 }
 
-export function MetricsPanel({ position, analyses }: MetricsPanelProps) {
+export function MetricsPanel({ position, analyses, selectedSeat, onSelectedSeatChange }: MetricsPanelProps) {
   const usableSeats = seats.filter((seat) => analyses[seat]?.kind === 'ok')
-  const defaultSeat = firstUsableSeat(analyses) ?? seats.find((seat) => analyses[seat] !== undefined) ?? 'X'
-  const [seat, setSeat] = useState<Mark>(defaultSeat)
-  const selectedSeat = analyses[seat]?.kind === 'ok' ? seat : defaultSeat
   const entry = analyses[selectedSeat] ?? { kind: 'unavailable', why: 'no analysis in this log' }
   const combined = position.budgets.X + position.budgets.O
   const p = share(position.budgets.X, combined)
@@ -73,7 +66,7 @@ export function MetricsPanel({ position, analyses }: MetricsPanelProps) {
       {usableSeats.length === 2 && (
         <label>
           Analysis seat
-          <select aria-label="analysis seat" onChange={(event) => setSeat(event.target.value as Mark)} value={selectedSeat}>
+          <select aria-label="analysis seat" onChange={(event) => onSelectedSeatChange(event.target.value as Mark)} value={selectedSeat}>
             {usableSeats.map((availableSeat) => <option key={availableSeat} value={availableSeat}>{availableSeat}</option>)}
           </select>
         </label>

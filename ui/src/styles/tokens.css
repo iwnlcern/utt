@@ -13,7 +13,7 @@
   --border-strong: #98a2b3;
   --accent: #175cd3;
   --accent-soft: rgb(23 92 211 / 0.08);
-  --focus: rgb(46 144 250 / 0.5);
+  --focus: #175cd3;
   --radius-sm: 0.375rem;
   --radius-lg: 0.75rem;
   --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.06);
@@ -40,7 +40,7 @@
     --border-strong: #57606a;
     --accent: #58a6ff;
     --accent-soft: rgb(88 166 255 / 0.12);
-    --focus: rgb(88 166 255 / 0.55);
+    --focus: #58a6ff;
     --board-line: #768390;
     --board-forced: #58a6ff;
     --board-x: #ff7b72;

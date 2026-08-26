@@ -7,10 +7,14 @@ import './App.css'
 
 function App() {
   const [game, setGame] = useState<GameRecord | null>(null)
+  const resetGame = () => {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    setGame(null)
+  }
 
   return game === null
     ? <Home onLoaded={setGame} />
-    : <GameView game={game} onExit={() => setGame(null)} />
+    : <GameView game={game} onExit={resetGame} />
 }
 
 export default App

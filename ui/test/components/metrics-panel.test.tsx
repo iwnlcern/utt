@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { useState } from 'react'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { MetricsPanel } from '../../src/components/MetricsPanel'
 import type { AnalysisEntry } from '../../src/analysis/extract'
+import type { Mark } from '../../src/log/types'
 import { parseGameLog } from '../../src/log/validate'
 import { deriveReplayModel } from '../../src/replay/derive'
 import type { Position } from '../../src/replay/model'
@@ -32,11 +34,34 @@ const bound: AnalysisEntry = {
   degraded: [],
 }
 
+function MetricsPanelHarness({
+  analyses,
+  selectedSeat: initialSeat = 'X',
+  ...props
+}: Omit<React.ComponentProps<typeof MetricsPanel>, 'selectedSeat' | 'onSelectedSeatChange'> & {
+  selectedSeat?: Mark
+}) {
+  const [preferredSeat, setPreferredSeat] = useState<Mark>(initialSeat)
+  const usableSeats = (['X', 'O'] as const).filter((seat) => analyses[seat]?.kind === 'ok')
+  const definedSeats = (['X', 'O'] as const).filter((seat) => analyses[seat] !== undefined)
+  const selectedSeat = usableSeats.includes(preferredSeat)
+    ? preferredSeat
+    : usableSeats[0] ?? (analyses[preferredSeat] !== undefined ? preferredSeat : definedSeats[0] ?? preferredSeat)
+  return (
+    <MetricsPanel
+      {...props}
+      analyses={analyses}
+      onSelectedSeatChange={setPreferredSeat}
+      selectedSeat={selectedSeat}
+    />
+  )
+}
+
 describe('MetricsPanel', () => {
   afterEach(cleanup)
 
   it('renders a bound interval in dual form with its quality and search provenance', () => {
-    render(<MetricsPanel analyses={{ X: bound }} position={position()} />)
+    render(<MetricsPanelHarness analyses={{ X: bound }} position={position()} />)
 
     expect(screen.getByText((_, element) => element?.tagName === 'P'
       && element.textContent === 'T: 62.50% (625\u202f000\u202f000 units)')).not.toBeNull()
@@ -60,7 +85,7 @@ describe('MetricsPanel', () => {
     )
     if (zeroPosition === undefined) throw new Error('both-zero fixture must contain a zero-budget position')
 
-    render(<MetricsPanel analyses={{ X: bound }} position={zeroPosition} />)
+    render(<MetricsPanelHarness analyses={{ X: bound }} position={zeroPosition} />)
 
     expect(screen.getByTestId('budget-units').textContent).toBe('0 / 0 units')
     expect(screen.getByText('T: n/a — both budgets exhausted')).not.toBeNull()
@@ -70,7 +95,7 @@ describe('MetricsPanel', () => {
   })
 
   it('keeps missing t semantics explicit for a usable degraded analysis at nonzero budgets', () => {
-    render(<MetricsPanel analyses={{ X: { kind: 'ok', criticalBid: 100_000_000, degraded: ['t'] } }} position={position()} />)
+    render(<MetricsPanelHarness analyses={{ X: { kind: 'ok', criticalBid: 100_000_000, degraded: ['t'] } }} position={position()} />)
 
     expect(screen.getByText('T: unavailable — t not present in analysis')).not.toBeNull()
     expect(screen.getByText('margin p−T: unavailable — t not present in analysis')).not.toBeNull()
@@ -78,7 +103,7 @@ describe('MetricsPanel', () => {
   })
 
   it('gives a zero combined budget precedence for p and margin when t is missing', () => {
-    render(<MetricsPanel analyses={{ X: { kind: 'ok', criticalBid: 1, degraded: ['t'] } }} position={position({ X: 0, O: 0 })} />)
+    render(<MetricsPanelHarness analyses={{ X: { kind: 'ok', criticalBid: 1, degraded: ['t'] } }} position={position({ X: 0, O: 0 })} />)
 
     expect(screen.getByText('T: unavailable — t not present in analysis')).not.toBeNull()
     expect(screen.getByText('p: n/a — both budgets exhausted')).not.toBeNull()
@@ -86,7 +111,7 @@ describe('MetricsPanel', () => {
   })
 
   it('marks bound interval percentages not applicable when both budgets are zero', () => {
-    render(<MetricsPanel analyses={{ X: bound }} position={position({ X: 0, O: 0 })} />)
+    render(<MetricsPanelHarness analyses={{ X: bound }} position={position({ X: 0, O: 0 })} />)
 
     expect(screen.getByText((_, element) => element?.tagName === 'P'
       && element.textContent === 'interval [n/a — both budgets exhausted (0 units), n/a — both budgets exhausted (0 units)]')).not.toBeNull()
@@ -95,11 +120,11 @@ describe('MetricsPanel', () => {
 
   it('shows a seat selector only when both seats have usable analysis', () => {
     const oEntry: AnalysisEntry = { kind: 'ok', t: 0.5, degraded: [] }
-    const { rerender } = render(<MetricsPanel analyses={{ X: bound }} position={position()} />)
+    const { rerender } = render(<MetricsPanelHarness analyses={{ X: bound }} position={position()} />)
 
     expect(screen.queryByLabelText('analysis seat')).toBeNull()
 
-    rerender(<MetricsPanel analyses={{ X: bound, O: oEntry }} position={position()} />)
+    rerender(<MetricsPanelHarness analyses={{ X: bound, O: oEntry }} position={position()} />)
     const selector = screen.getByLabelText('analysis seat') as HTMLSelectElement
     expect(selector).not.toBeNull()
     expect(selector.value).toBe('X')
@@ -110,20 +135,20 @@ describe('MetricsPanel', () => {
 
   it('falls back to the remaining usable seat when the remembered seat becomes unavailable', () => {
     const oEntry: AnalysisEntry = { kind: 'ok', t: 0.5, degraded: [] }
-    const { rerender } = render(<MetricsPanel analyses={{ X: bound, O: oEntry }} position={position()} />)
+    const { rerender } = render(<MetricsPanelHarness analyses={{ X: bound, O: oEntry }} position={position()} />)
     const selector = screen.getByLabelText('analysis seat')
     fireEvent.change(selector, { target: { value: 'O' } })
     expect(screen.getByText((_, element) => element?.tagName === 'P'
       && element.textContent === 'T: 50.00% (500\u202f000\u202f000 units)')).not.toBeNull()
 
-    rerender(<MetricsPanel analyses={{ X: bound, O: { kind: 'unavailable', why: 'engine stopped analysis' } }} position={position()} />)
+    rerender(<MetricsPanelHarness analyses={{ X: bound, O: { kind: 'unavailable', why: 'engine stopped analysis' } }} position={position()} />)
     expect(screen.queryByLabelText('analysis seat')).toBeNull()
     expect(screen.getByText((_, element) => element?.tagName === 'P'
       && element.textContent === 'T: 62.50% (625\u202f000\u202f000 units)')).not.toBeNull()
   })
 
   it('renders unavailable analysis reasons verbatim', () => {
-    render(<MetricsPanel analyses={{ O: { kind: 'unavailable', why: 'engine declined this position' } }} position={position()} />)
+    render(<MetricsPanelHarness analyses={{ O: { kind: 'unavailable', why: 'engine declined this position' } }} position={position()} />)
 
     expect(screen.getByText('engine declined this position')).not.toBeNull()
   })
@@ -133,18 +158,18 @@ describe('MetricsPanel', () => {
     ['O favored', 0.7, { X: 600_000_000, O: 400_000_000 }],
     ['knife-edge at p = T', 0.6, { X: 600_000_000, O: 400_000_000 }],
   ])('labels the sign of p−T as %s', (label, t, budgets) => {
-    render(<MetricsPanel analyses={{ X: { kind: 'ok', t, degraded: [] } }} position={position(budgets)} />)
+    render(<MetricsPanelHarness analyses={{ X: { kind: 'ok', t, degraded: [] } }} position={position(budgets)} />)
 
     expect(screen.getByText(label)).not.toBeNull()
   })
 
   it('uses raw-share signs while treating only arithmetic noise as a knife edge', () => {
-    const { rerender } = render(<MetricsPanel analyses={{ X: { kind: 'ok', t: 0.2 + 0.1, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
+    const { rerender } = render(<MetricsPanelHarness analyses={{ X: { kind: 'ok', t: 0.2 + 0.1, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
 
     expect(screen.getByText('margin p−T: 0.00%')).not.toBeNull()
     expect(screen.getByText('knife-edge at p = T')).not.toBeNull()
 
-    rerender(<MetricsPanel analyses={{ X: { kind: 'ok', t: 0.30004, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
+    rerender(<MetricsPanelHarness analyses={{ X: { kind: 'ok', t: 0.30004, degraded: [] } }} position={position({ X: 3, O: 7 })} />)
     expect(screen.getByText('margin p−T: 0.00%')).not.toBeNull()
     expect(screen.getByText('O favored')).not.toBeNull()
     expect(screen.queryByText('knife-edge at p = T')).toBeNull()
@@ -154,7 +179,7 @@ describe('MetricsPanel', () => {
     const thirds: AnalysisEntry = {
       kind: 'ok', t: 1 / 3, quality: 'bound', lo: 1 / 3, hi: 2 / 3, degraded: [],
     }
-    render(<MetricsPanel analyses={{ X: thirds }} position={position({ X: 500_000_000, O: 500_000_000 })} />)
+    render(<MetricsPanelHarness analyses={{ X: thirds }} position={position({ X: 500_000_000, O: 500_000_000 })} />)
 
     expect(screen.getByText((_, element) => element?.tagName === 'P'
       && element.textContent === 'T: 33.33% (333\u202f333\u202f333 units)')).not.toBeNull()
@@ -163,7 +188,7 @@ describe('MetricsPanel', () => {
   })
 
   it('uses an explicit not-applicable status instead of zero-valued progress bars at both-zero', () => {
-    render(<MetricsPanel analyses={{ X: bound }} position={position({ X: 0, O: 0 })} />)
+    render(<MetricsPanelHarness analyses={{ X: bound }} position={position({ X: 0, O: 0 })} />)
 
     expect(screen.queryByRole('progressbar', { name: 'X budget share' })).toBeNull()
     expect(screen.queryByRole('progressbar', { name: 'O budget share' })).toBeNull()

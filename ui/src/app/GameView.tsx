@@ -17,10 +17,15 @@ export interface GameViewProps {
   onExit?: () => void
 }
 
+function isReplayShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return true
+  return target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])') === null
+}
+
 function GameView({ game, onExit }: GameViewProps) {
   const model = useMemo(() => deriveReplayModel(game), [game])
-  const chartSeries = useMemo(() => buildTPSeries(model, 'X'), [model])
   const [showLosingIntent, setShowLosingIntent] = useState(true)
+  const [preferredAnalysisSeat, setPreferredAnalysisSeat] = useState<Mark>('X')
   const [cursorState, dispatch] = useReducer(
     cursorReducer,
     createCursorState(model.positions.length - 1, window.location.hash),
@@ -37,6 +42,14 @@ function GameView({ game, onExit }: GameViewProps) {
 
   useEffect(() => {
     const navigate = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented
+        || event.altKey
+        || event.ctrlKey
+        || event.metaKey
+        || event.shiftKey
+        || !isReplayShortcutTarget(event.target)
+      ) return
       const action = (() => {
         switch (event.key) {
           case 'ArrowLeft': return { type: 'step', delta: -1 } as const
@@ -59,11 +72,16 @@ function GameView({ game, onExit }: GameViewProps) {
   const position = model.positions[cursorState.cursor]
   const pendingStep = model.auctions[cursorState.cursor]
   const pendingAnalyses = pendingStep === undefined ? {} : extractAnalysis(pendingStep)
-  const ghostAnalysis = pendingAnalyses.X?.kind === 'ok'
-    ? pendingAnalyses.X
-    : pendingAnalyses.O?.kind === 'ok'
-      ? pendingAnalyses.O
-      : undefined
+  const usableAnalysisSeats = (['X', 'O'] as const).filter((seat) => pendingAnalyses[seat]?.kind === 'ok')
+  const selectedAnalysisSeat = usableAnalysisSeats.includes(preferredAnalysisSeat)
+    ? preferredAnalysisSeat
+    : usableAnalysisSeats[0] ?? preferredAnalysisSeat
+  const selectedAnalysis = pendingAnalyses[selectedAnalysisSeat]
+  const ghostAnalysis = selectedAnalysis?.kind === 'ok' ? selectedAnalysis : undefined
+  const chartSeries = useMemo(
+    () => buildTPSeries(model, selectedAnalysisSeat),
+    [model, selectedAnalysisSeat],
+  )
   const justResolved = cursorState.cursor > 0
     ? model.auctions[cursorState.cursor - 1]
     : undefined
@@ -167,7 +185,7 @@ function GameView({ game, onExit }: GameViewProps) {
               {annotations?.losingIntent !== undefined && (
                 <button
                   aria-label={`${showLosingIntent ? 'Hide' : 'Show'} losing intent`}
-                  aria-pressed={!showLosingIntent}
+                  aria-pressed={showLosingIntent}
                   onClick={() => setShowLosingIntent((shown) => !shown)}
                   type="button"
                 >
@@ -180,7 +198,12 @@ function GameView({ game, onExit }: GameViewProps) {
         <aside aria-label="Replay analysis" className="game-view__analysis-column">
           <details className="game-view__analysis-card" open>
             <summary>Analysis &amp; chart</summary>
-            <MetricsPanel analyses={pendingAnalyses} position={position} />
+            <MetricsPanel
+              analyses={pendingAnalyses}
+              onSelectedSeatChange={setPreferredAnalysisSeat}
+              position={position}
+              selectedSeat={selectedAnalysisSeat}
+            />
             {ghostAnalysis !== undefined && (
               <div aria-label="Conditional move legend" className="game-view__ghost-legend">
                 <span className="game-view__ghost-legend-X">● X · if X wins</span>
