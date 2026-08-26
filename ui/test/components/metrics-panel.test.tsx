@@ -88,7 +88,7 @@ describe('MetricsPanel', () => {
     render(<MetricsPanelHarness analyses={{ X: bound }} position={zeroPosition} />)
 
     expect(screen.getByTestId('budget-units').textContent).toBe('0 / 0 units')
-    expect(screen.getByText('T: n/a — both budgets exhausted')).not.toBeNull()
+    expect(screen.getByText('T: 62.50%')).not.toBeNull()
     expect(screen.getByText('p: n/a — both budgets exhausted')).not.toBeNull()
     expect(screen.getByText('margin p−T: n/a — both budgets exhausted')).not.toBeNull()
     expect(screen.getByText('both budgets exhausted')).not.toBeNull()
@@ -134,12 +134,11 @@ describe('MetricsPanel', () => {
     expect(screen.queryByText(/criticalBid/)).toBeNull()
   })
 
-  it('marks bound interval percentages not applicable when both budgets are zero', () => {
+  it('keeps bound interval percentages visible when both budgets are zero', () => {
     render(<MetricsPanelHarness analyses={{ X: bound }} position={position({ X: 0, O: 0 })} />)
 
-    expect(screen.getByText((_, element) => element?.tagName === 'P'
-      && element.textContent === 'interval [n/a — both budgets exhausted (0 units), n/a — both budgets exhausted (0 units)]')).not.toBeNull()
-    expect(screen.queryByText(/interval \[50\.00%/)).toBeNull()
+    expect(screen.getByText('interval [50.00%, 75.00%]')).not.toBeNull()
+    expect(screen.queryByText(/both budgets exhausted \(0 units\)/)).toBeNull()
   })
 
   it('shows a seat selector only when both seats have usable analysis', () => {

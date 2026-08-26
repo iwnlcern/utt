@@ -41,10 +41,10 @@ const loggedFieldOrder = [
 ] as const
 
 function dualShare(value: number, combined: number): string {
-  if (combined === 0) {
-    return `${formatPercent(share(0, combined))} (${formatUnits(0)} units)`
-  }
   const basisPoints = percentBasisPoints({ kind: 'ok', value }) ?? 0
+  if (combined === 0) {
+    return formatPercentBasisPoints(basisPoints)
+  }
   return `${formatPercentBasisPoints(basisPoints)} (${formatUnits(roundShareToUnits(value, combined))} units)`
 }
 
@@ -123,9 +123,7 @@ function Metrics({ entry, p, combined }: {
   const favored = favoredLabel(displayedMargin)
   const thresholdText = threshold === undefined
     ? thresholdUnavailable
-    : p.kind === 'na'
-      ? formatPercent(p)
-      : dualShare(threshold, combined)
+    : dualShare(threshold, combined)
 
   return (
     <div className="metrics__values">
