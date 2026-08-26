@@ -66,3 +66,23 @@ Task 7 residual risk: live referee/conformance-log E3 validation was not perform
 Task 8: fix round 1/5 (1 important + 1 minor addressed, 0 open — bound interval contract and focused gate/cursor regressions; commits 37ab47a..4666bbc).
 Task 8: complete (commits 23e4051..4666bbc, review clean).
 Task 8 residual risk: PV_PIN remains intentionally false until the harness publishes the exact state-hash/convention artifact; all consumers must preserve that gate.
+Task 9: fix round 1/5 (1 addressed, 0 open — distinct X/O conditional ghosts and explicit split coincidence badge without flipping PV_PIN; commits ce42bf9..37acdc6).
+Task 9: complete (commits 4666bbc..37acdc6, review clean).
+Task 10: fix round 1/5 (2 addressed, 0 open — final-attempt fault labeling and explicit truncation provenance from validation through replay; commits f86453f..4c41be6).
+Task 10: complete (commits 37acdc6..4c41be6, review clean).
+Task 10 ruling: v1 recovery placement may classify pre/post by final request linkage because the protocol admits only retry-pre and continuing-single-fault-post shapes; preserve a raw emission-side carrier if the owner schema later expands — cost if wrong: a future new recovery shape could be displayed on the wrong side of its auction row.
+Task 11: fix round 1/5 (2 important + 1 minor addressed — stable comparison policy, usable-seat fallback, both-zero a11y semantics; commits 1f3c87b..b59499c).
+Task 11: fix round 2/5 (2 addressed — missing-t margin semantics and both-zero interval n/a; commits b59499c..aa293db).
+Task 11: fix round 3/5 (2 addressed — zero-denominator cross-product precedence and raw-share exact-unit rounding; commits aa293db..16763bc).
+Task 11: fix round 4/5 (1 addressed, 0 open — machine-scale raw-share sign comparison with presentational rounding only; commits 16763bc..ce0c289).
+Task 11: complete (commits 4c41be6..ce0c289, review clean).
+Task 12: fix round 1/5 (2 important + 1 minor addressed, 0 open — trace-level non-color cue, bounded values, and exact cursor behavior; commits 51f8141..398a538).
+Task 12: complete (commits ce0c289..398a538, review clean).
+Task 13: fix round 1/5 (1 addressed, 0 open — discriminated sample acquisition retry versus retained file/text retry; commits 92de059..1c05a42).
+Task 13: complete (commits 398a538..1c05a42, review clean).
+Task 14: fix round 1/5 (4 important + 1 minor addressed — keyboard guards, unified analysis seat, toggle semantics, focus contrast, hash reset; commits d7e74e0..0353c52).
+Task 14: fix round 2/5 (1 addressed, 0 open — removed clipped native file input from sequential focus order; commits 0353c52..f1299b6).
+Task 14: complete (commits 1c05a42..f1299b6, review clean).
+Task 15 ruling: malformed-interior is the normative fail-closed manifest case; acceptance succeeds by asserting structured LogError rather than forcing parse -> derive -> GameView — cost if wrong: a literal reading of the totality bullet would contradict DD §4/§8 and relax the fail-closed boundary.
+Task 15: fix round 1/5 (2 important + 1 minor addressed, 0 open — row-local recovery adjacency, complete composed both-zero metrics, accurate same-host sample wording; commits ad28a28..456e796).
+Task 15: complete (commits f1299b6..456e796, review clean).
