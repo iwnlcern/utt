@@ -46,6 +46,7 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
     }
     expectedPly += 1
 
+    const requestIds = new Set<string>()
     for (const [attemptIndex, attempt] of event.attempts.entries()) {
       const expectedAttempt = attemptIndex + 1
       if (attempt.attempt !== expectedAttempt) {
@@ -55,6 +56,14 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
           `attempt ordinals must be 1..N in logged order at event ${eventIndex}: expected ${expectedAttempt}, received ${attempt.attempt}`,
         )
       }
+      if (requestIds.has(attempt.request_id)) {
+        throw new LogError(
+          eventIndex + 1,
+          eventIndex,
+          `attempt request_id values must be unique at event ${eventIndex}: duplicate ${attempt.request_id}`,
+        )
+      }
+      requestIds.add(attempt.request_id)
     }
 
     const pre = positions.at(-1)
@@ -107,12 +116,30 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
     })
   }
 
+  const trailingRecoveryRecords = recoveries.filter(
+    ({ recovery }) => !auctions.some((auction) => auction.ply === recovery.ply),
+  )
+  for (const { recovery, eventIndex } of trailingRecoveryRecords) {
+    if (game.end !== undefined) {
+      throw new LogError(
+        eventIndex + 1,
+        eventIndex,
+        `recovery at event ${eventIndex} references missing auction ply ${recovery.ply} in a complete log`,
+      )
+    }
+    if (recovery.ply !== expectedPly) {
+      throw new LogError(
+        eventIndex + 1,
+        eventIndex,
+        `recovery at event ${eventIndex} references missing auction ply ${recovery.ply}; next expected absent auction ply is ${expectedPly}`,
+      )
+    }
+  }
+
   return {
     setup: { start: game.start },
     auctions,
-    trailingRecoveries: recoveries
-      .filter(({ recovery }) => !auctions.some((auction) => auction.ply === recovery.ply))
-      .map(({ recovery }) => recovery),
+    trailingRecoveries: trailingRecoveryRecords.map(({ recovery }) => recovery),
     terminal: game.end,
     positions,
     truncated: game.truncated,

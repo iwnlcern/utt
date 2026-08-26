@@ -167,6 +167,52 @@ describe('deriveReplayModel', () => {
     )
   })
 
+  it('rejects a recovery whose auction is absent from a complete terminal log', () => {
+    const events = fixtureText('hello-fault.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const recovery = JSON.parse(fixtureText('trailing-recovery.jsonl').split('\n')[1])
+    recovery.game_id = events[0].game_id
+    events.splice(1, 0, recovery)
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 2,
+        event_index: 1,
+        reason: 'recovery at event 1 references missing auction ply 0 in a complete log',
+      } satisfies Partial<LogError>),
+    )
+  })
+
+  it('rejects a trailing recovery unless it references the next expected absent auction ply', () => {
+    const events = fixtureText('trailing-recovery.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    events[1].ply = 1
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 2,
+        event_index: 1,
+        reason: 'recovery at event 1 references missing auction ply 1; next expected absent auction ply is 0',
+      } satisfies Partial<LogError>),
+    )
+  })
+
+  it('rejects duplicate request ids within one auction before recovery association', () => {
+    const events = fixtureText('double-fault-retry.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const auction = events.find((event) => event.event === 'auction')
+    auction.attempts[1].request_id = auction.attempts[0].request_id
+    const duplicateRequestId = auction.attempts[0].request_id
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line: 4,
+        event_index: 3,
+        reason: `attempt request_id values must be unique at event 3: duplicate ${duplicateRequestId}`,
+      } satisfies Partial<LogError>),
+    )
+  })
+
   it('retains a voided auction without advancing the replay position', () => {
     const model = deriveReplayModel(fixtureRecord('void-triple-double-fault.jsonl'))
     const finalStep = model.auctions.at(-1)

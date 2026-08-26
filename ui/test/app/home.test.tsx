@@ -222,6 +222,24 @@ describe('Home', () => {
     expect(onLoaded).not.toHaveBeenCalled()
   })
 
+  it('shows a structured error for a complete log with an orphan recovery', async () => {
+    const onLoaded = vi.fn()
+    const events = fixtureText('hello-fault.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const recovery = JSON.parse(fixtureText('trailing-recovery.jsonl').split('\n')[1])
+    recovery.game_id = events[0].game_id
+    events.splice(1, 0, recovery)
+    render(<Home onLoaded={onLoaded} />)
+
+    await dropFile(new File([`${events.map(JSON.stringify).join('\n')}\n`], 'orphan-recovery.jsonl'))
+
+    expect(await screen.findByRole('heading', { name: 'Could not open orphan-recovery.jsonl' })).toBeTruthy()
+    expect(screen.getByText('Line 2')).toBeTruthy()
+    expect(screen.getByText('Event 1')).toBeTruthy()
+    expect(screen.getByText('recovery at event 1 references missing auction ply 0 in a complete log')).toBeTruthy()
+    expect(window.localStorage.getItem(RECENTS_STORAGE_KEY)).toBeNull()
+    expect(onLoaded).not.toHaveBeenCalled()
+  })
+
   it('shows a structured error for invalid attempt ordinals before saving or opening', async () => {
     const onLoaded = vi.fn()
     const events = fixtureText('double-fault-retry.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
