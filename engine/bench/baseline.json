@@ -1,0 +1,33 @@
+{
+  "identity": {
+    "build_type": "RelWithDebInfo",
+    "compile_flags": "-O2 -g -DNDEBUG -std=c++26 -Wall -Wextra -Werror -O3",
+    "compiler": "Homebrew Clang 22.1.8",
+    "cpu": "Apple M5 Pro",
+    "executable_sha256": "6ab2f819a1673c78df6604072402daae8cfcc77d38b6f8153aed1a42fc9429de",
+    "seeds": [
+      1311768467463790320,
+      1089357896855742840,
+      15118214566308024884,
+      11936128519239483119
+    ],
+    "session_uuid": "1cd8258f-40bb-8984-359e-1370479d8ee5"
+  },
+  "measured_runs": 10,
+  "median_ref_ns_per_ply": 883.24801025,
+  "mode": "reference",
+  "per_run_ns_per_ply": [
+    880.3344375,
+    877.1597295,
+    879.5523125,
+    889.11825,
+    881.470021,
+    882.881125,
+    885.998125,
+    888.499771,
+    897.878667,
+    883.6148955
+  ],
+  "plies_per_run": 2000000,
+  "warmup_runs": 2
+}
