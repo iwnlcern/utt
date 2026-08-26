@@ -106,6 +106,49 @@ describe('extractAnalysis', () => {
   })
 
   it.each([
+    ['negative', -0.001],
+    ['greater than one', 1.001],
+  ])('degrades a %s threshold share while retaining other usable fields', (_name, t) => {
+    expect(extractAnalysis(firstStepWithInfo({ t, critical_bid: 4_000_000_000 })).X).toEqual({
+      kind: 'ok',
+      criticalBid: 4_000_000_000,
+      degraded: ['t'],
+    })
+  })
+
+  it.each([
+    ['negative lower endpoint', -0.001, 0.75],
+    ['upper endpoint greater than one', 0.25, 1.001],
+  ])('degrades the whole bound family for a %s', (_name, lo, hi) => {
+    const entry = extractAnalysis(firstStepWithInfo({
+      t: 0.5,
+      quality: 'bound',
+      lo,
+      hi,
+    })).X
+
+    expect(entry).toMatchObject({ kind: 'ok', t: 0.5 })
+    if (entry?.kind !== 'ok') throw new Error('valid t must keep the entry usable')
+    expect(entry).not.toHaveProperty('quality')
+    expect(entry).not.toHaveProperty('lo')
+    expect(entry).not.toHaveProperty('hi')
+    expect(entry.degraded).toEqual(expect.arrayContaining(['quality', 'lo', 'hi']))
+  })
+
+  it('degrades a negative critical bid without imposing an upper bound', () => {
+    expect(extractAnalysis(firstStepWithInfo({ t: 0.5, critical_bid: -1 })).X).toEqual({
+      kind: 'ok',
+      t: 0.5,
+      degraded: ['criticalBid'],
+    })
+    expect(extractAnalysis(firstStepWithInfo({ critical_bid: 4_000_000_000 })).X).toEqual({
+      kind: 'ok',
+      criticalBid: 4_000_000_000,
+      degraded: [],
+    })
+  })
+
+  it.each([
     ['both endpoints', { t: 0.375, quality: 'bound' }],
     ['the lower endpoint', { t: 0.375, quality: 'bound', hi: 0.75 }],
     ['the upper endpoint', { t: 0.375, quality: 'bound', lo: 0.5 }],

@@ -28,6 +28,9 @@ const marks: readonly Mark[] = ['X', 'O']
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
 
+const isShare = (value: unknown): value is number =>
+  isFiniteNumber(value) && value >= 0 && value <= 1
+
 const isInteger = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value)
 
@@ -55,7 +58,7 @@ function extractEntry(info: unknown): AnalysisEntry {
   let malformed = false
 
   if ('t' in fields) {
-    if (isFiniteNumber(fields.t)) {
+    if (isShare(fields.t)) {
       entry.t = fields.t
       extracted = true
     } else {
@@ -64,7 +67,7 @@ function extractEntry(info: unknown): AnalysisEntry {
     }
   }
   if ('critical_bid' in fields) {
-    if (isInteger(fields.critical_bid)) {
+    if (isInteger(fields.critical_bid) && fields.critical_bid >= 0) {
       entry.criticalBid = fields.critical_bid
       extracted = true
     } else {
@@ -102,7 +105,7 @@ function extractEntry(info: unknown): AnalysisEntry {
     }
   }
   if ('lo' in fields) {
-    if (isFiniteNumber(fields.lo)) {
+    if (isShare(fields.lo)) {
       entry.lo = fields.lo
       extracted = true
     } else {
@@ -111,7 +114,7 @@ function extractEntry(info: unknown): AnalysisEntry {
     }
   }
   if ('hi' in fields) {
-    if (isFiniteNumber(fields.hi)) {
+    if (isShare(fields.hi)) {
       entry.hi = fields.hi
       extracted = true
     } else {

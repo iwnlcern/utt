@@ -48,6 +48,14 @@ const gameWithOOnlyAnalysis = () => {
   return game
 }
 
+const gameWithInvalidThreshold = () => {
+  const game = fixtureGame('ghost-divergence.jsonl')
+  const firstAuction = game.events.find((event) => event.event === 'auction')
+  if (firstAuction === undefined) throw new Error('ghost divergence fixture must contain an auction')
+  firstAuction.attempts[0].turns.X.info = { t: -0.001, critical_bid: 100_000_000 }
+  return game
+}
+
 describe('GameView', () => {
   beforeEach(() => {
     window.history.replaceState(null, '', '/')
@@ -206,6 +214,15 @@ describe('GameView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next position' }))
 
     expect(screen.getByRole('region', { name: 'analysis metrics' }).textContent).toContain('no info in log')
+    expect(screen.getByRole('img', { name: /current t: unavailable; current p: 50\.00%/i })).not.toBeNull()
+  })
+
+  it('uses the same degraded threshold in pending metrics and the chart series', () => {
+    render(<GameView game={gameWithInvalidThreshold()} />)
+
+    expect(screen.getByRole('region', { name: 'analysis metrics' }).textContent).toContain(
+      'T: unavailable — t not present in analysis',
+    )
     expect(screen.getByRole('img', { name: /current t: unavailable; current p: 50\.00%/i })).not.toBeNull()
   })
 
