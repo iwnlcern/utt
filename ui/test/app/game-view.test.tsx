@@ -235,6 +235,9 @@ describe('GameView', () => {
       expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true)
     }
     expect(screen.queryByRole('button', { name: /select pending ply/ })).toBeNull()
+    expect(screen.getByTestId('setup-row').textContent).toContain('X hello: eof_or_crash fault')
+    expect(screen.getByTestId('setup-row').textContent).toContain('O hello: ok · stub')
+    expect(screen.getByTestId('terminal-hello_fault').textContent).toContain('hello_fault')
   })
 
   it('binds metrics to the pending auction and the whole-game chart to cursor positions', () => {

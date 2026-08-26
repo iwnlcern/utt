@@ -1,5 +1,5 @@
 import { formatPercent, formatUnits, share } from '../format/money'
-import type { Mark, RecoveryEvent, TurnRecord } from '../log/types'
+import type { HelloRecord, Mark, RecoveryEvent, TurnRecord } from '../log/types'
 import type { AuctionStep, ReplayModel } from '../replay/model'
 import '../styles/tokens.css'
 
@@ -62,6 +62,11 @@ function recoveryLabel(recovery: RecoveryEvent): string {
     ? recovery.hello.name
     : `${recovery.hello.validation} fault`
   return `${recovery.seat} · ${recovery.fault} · restart hello: ${restart}`
+}
+
+function helloLabel(hello: HelloRecord): string {
+  if (hello.validation === 'ok') return `ok · ${hello.name}`
+  return `${hello.validation} fault${hello.name === undefined ? '' : ` · ${hello.name}`}`
 }
 
 function RecoveryMarkers({ recoveries, placement, ply }: {
@@ -171,6 +176,11 @@ function AuctionRow({ step, index, onSelect }: {
 export function Timeline({ model, onSelect }: TimelineProps) {
   return (
     <section aria-label="auction timeline" className="timeline">
+      <article data-testid="setup-row">
+        <p>setup / hello</p>
+        <p>X hello: {helloLabel(model.setup.start.hellos.X)}</p>
+        <p>O hello: {helloLabel(model.setup.start.hellos.O)}</p>
+      </article>
       {model.auctions.map((step, index) => (
         <AuctionRow index={index} key={step.ply} onSelect={onSelect} step={step} />
       ))}

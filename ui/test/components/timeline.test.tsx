@@ -16,6 +16,16 @@ const fixtureModel = (name: string) => deriveReplayModel(parseGameLog(
 describe('Timeline', () => {
   afterEach(cleanup)
 
+  it('renders both logged setup hello outcomes before a zero-auction terminal', () => {
+    render(<Timeline model={fixtureModel('hello-fault.jsonl')} onSelect={vi.fn()} />)
+
+    const setup = screen.getByTestId('setup-row')
+    const terminal = screen.getByTestId('terminal-hello_fault')
+    expect(setup.textContent).toContain('X hello: eof_or_crash fault')
+    expect(setup.textContent).toContain('O hello: ok · stub')
+    expect(setup.compareDocumentPosition(terminal) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+  })
+
   it('selects cursor zero from the first row without subtracting the zero-based wire ply', () => {
     const onSelect = vi.fn()
     render(<Timeline model={fixtureModel('success-macro-win.jsonl')} onSelect={onSelect} />)
