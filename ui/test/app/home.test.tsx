@@ -183,4 +183,42 @@ describe('Home', () => {
     expect(screen.getByText('Event 1')).toBeTruthy()
     expect(onLoaded).not.toHaveBeenCalled()
   })
+
+  it('rejects a schema-valid nonsequential ply before saving or opening the game', async () => {
+    const onLoaded = vi.fn()
+    const nonsequential = fixtureText('success-macro-win.jsonl').replace('"ply":1', '"ply":2')
+    render(<Home onLoaded={onLoaded} />)
+
+    await dropFile(new File([nonsequential], 'nonsequential.jsonl'))
+
+    expect(await screen.findByRole('heading', { name: 'Could not open nonsequential.jsonl' })).toBeTruthy()
+    expect(screen.getByText('Line 3')).toBeTruthy()
+    expect(screen.getByText('Event 2')).toBeTruthy()
+    expect(screen.getByText('non-sequential auction ply at event 2: expected 1, received 2')).toBeTruthy()
+    expect(window.localStorage.getItem(RECENTS_STORAGE_KEY)).toBeNull()
+    expect(onLoaded).not.toHaveBeenCalled()
+  })
+
+  it('rejects a stale recovery association and retains its source for retry', async () => {
+    const onLoaded = vi.fn()
+    const events = fixtureText('fault-single.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const recovery = events.find((event) => event.event === 'recovery')
+    recovery.trigger_request_id = 'stale-request-id'
+    const staleRecovery = `${events.map(JSON.stringify).join('\n')}\n`
+    render(<Home onLoaded={onLoaded} />)
+
+    await dropFile(new File([staleRecovery], 'stale-recovery.jsonl'))
+
+    expect(await screen.findByRole('heading', { name: 'Could not open stale-recovery.jsonl' })).toBeTruthy()
+    expect(screen.getByText('Line 3')).toBeTruthy()
+    expect(screen.getByText('Event 2')).toBeTruthy()
+    expect(screen.getByText('recovery trigger_request_id does not match an attempt at ply 0')).toBeTruthy()
+    expect(window.localStorage.getItem(RECENTS_STORAGE_KEY)).toBeNull()
+    expect(onLoaded).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry stale-recovery.jsonl' }))
+
+    expect(await screen.findByText('recovery trigger_request_id does not match an attempt at ply 0')).toBeTruthy()
+    expect(onLoaded).not.toHaveBeenCalled()
+  })
 })

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 
 import type { GameRecord } from '../log/gameRecord'
 import { LogError, parseGameLog } from '../log/validate'
+import { deriveReplayModel } from '../replay/derive'
 import { clearRecents, readRecents, recentForGame, saveRecent, type RecentGame } from './recents'
 
 type FileSource = {
@@ -51,6 +52,7 @@ function Home({ onLoaded }: HomeProps) {
     try {
       const text = source.kind === 'text' ? source.text : await readFile(source.file)
       const game = parseGameLog(text)
+      deriveReplayModel(game)
       const saved = saveRecent(recentForGame(source.name, text, game))
       setRecents(saved.recents)
       setNotice(saved.persisted ? null : 'Browser storage is full. Recent games are available for this session only.')
