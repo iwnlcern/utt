@@ -347,15 +347,11 @@ describe('UI v1 composed acceptance', () => {
     expect(screen.getByTestId('budget-units').textContent).toBe('0 / 0 units')
     expect(screen.getByRole('status', { name: 'X budget share: n/a — both budgets exhausted' })).not.toBeNull()
     expect(screen.getByRole('status', { name: 'O budget share: n/a — both budgets exhausted' })).not.toBeNull()
-    expect(metrics.textContent).toContain('T: n/a — both budgets exhausted')
+    expect([...metrics.querySelectorAll('p')].map((element) => element.textContent)).toContain('T: 62.50%')
     expect(metrics.textContent).toContain('p: n/a — both budgets exhausted')
     expect(metrics.textContent).toContain('margin p−T: n/a — both budgets exhausted')
     expect(metrics.textContent).toContain('critical bid: 0 units (n/a — both budgets exhausted)')
-    expect(metrics.textContent).toContain(
-      'interval [n/a — both budgets exhausted (0 units), n/a — both budgets exhausted (0 units)]',
-    )
-    expect(metrics.textContent).not.toContain('T: 62.50%')
-    expect(metrics.textContent).not.toContain('interval [50.00%')
+    expect(metrics.textContent).toContain('interval [50.00%, 75.00%]')
     expect(screen.getByRole('status', { name: 'replay position' }).textContent).toContain('Position 35 of')
   })
 
