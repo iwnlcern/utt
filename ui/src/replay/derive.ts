@@ -31,6 +31,9 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
   for (const [eventIndex, event] of game.events.entries()) {
     if (event.event !== 'auction') continue
 
+    // DD-harness-c1-20260825 §8 (lines 126, 134): one auction is logged per
+    // attempted ply. DD-harness §§5.1, 8 (lines 97–100, 138–141) and protocol
+    // §5 fault taxonomy (lines 161–169) make non-resolved outcomes terminal.
     if (unresolvedPly !== undefined) {
       throw new LogError(
         eventIndex + 1,
@@ -47,6 +50,8 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
     }
     expectedPly += 1
 
+    // DD-harness-c1-20260825 §8; protocol §§3.2, 5 (lines 87–89, 161–165):
+    // attempts are ordinal retries, and every fresh request_id is unique.
     for (const [attemptIndex, attempt] of event.attempts.entries()) {
       const expectedAttempt = attemptIndex + 1
       if (attempt.attempt !== expectedAttempt) {
@@ -70,6 +75,8 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
     if (pre === undefined) throw new Error('replay positions must start with position_0')
 
     const stepRecoveries: RecoveryEvent[] = []
+    // DD-harness-c1-20260825 §8; protocol §8 (lines 229–231): recoveries
+    // carry their triggering ply and request ID, so association is by identity.
     for (const { recovery, eventIndex: recoveryEventIndex } of recoveries) {
       if (recovery.ply !== event.ply) continue
       if (!event.attempts.some((attempt) => attempt.request_id === recovery.trigger_request_id)) {
@@ -119,6 +126,10 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
   const trailingRecoveryRecords = recoveries.filter(
     ({ recovery }) => !auctions.some((auction) => auction.ply === recovery.ply),
   )
+  // Fail-closed reader extension, not an owner-contract acceptance rule: the
+  // only admitted incomplete prefix is derived from DD-harness §§5.1, 8
+  // (lines 98–100, 138–141) and protocol §§5, 8 (lines 161–169, 229–231);
+  // it may reference only its next absent auction, while complete logs reject orphans.
   for (const { recovery, eventIndex } of trailingRecoveryRecords) {
     if (game.end !== undefined) {
       throw new LogError(
@@ -137,6 +148,8 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
   }
 
   let trailingTriggerRequestId: string | undefined
+  // DD-harness-c1-20260825 §8; protocol §§5, 8 (lines 161–165, 229–231): an
+  // incomplete double-fault prefix is at most X then O for one request ID.
   for (const [trailingIndex, { recovery, eventIndex }] of trailingRecoveryRecords.entries()) {
     if (trailingIndex >= 2) {
       throw new LogError(
