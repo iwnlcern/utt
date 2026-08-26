@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "game": "uttt",
+  "fixtures": [
+    {
+      "id": "legality-forced-center-opening",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "Rule 5: move one is forced to local board 4.",
+      "state": {
+        "board": [".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", "........."],
+        "forced": 4,
+        "h": null,
+        "budgets": {"x": 100, "o": 100}
+      },
+      "expected_legal_moves": [[4, 0], [4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6], [4, 7], [4, 8]]
+    },
+    {
+      "id": "legality-free-two-open-boards",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "HAND-VERIFIED free choice: the complete list is local 0 cell 8 and local 1 cells 7,8; the other seven locals are full draws.",
+      "state": {
+        "board": ["XOXXOOOX.", "OXOOXXX..", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX"],
+        "forced": null,
+        "h": "X",
+        "budgets": {"x": 17, "o": 23}
+      },
+      "expected_legal_moves": [[0, 8], [1, 7], [1, 8]]
+    },
+    {
+      "id": "legality-forced-closed-means-free-choice",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "HAND-VERIFIED free choice: forced local 4 is closed; complete list is cells 6,7,8 in each of open locals 2 and 6.",
+      "state": {
+        "board": ["XOXXOOOXX", "XOXXOOOXX", "XOXOXO...", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "OXOXOX...", "XOXXOOOXX", "XOXXOOOXX"],
+        "forced": 4,
+        "h": "O",
+        "budgets": {"x": 9, "o": 11}
+      },
+      "expected_legal_moves": [[2, 6], [2, 7], [2, 8], [6, 6], [6, 7], [6, 8]]
+    },
+    {
+      "id": "legality-free-single-open-board",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "HAND-VERIFIED free choice: local 3 is the only open board and its complete empty-cell list is 7,8.",
+      "state": {
+        "board": ["XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXOOXX..", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX"],
+        "forced": null,
+        "h": "X",
+        "budgets": {"x": 1, "o": 0}
+      },
+      "expected_legal_moves": [[3, 7], [3, 8]]
+    }
+  ]
+}

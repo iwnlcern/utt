@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "game": "uttt",
+  "fixtures": [
+    {
+      "id": "closure-local-x-win-propagates-forced",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "X closes local 4 and cell 2 routes to still-open local 2.",
+      "state": {"board": [".........", ".........", ".........", ".........", "XX.OO....", ".........", ".........", ".........", "........."], "forced": 4, "h": "O", "budgets": {"x": 12, "o": 13}},
+      "move": [4, 2],
+      "move_by": "X",
+      "expected_closures": [{"local": 4, "result": "X"}],
+      "expected_forced": 2,
+      "expected_terminal": null
+    },
+    {
+      "id": "closure-full-draw-routes-open",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "O fills local 3 without a line; cell 8 routes to open local 8.",
+      "state": {"board": [".........", ".........", ".........", "XOXXOOOX.", ".........", ".........", ".........", ".........", "........."], "forced": 3, "h": "X", "budgets": {"x": 8, "o": 8}},
+      "move": [3, 8],
+      "move_by": "O",
+      "expected_closures": [{"local": 3, "result": "full"}],
+      "expected_forced": 8,
+      "expected_terminal": null
+    },
+    {
+      "id": "routing-send-to-closed-free-choice",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "Cell 4 targets an already full local board, so the successor is free choice.",
+      "state": {"board": [".........", ".........", ".........", ".........", "XOXXOOOXX", ".........", ".........", ".........", "........."], "forced": 2, "h": "O", "budgets": {"x": 4, "o": 6}},
+      "move": [2, 4],
+      "move_by": "X",
+      "expected_closures": [],
+      "expected_forced": null,
+      "expected_terminal": null
+    },
+    {
+      "id": "routing-self-closing-send-free-choice",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "X closes local 2 by playing cell 2; the self-target is now closed, yielding free choice.",
+      "state": {"board": [".........", ".........", "XX.OO....", ".........", ".........", ".........", ".........", ".........", "........."], "forced": 2, "h": "O", "budgets": {"x": 20, "o": 19}},
+      "move": [2, 2],
+      "move_by": "X",
+      "expected_closures": [{"local": 2, "result": "X"}],
+      "expected_forced": null,
+      "expected_terminal": null
+    },
+    {
+      "id": "routing-ordinary-forced-propagation",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "A non-closing move to cell 7 forces the next auction winner into open local 7.",
+      "state": {"board": [".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", "........."], "forced": 5, "h": "X", "budgets": {"x": 3, "o": 7}},
+      "move": [5, 7],
+      "move_by": "O",
+      "expected_closures": [],
+      "expected_forced": 7,
+      "expected_terminal": null
+    },
+    {
+      "id": "closure-double-line-macro-precedes-all-closed",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "Closing center gives X both macro diagonals while also closing the ninth local; macro_win wins the terminal-detection ordering over all_closed.",
+      "state": {"board": ["XXXOO....", "XOXXOOOXX", "XXXOO....", "XOXXOOOXX", "XX.OO....", "XOXXOOOXX", "XXXOO....", "XOXXOOOXX", "XXXOO...."], "forced": 4, "h": "O", "budgets": {"x": 5, "o": 5}},
+      "move": [4, 2],
+      "move_by": "X",
+      "expected_closures": [{"local": 4, "result": "X"}],
+      "expected_forced": null,
+      "expected_terminal": "macro_win"
+    }
+  ]
+}

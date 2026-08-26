@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "game": "uttt",
+  "fixtures": [
+    {
+      "id": "terminal-x-macro-win-outright",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "Macro boards 0,1,2 belong to X; the macro win is outright regardless of chips.",
+      "state": {"board": ["XXXOO....", "XXXOO....", "XXXOO....", ".........", ".........", ".........", ".........", ".........", "........."], "forced": null, "h": "O", "budgets": {"x": 0, "o": 100}},
+      "expected_result": "X",
+      "chip_margin": -100
+    },
+    {
+      "id": "terminal-all-closed-chip-margin-plus-one",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "All locals are full draws; X wins the post-payment chip comparison by one.",
+      "state": {"board": ["XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX"], "forced": null, "h": "O", "budgets": {"x": 6, "o": 5}},
+      "expected_result": "X",
+      "chip_margin": 1
+    },
+    {
+      "id": "terminal-all-closed-chip-margin-minus-one",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "All locals are full draws; O wins the post-payment chip comparison by one.",
+      "state": {"board": ["XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX"], "forced": null, "h": "X", "budgets": {"x": 5, "o": 6}},
+      "expected_result": "O",
+      "chip_margin": -1
+    },
+    {
+      "id": "terminal-all-closed-chip-margin-zero",
+      "game": "uttt",
+      "consumed_by": ["engine", "harness", "theory"],
+      "notes": "All locals are full draws and equal post-payment stacks produce the half-half draw.",
+      "state": {"board": ["XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX"], "forced": null, "h": "X", "budgets": {"x": 5, "o": 5}},
+      "expected_result": "draw",
+      "chip_margin": 0
+    },
+    {
+      "id": "terminal-final-payment-before-chip-comparison",
+      "game": "uttt",
+      "consumed_by": ["harness", "ui", "theory"],
+      "notes": "Ordering pin: these are the stacks after the final winning bid was destroyed; terminal detection then awards the all-closed game to O at margin -1.",
+      "state": {"board": ["XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX"], "forced": null, "h": "O", "budgets": {"x": 4, "o": 5}},
+      "expected_result": "O",
+      "chip_margin": -1
+    }
+  ]
+}
