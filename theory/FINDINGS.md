@@ -306,30 +306,41 @@ it preserves the P3 UTTT reachability gap honestly.
 
 ## P1 — Exact equality classification
 
-Status: `proposed-for-ratification`
+Ratification status: `ratified-as-amended`
 
-Three boundaries are proposed without conflation:
+Status: `defined`
 
-1. Referee integer arithmetic classifies every realized sequence of bids and
-   moves; it does not solve optimal play.
-2. The exact discrete oracle classifies optimal play only on the states and
-   scales it solved: exhaustive N<=32 and the deterministic N=64/128 target
-   population.
-3. This package does not supply a complete 10^9-unit in-band optimal classifier
-   and assigns no continuous winner at `p=T`. A future exact canonical-scale
-   classifier would be a separately authorized artifact.
+The operator ratified these three boundaries without conflation:
+
+1. P1a — solved-scale authority. At scales the exact discrete oracle has
+   actually solved—exhaustive N<=32 plus the targeted N=64/128 spots—the oracle
+   remains authoritative for exact-equality classification. No convention
+   overrides computed truth.
+2. P1b — larger-scale convention. At larger scales, including canonical
+   10^9-unit play, an exactly representable `p=T` is treated as won by the tie
+   owner `h`. This is an operator-ratified convention, not a theorem or an
+   established optimal-play fact. Every presentation, including engine
+   analysis output and documentation, must label it as a convention and must
+   never present it as established optimal play.
+3. P1c — non-blocking side obligation. A dedicated sweep will enumerate
+   exactly representable `p=T` masked points at the solved scales and report
+   outcomes by tie owner and state class. It will document agreements and
+   disagreements to calibrate the convention's fidelity, with material
+   disagreements routed back to the operator. This is future implementation
+   work for a small successor theory cycle (a theory-c2 candidate after PR #7
+   lands), outside this fold and non-blocking for the math lock, merge, and
+   engine consumption of the lock.
 
 Calibration supports keeping these statements separate: the equality fixture
 `fixture:threshold-a-equals-b-zero-critical` is a draw at its selected equal
 budget points, while the conditional root fixtures at equal budgets resolve to
 different winners under different `h`.
 
-Ratification ask: accept these equality boundaries and forbid a continuous
-equality convention from being presented as exact discrete optimal play.
-
 ## P2 — 10^9-unit tolerance and fallback contract
 
-Status: `proposed-for-ratification`
+Ratification status: `ratified`
+
+Status: `defined`
 
 The engine may present a forced continuous-side classification only when the
 exact integer distance `|bx-T*M|` is strictly greater than `E(s)` units. Inside
@@ -345,13 +356,15 @@ proof: zero out-of-band errors through exhaustive N=32, `R_mis=1/3`, and no
 evidence cannot silently widen it. No claim is made for canonical in-band
 optimal classification.
 
-Ratification ask: accept `d>E(s)` as the engine's forced-classification gate and
-the in-band interval/root-matrix behavior, while retaining the explicit absence
-of a canonical in-band exact solver.
+The ratified contract accepts `d>E(s)` as the engine's forced-classification
+gate and the in-band interval/root-matrix behavior, while retaining the
+explicit absence of a canonical in-band exact solver.
 
 ## P3 — Zugzwang validation basis
 
-Status: `proposed-for-ratification`
+Ratification status: `ratified`
+
+Status: `defined`
 
 C3 has a one-step matrix proof, a finite-DAG induction, and exact synthetic
 tests across the named abstract cases, both tie owners, and four scales. C11
@@ -359,9 +372,9 @@ nevertheless establishes that the branch the spec identified as a math-lock
 risk has no reachable-state witness in Stage-1. UTTT routing may create a
 reluctant-mover state that ordinary ttt3 does not.
 
-Ratification ask: knowingly accept proof plus the synthetic harness as the
-Stage-1 validation basis for the engine's zugzwang branch. Accepting P3 accepts
-the residual no-reachable-witness gap for real UTTT; it does not convert the
+The ratified contract knowingly accepts proof plus the synthetic harness as
+the Stage-1 validation basis for the engine's zugzwang branch. P3 retains the
+residual no-reachable-witness gap for real UTTT; it does not convert the
 synthetic backup fixtures into canonical game states.
 
 ## Source and evidence index
