@@ -1,4 +1,4 @@
-import { PV_PIN, PV_UNAVAILABLE_MESSAGE, type AnalysisEntry } from '../analysis/extract'
+import { PV_PIN, PV_UNAVAILABLE_MESSAGE, hasLoggedInfo, type AnalysisEntry } from '../analysis/extract'
 import {
   formatPercent,
   formatPercentBasisPoints,
@@ -69,7 +69,7 @@ function ConditionalLines({ entry }: { entry: Extract<AnalysisEntry, { kind: 'ok
 }
 
 export function MetricsPanel({ position, analyses, selectedSeat, onSelectedSeatChange }: MetricsPanelProps) {
-  const usableSeats = seats.filter((seat) => analyses[seat]?.kind === 'ok')
+  const loggedSeats = seats.filter((seat) => hasLoggedInfo(analyses[seat]))
   const entry = analyses[selectedSeat] ?? { kind: 'unavailable', why: 'no analysis in this log' }
   const combined = position.budgets.X + position.budgets.O
   const p = share(position.budgets.X, combined)
@@ -78,11 +78,11 @@ export function MetricsPanel({ position, analyses, selectedSeat, onSelectedSeatC
     <section aria-label="analysis metrics" className="metrics">
       <h2>Analysis</h2>
       <BudgetBars budgets={position.budgets} />
-      {usableSeats.length === 2 && (
+      {loggedSeats.length === 2 && (
         <label>
           Analysis seat
           <select aria-label="analysis seat" onChange={(event) => onSelectedSeatChange(event.target.value as Mark)} value={selectedSeat}>
-            {usableSeats.map((availableSeat) => <option key={availableSeat} value={availableSeat}>{availableSeat}</option>)}
+            {loggedSeats.map((availableSeat) => <option key={availableSeat} value={availableSeat}>{availableSeat}</option>)}
           </select>
         </label>
       )}

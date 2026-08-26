@@ -64,6 +64,22 @@ const gameWithInvalidThreshold = () => {
   return game
 }
 
+const gameWithThresholdOnly = () => {
+  const game = fixtureGame('ghost-divergence.jsonl')
+  const firstAuction = game.events.find((event) => event.event === 'auction')
+  if (firstAuction === undefined) throw new Error('ghost divergence fixture must contain an auction')
+  firstAuction.attempts[0].turns.X.info = { t: 0.5 }
+  return game
+}
+
+const gameWithMalformedOThenXOnly = () => {
+  const game = gameWithBothThenXOnlyAnalysis()
+  const firstAuction = game.events.find((event) => event.event === 'auction')
+  if (firstAuction === undefined) throw new Error('ghost divergence fixture must contain an auction')
+  firstAuction.attempts[0].turns.O.info = { t: 'not-a-share' }
+  return game
+}
+
 describe('GameView', () => {
   beforeEach(() => {
     window.history.replaceState(null, '', '/')
@@ -236,6 +252,39 @@ describe('GameView', () => {
     })).not.toBeNull()
     expect(screen.getByText('depth: 4')).not.toBeNull()
     expect(screen.getByRole('img', { name: /current t: unavailable; current p: 50\.00%/i })).not.toBeNull()
+  })
+
+  it('does not advertise conditional PVs for threshold-only analysis', () => {
+    render(<GameView game={gameWithThresholdOnly()} />)
+
+    expect(screen.getByRole('region', { name: 'analysis metrics' }).textContent).toContain('T: 50.00%')
+    expect(screen.queryByText('unavailable — awaiting harness artifact pin')).toBeNull()
+    expect(screen.queryByLabelText('Conditional move legend')).toBeNull()
+  })
+
+  it('defaults to usable analysis but permits and remembers a wholly malformed supplied seat', () => {
+    render(<GameView game={gameWithMalformedOThenXOnly()} />)
+
+    const selector = screen.getByRole('combobox', { name: 'analysis seat' }) as HTMLSelectElement
+    expect(selector.value).toBe('X')
+    expect(screen.getByRole('region', { name: 'analysis metrics' }).textContent).toContain('T: 50.00%')
+
+    fireEvent.change(selector, { target: { value: 'O' } })
+
+    expect(screen.getByText('malformed info in log')).not.toBeNull()
+    expect(screen.getByRole('img', { name: /current t: unavailable; current p: 50\.00%/i })).not.toBeNull()
+    expect(screen.queryByText('unavailable — awaiting harness artifact pin')).toBeNull()
+    expect(screen.queryByLabelText('Conditional move legend')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next position' }))
+
+    expect(screen.queryByRole('combobox', { name: 'analysis seat' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'analysis metrics' }).textContent).toContain('T: 75.00%')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous position' }))
+
+    expect((screen.getByRole('combobox', { name: 'analysis seat' }) as HTMLSelectElement).value).toBe('O')
+    expect(screen.getByText('malformed info in log')).not.toBeNull()
   })
 
   it('aligns O-selected metrics, chart, and ghosts through usable-seat cursor transitions', () => {

@@ -84,9 +84,31 @@ describe('extractAnalysis', () => {
 
   it('keeps malformed advisory info out of the otherwise valid replay', () => {
     expect(extractAnalysis(firstStep('malformed-info.jsonl'))).toEqual({
-      X: { kind: 'unavailable', why: 'malformed info in log' },
+      X: { kind: 'unavailable', why: 'malformed info in log', loggedInfo: true },
       O: { kind: 'unavailable', why: 'no info in log' },
     })
+  })
+
+  it.each([
+    ['missing quality', undefined],
+    ['exact quality', 'exact'],
+    ['estimate quality', 'estimate'],
+  ] as const)('degrades logged lo and hi when bound quality is %s', (_name, quality) => {
+    const entry = extractAnalysis(firstStepWithInfo({
+      t: 0.5,
+      ...(quality === undefined ? {} : { quality }),
+      lo: 0.25,
+      hi: 0.75,
+    })).X
+
+    expect(entry).toMatchObject({
+      kind: 'ok',
+      t: 0.5,
+      ...(quality === undefined ? {} : { quality }),
+      degraded: ['lo', 'hi'],
+    })
+    expect(entry).not.toHaveProperty('lo')
+    expect(entry).not.toHaveProperty('hi')
   })
 
   it('retains well-typed fields while naming invalid fields as degraded', () => {
@@ -164,6 +186,7 @@ describe('extractAnalysis', () => {
     expect(extractAnalysis(firstStepWithInfo({ quality: 'bound' })).X).toEqual({
       kind: 'unavailable',
       why: 'malformed info in log',
+      loggedInfo: true,
     })
   })
 

@@ -17,7 +17,7 @@ export type AnalysisEntry =
     complete?: boolean
     degraded: string[]
   }
-  | { kind: 'unavailable'; why: string }
+  | { kind: 'unavailable'; why: string; loggedInfo?: true }
 
 // Flip only after the harness publishes and cites its exact state-hash artifact.
 export const PV_PIN: { pinned: boolean; source: string | null } = { pinned: false, source: null }
@@ -43,12 +43,20 @@ const isMove = (value: unknown): value is Move =>
 const isQuality = (value: unknown): value is Quality =>
   value === 'exact' || value === 'bound' || value === 'estimate'
 
-const unavailable = (why: string): AnalysisEntry => ({ kind: 'unavailable', why })
+const unavailable = (why: string, loggedInfo = false): AnalysisEntry => ({
+  kind: 'unavailable',
+  why,
+  ...(loggedInfo ? { loggedInfo: true } : {}),
+})
+
+export function hasLoggedInfo(entry: AnalysisEntry | undefined): boolean {
+  return entry?.kind === 'ok' || entry?.loggedInfo === true
+}
 
 function extractEntry(info: unknown): AnalysisEntry {
   if (info === undefined) return unavailable('no info in log')
   if (info === null || Array.isArray(info) || typeof info !== 'object') {
-    return unavailable('malformed info in log')
+    return unavailable('malformed info in log', true)
   }
 
   const fields = info as Record<string, unknown>
@@ -162,9 +170,25 @@ function extractEntry(info: unknown): AnalysisEntry {
       entry.depth,
       entry.complete,
     ].some((value) => value !== undefined)
+  } else if (entry.quality !== 'bound' && ('lo' in fields || 'hi' in fields)) {
+    delete entry.lo
+    delete entry.hi
+    for (const field of ['lo', 'hi']) {
+      if (field in fields && !degraded.includes(field)) degraded.push(field)
+    }
+    malformed = true
+    extracted = [
+      entry.t,
+      entry.criticalBid,
+      entry.pvIfWin,
+      entry.pvIfLose,
+      entry.quality,
+      entry.depth,
+      entry.complete,
+    ].some((value) => value !== undefined)
   }
 
-  if (!extracted) return unavailable(malformed ? 'malformed info in log' : 'no recognized analysis in log')
+  if (!extracted) return unavailable(malformed ? 'malformed info in log' : 'no recognized analysis in log', true)
   return entry
 }
 

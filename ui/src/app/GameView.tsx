@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useState } from 'react'
 
-import { extractAnalysis } from '../analysis/extract'
+import { extractAnalysis, hasLoggedInfo } from '../analysis/extract'
 import { buildTPSeries } from '../analysis/series'
 import { Board, type BoardAnnotations } from '../components/Board'
 import { MetricsPanel } from '../components/MetricsPanel'
@@ -26,7 +26,7 @@ function isReplayShortcutTarget(target: EventTarget | null): boolean {
 function GameView({ game, notice, onExit }: GameViewProps) {
   const model = useMemo(() => deriveReplayModel(game), [game])
   const [showLosingIntent, setShowLosingIntent] = useState(true)
-  const [preferredAnalysisSeat, setPreferredAnalysisSeat] = useState<Mark>('X')
+  const [preferredAnalysisSeat, setPreferredAnalysisSeat] = useState<Mark | null>(null)
   const [cursorState, dispatch] = useReducer(
     cursorReducer,
     createCursorState(model.positions.length - 1, window.location.hash),
@@ -74,11 +74,14 @@ function GameView({ game, notice, onExit }: GameViewProps) {
   const pendingStep = model.auctions[cursorState.cursor]
   const pendingAnalyses = pendingStep === undefined ? {} : extractAnalysis(pendingStep)
   const usableAnalysisSeats = (['X', 'O'] as const).filter((seat) => pendingAnalyses[seat]?.kind === 'ok')
-  const selectedAnalysisSeat = usableAnalysisSeats.includes(preferredAnalysisSeat)
+  const loggedAnalysisSeats = (['X', 'O'] as const).filter((seat) => hasLoggedInfo(pendingAnalyses[seat]))
+  const selectedAnalysisSeat = preferredAnalysisSeat !== null && loggedAnalysisSeats.includes(preferredAnalysisSeat)
     ? preferredAnalysisSeat
-    : usableAnalysisSeats[0] ?? preferredAnalysisSeat
+    : usableAnalysisSeats[0] ?? loggedAnalysisSeats[0] ?? preferredAnalysisSeat ?? 'X'
   const selectedAnalysis = pendingAnalyses[selectedAnalysisSeat]
-  const ghostAnalysis = selectedAnalysis?.kind === 'ok' ? selectedAnalysis : undefined
+  const conditionalAnalysis = selectedAnalysis?.kind === 'ok' && (
+    selectedAnalysis.pvIfWin !== undefined || selectedAnalysis.pvIfLose !== undefined
+  ) ? selectedAnalysis : undefined
   const chartSeries = useMemo(
     () => buildTPSeries(model, selectedAnalysisSeat),
     [model, selectedAnalysisSeat],
@@ -167,10 +170,10 @@ function GameView({ game, notice, onExit }: GameViewProps) {
               annotations={annotations}
               pending={pendingStep === undefined ? undefined : {
                 forced: pendingStep.pre.forced,
-                ...(ghostAnalysis === undefined ? {} : {
+                ...(conditionalAnalysis === undefined ? {} : {
                   conditionalGhosts: {
-                    ...(ghostAnalysis.pvIfWin === undefined ? {} : { X: ghostAnalysis.pvIfWin }),
-                    ...(ghostAnalysis.pvIfLose === undefined ? {} : { O: ghostAnalysis.pvIfLose }),
+                    ...(conditionalAnalysis.pvIfWin === undefined ? {} : { X: conditionalAnalysis.pvIfWin }),
+                    ...(conditionalAnalysis.pvIfLose === undefined ? {} : { O: conditionalAnalysis.pvIfLose }),
                   },
                 }),
               }}
@@ -206,7 +209,7 @@ function GameView({ game, notice, onExit }: GameViewProps) {
               position={position}
               selectedSeat={selectedAnalysisSeat}
             />
-            {ghostAnalysis !== undefined && (
+            {conditionalAnalysis !== undefined && (
               <div aria-label="Conditional move legend" className="game-view__ghost-legend">
                 <span className="game-view__ghost-legend-X">● X · if X wins</span>
                 <span className="game-view__ghost-legend-O">■ O · if O wins</span>
