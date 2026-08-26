@@ -256,6 +256,10 @@
   border-bottom: 1px solid var(--border);
 }
 
+.timeline article {
+  cursor: pointer;
+}
+
 .timeline article p,
 .timeline article details {
   margin: 0.35rem 0 0;

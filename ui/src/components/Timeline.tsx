@@ -95,6 +95,12 @@ function AttemptRows({ step }: { step: AuctionStep }) {
   )
 }
 
+function isInteractiveArticleTarget(target: EventTarget): boolean {
+  return target instanceof Element && target.closest(
+    'button, a, input, select, textarea, summary, details, [contenteditable]:not([contenteditable="false"])',
+  ) !== null
+}
+
 function AuctionRow({ step, index, onSelect }: {
   step: AuctionStep
   index: number
@@ -107,7 +113,12 @@ function AuctionRow({ step, index, onSelect }: {
   return (
     <>
       <RecoveryMarkers recoveries={recoveries.pre} placement="pre" ply={step.ply} />
-      <article data-testid={`auction-row-${step.ply}`}>
+      <article
+        data-testid={`auction-row-${step.ply}`}
+        onClick={(event) => {
+          if (!isInteractiveArticleTarget(event.target)) onSelect(cursor)
+        }}
+      >
         <button aria-label={`select pending ply ${step.ply}`} onClick={() => onSelect(cursor)} type="button">
           ply {step.ply}
         </button>

@@ -35,6 +35,22 @@ describe('Timeline', () => {
     expect(onSelect).toHaveBeenCalledWith(4)
   })
 
+  it('selects the pending cursor from bid and resolution content without hijacking details', () => {
+    const onSelect = vi.fn()
+    render(<Timeline model={fixtureModel('success-macro-win.jsonl')} onSelect={onSelect} />)
+
+    fireEvent.click(screen.getByTestId('bid-X-4'))
+    expect(onSelect).toHaveBeenLastCalledWith(4)
+
+    fireEvent.click(screen.getByTestId('resolution-4'))
+    expect(onSelect).toHaveBeenLastCalledWith(4)
+    expect(onSelect).toHaveBeenCalledTimes(2)
+
+    fireEvent.click(screen.getAllByText('Attempts (1)')[4]!)
+    expect(onSelect).toHaveBeenCalledTimes(2)
+    expect((screen.getAllByText('Attempts (1)')[4]!.parentElement as HTMLDetailsElement).open).toBe(true)
+  })
+
   it('keeps a terminal unresolved row on its pending cursor without exceeding the position range', () => {
     const model = fixtureModel('void-triple-double-fault.jsonl')
     const onSelect = vi.fn()
