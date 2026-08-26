@@ -116,7 +116,7 @@ function validEvent(value: unknown): value is LogEvent {
 
 export function parseGameLog(text: string): GameRecord {
   const split = splitJsonl(text)
-  if (split.lines.length === 0) throw new LogError(0, 0, 'first event must be game_start')
+  if (split.lines.length === 0) throw new LogError(1, 0, 'first event must be game_start')
 
   const events: LogEvent[] = []
   for (let index = 0; index < split.lines.length; index++) {

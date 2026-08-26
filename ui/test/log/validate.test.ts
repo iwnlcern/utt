@@ -32,23 +32,65 @@ describe('parseGameLog', () => {
     expect(record.truncated).toBe(true)
   })
 
+  it.each([
+    ['an empty input', ''],
+    ['a single discarded malformed tail', 'not-json'],
+  ])('uses line one for %s without a complete event', (_name, text) => {
+    expect(() => parseGameLog(text)).toThrow(expect.objectContaining({ line: 1, event_index: 0 }))
+  })
+
   it('marks a complete prefix without a game end as truncated', () => {
     const record = parseGameLog(fixtureText('missing-game-end.jsonl'))
     expect(record.end).toBeUndefined()
     expect(record.truncated).toBe(true)
   })
 
+  it.each(['post-auction-recovery-eof.jsonl', 'trailing-recovery.jsonl', 'trailing-recovery-xo.jsonl'])(
+    'marks the %s complete prefix as truncated',
+    (fixture) => {
+      const record = parseGameLog(fixtureText(fixture))
+      expect(record.end).toBeUndefined()
+      expect(record.truncated).toBe(true)
+    },
+  )
+
   it('rejects a wrong log version on the first event', () => {
     const text = fixtureText('success-macro-win.jsonl').replace('"log_version":1', '"log_version":2')
     expect(() => parseGameLog(text)).toThrow(/version/i)
   })
 
-  it('accepts unknown keys at every schema level', () => {
-    const text = fixtureText('success-macro-win.jsonl').replace(
-      '"event":"game_start"',
-      '"event":"game_start","future_start":true',
-    )
-    expect(parseGameLog(text).start.event).toBe('game_start')
+  it('accepts unknown keys throughout nested schema records', () => {
+    const complete = fixtureText('success-macro-win.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const start = complete[0]
+    const auction = complete.find((event) => event.event === 'auction')
+    const closureAuction = complete.find((event) => event.event === 'auction' && event.resolution.closures.length > 0)
+    const end = complete.at(-1)
+    start.future = true
+    start.engines.X.future = true
+    start.hellos.X.future = true
+    start.time_control.future = true
+    start.budgets.future = true
+    auction.future = true
+    auction.attempts[0].future = true
+    auction.attempts[0].turns.future = true
+    auction.attempts[0].turns.X.future = true
+    auction.budgets_after.future = true
+    auction.resolution.future = true
+    closureAuction.resolution.closures[0].future = true
+    end.future = true
+    end.budgets.future = true
+    end.delivery.future = true
+    end.stderr.future = true
+    end.stderr.X.future = true
+
+    const recovery = fixtureText('recovery-fault-post-resolve.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const faultRecovery = recovery.find((event) => event.event === 'recovery')
+    faultRecovery.future = true
+    faultRecovery.hello.future = true
+    faultRecovery.hello.raw.future = true
+
+    expect(parseGameLog(`${complete.map(JSON.stringify).join('\n')}\n`).end?.event).toBe('game_end')
+    expect(parseGameLog(`${recovery.map(JSON.stringify).join('\n')}\n`).end?.event).toBe('game_end')
   })
 
   it.each([
