@@ -24,6 +24,12 @@ function pointY(value: number): number {
   return PADDING.top + (1 - value) * PLOT_HEIGHT
 }
 
+function plotValue(value: number | null | undefined): number | null {
+  return value !== null && value !== undefined && Number.isFinite(value) && value >= 0 && value <= 1
+    ? value
+    : null
+}
+
 function segments(values: readonly (number | null)[]): Array<Array<{ index: number; value: number }>> {
   const result: Array<Array<{ index: number; value: number }>> = []
   let current: Array<{ index: number; value: number }> = []
@@ -57,6 +63,7 @@ function SeriesLines({ name, values, maxLength }: {
           fill="none"
           key={`${name}-${segment[0].index}`}
           points={segment.map(({ index, value }) => `${pointX(index, maxLength)},${pointY(value)}`).join(' ')}
+          {...(name === 'p' ? { strokeDasharray: '6 4' } : {})}
         />
       ))}
     </g>
@@ -65,8 +72,11 @@ function SeriesLines({ name, values, maxLength }: {
 
 export function TPChart({ series, cursor }: TPChartProps) {
   const maxLength = Math.max(series.t.length, series.p.length, 1)
-  const currentT = series.t[cursor] ?? null
-  const currentP = series.p[cursor] ?? null
+  const t = series.t.map(plotValue)
+  const p = series.p.map(plotValue)
+  const cursorIsValid = Number.isInteger(cursor) && cursor >= 0 && cursor < maxLength
+  const currentT = cursorIsValid ? t[cursor] ?? null : null
+  const currentP = cursorIsValid ? p[cursor] ?? null : null
   const ariaLabel = `T and p over replay plies. Current T: ${valueLabel(currentT)}; current p: ${valueLabel(currentP)}.`
 
   return (
@@ -80,13 +90,15 @@ export function TPChart({ series, cursor }: TPChartProps) {
           <text x={PADDING.left - 6} y={HEIGHT - PADDING.bottom + 4} textAnchor="end">0%</text>
           <text x={WIDTH / 2} y={HEIGHT - 6} textAnchor="middle">Replay position</text>
         </g>
-        <SeriesLines maxLength={maxLength} name="t" values={series.t} />
-        <SeriesLines maxLength={maxLength} name="p" values={series.p} />
-        <g aria-hidden="true" className="tp-chart__cursor" data-cursor={cursor}>
-          <line x1={pointX(cursor, maxLength)} x2={pointX(cursor, maxLength)} y1={PADDING.top} y2={HEIGHT - PADDING.bottom} />
-          {currentT !== null && <circle cx={pointX(cursor, maxLength)} cy={pointY(currentT)} data-series="t" data-testid="tp-cursor-marker" r="4" />}
-          {currentP !== null && <circle cx={pointX(cursor, maxLength)} cy={pointY(currentP)} data-series="p" data-testid="tp-cursor-marker" r="4" />}
-        </g>
+        <SeriesLines maxLength={maxLength} name="t" values={t} />
+        <SeriesLines maxLength={maxLength} name="p" values={p} />
+        {cursorIsValid && (
+          <g aria-hidden="true" className="tp-chart__cursor" data-cursor={cursor}>
+            <line data-testid="tp-cursor-guide" x1={pointX(cursor, maxLength)} x2={pointX(cursor, maxLength)} y1={PADDING.top} y2={HEIGHT - PADDING.bottom} />
+            {currentT !== null && <circle cx={pointX(cursor, maxLength)} cy={pointY(currentT)} data-series="t" data-testid="tp-cursor-marker" r="4" />}
+            {currentP !== null && <rect data-series="p" data-testid="tp-cursor-marker" height="8" width="8" x={pointX(cursor, maxLength) - 4} y={pointY(currentP) - 4} />}
+          </g>
+        )}
       </svg>
       <div aria-hidden="true" className="tp-chart__legend">
         <span className="tp-chart__legend-item tp-chart__legend-item--t">T threshold</span>
