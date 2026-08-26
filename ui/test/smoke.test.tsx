@@ -36,6 +36,13 @@ describe('App', () => {
     ).toBeTruthy()
   })
 
+  it('gives the browser document a meaningful title', () => {
+    const html = readFileSync(resolve(import.meta.dirname, '../index.html'), 'utf8')
+    const page = new DOMParser().parseFromString(html, 'text/html')
+
+    expect(page.title).toBe('Poorman UTTT Replay')
+  })
+
   it('clears replay cursor state before loading a second game', async () => {
     render(<App />)
     const firstGame = readFileSync(resolve(import.meta.dirname, '../fixtures/ghost-divergence.jsonl'), 'utf8')
