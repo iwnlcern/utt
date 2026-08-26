@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from '../src/App'
 
@@ -25,6 +25,7 @@ describe('App', () => {
 
   afterEach(() => {
     cleanup()
+    vi.restoreAllMocks()
     window.history.replaceState(null, '', '/')
   })
 
@@ -66,5 +67,31 @@ describe('App', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Game replay' })).toBeTruthy())
     expect(screen.getByRole('status', { name: 'replay position' }).textContent).toBe('Position 0 of 69')
+  })
+
+  it('keeps a quota warning visible in replay and clears it for a later persisted load', async () => {
+    const setItem = vi.spyOn(window.localStorage, 'setItem').mockImplementationOnce(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError')
+    })
+    const game = readFileSync(resolve(import.meta.dirname, '../fixtures/ghost-divergence.jsonl'), 'utf8')
+    render(<App />)
+
+    fireEvent.drop(screen.getByLabelText('Drop a JSONL game log'), {
+      dataTransfer: { files: [new File([game], 'quota-game.jsonl')] },
+    })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Game replay' })).toBeTruthy())
+    expect(screen.getByRole('alert').textContent).toMatch(/session only/i)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open another log' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    fireEvent.drop(screen.getByLabelText('Drop a JSONL game log'), {
+      dataTransfer: { files: [new File([game], 'persisted-game.jsonl')] },
+    })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Game replay' })).toBeTruthy())
+    expect(setItem).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

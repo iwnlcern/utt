@@ -7,14 +7,19 @@ import './App.css'
 
 function App() {
   const [game, setGame] = useState<GameRecord | null>(null)
+  const [loadNotice, setLoadNotice] = useState<string | null>(null)
   const resetGame = () => {
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
     setGame(null)
+    setLoadNotice(null)
   }
 
   return game === null
-    ? <Home onLoaded={setGame} />
-    : <GameView game={game} onExit={resetGame} />
+    ? <Home onLoaded={(loadedGame, notice) => {
+        setLoadNotice(notice)
+        setGame(loadedGame)
+      }} />
+    : <GameView game={game} notice={loadNotice} onExit={resetGame} />
 }
 
 export default App

@@ -14,6 +14,7 @@ import { createCursorState, cursorReducer } from './cursorReducer'
 
 export interface GameViewProps {
   game: GameRecord
+  notice?: string | null
   onExit?: () => void
 }
 
@@ -22,7 +23,7 @@ function isReplayShortcutTarget(target: EventTarget | null): boolean {
   return target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])') === null
 }
 
-function GameView({ game, onExit }: GameViewProps) {
+function GameView({ game, notice, onExit }: GameViewProps) {
   const model = useMemo(() => deriveReplayModel(game), [game])
   const [showLosingIntent, setShowLosingIntent] = useState(true)
   const [preferredAnalysisSeat, setPreferredAnalysisSeat] = useState<Mark>('X')
@@ -108,6 +109,7 @@ function GameView({ game, onExit }: GameViewProps) {
           <button aria-label="Open another log" onClick={onExit} type="button">Open another log</button>
         )}
       </header>
+      {notice !== null && notice !== undefined && <p role="alert">{notice}</p>}
       <div className="game-view__toolbar">
         <p aria-label="replay position" className="game-view__position" role="status">
           Position <strong>{cursorState.cursor}</strong> of {cursorState.maxCursor}

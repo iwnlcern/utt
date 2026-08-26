@@ -28,8 +28,10 @@ type LoadFailure = {
 }
 
 export type HomeProps = {
-  onLoaded: (game: GameRecord) => void
+  onLoaded: (game: GameRecord, notice: string | null) => void
 }
+
+const SESSION_ONLY_NOTICE = 'Browser storage is full. Recent games are available for this session only.'
 
 const readFile = (file: File): Promise<string> => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -54,10 +56,11 @@ function Home({ onLoaded }: HomeProps) {
       const game = parseGameLog(text)
       deriveReplayModel(game)
       const saved = saveRecent(recentForGame(source.name, text, game))
+      const loadNotice = saved.persisted ? null : SESSION_ONLY_NOTICE
       setRecents(saved.recents)
-      setNotice(saved.persisted ? null : 'Browser storage is full. Recent games are available for this session only.')
+      setNotice(loadNotice)
       setFailure(null)
-      onLoaded(game)
+      onLoaded(game, loadNotice)
     } catch (error) {
       setFailure({ source, error: error instanceof Error ? error : new Error('Could not open this game log') })
     }
