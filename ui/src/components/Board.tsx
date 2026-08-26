@@ -25,11 +25,46 @@ export interface BoardProps {
   showLosingIntent?: boolean
 }
 
+export interface ConditionalGhostBadgesProps {
+  seats: readonly Mark[]
+  coincident?: boolean
+}
+
 const locals = Array.from({ length: 9 }, (_, index) => index)
 const cells = Array.from({ length: 9 }, (_, index) => index)
 
 function sameMove(move: Move | undefined, local: number, cell: number): boolean {
   return move?.[0] === local && move[1] === cell
+}
+
+// This pure badge seam is gated by PV_PIN in Board; it gives the enabled path
+// one explicit representation for same-cell X/O conditional moves.
+export function ConditionalGhostBadges({
+  seats,
+  coincident = false,
+}: ConditionalGhostBadgesProps) {
+  if (coincident) {
+    return (
+      <span
+        className="board__ghost board__ghost--conditional board__ghost--split"
+        data-testid="conditional-ghost-split"
+        aria-label="conditional best move: X and O"
+      >
+        X/O
+      </span>
+    )
+  }
+
+  return seats.map((seat) => (
+    <span
+      className={`board__ghost board__ghost--conditional board__ghost--${seat}`}
+      data-testid={`conditional-ghost-${seat}`}
+      key={seat}
+      aria-label={`conditional best move: ${seat}`}
+    >
+      {seat}
+    </span>
+  ))
 }
 
 export function Board({
@@ -86,15 +121,10 @@ export function Board({
                           {losingIntent?.seat}
                         </span>
                       )}
-                      {conditionalSeats.map((seat) => (
-                        <span
-                          className="board__ghost board__ghost--conditional"
-                          data-testid={`conditional-ghost-${seat}`}
-                          key={seat}
-                        >
-                          {seat}
-                        </span>
-                      ))}
+                      <ConditionalGhostBadges
+                        seats={conditionalSeats}
+                        coincident={conditionalSeats.length === 2}
+                      />
                     </button>
                   )
                 })}

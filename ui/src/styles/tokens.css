@@ -79,6 +79,28 @@
   border-radius: 0;
 }
 
+.board__ghost--X {
+  color: var(--board-x);
+  border-radius: 50%;
+}
+
+.board__ghost--O {
+  color: var(--board-o);
+  border-style: dashed;
+  border-radius: 0;
+}
+
+.board__ghost--split {
+  inset: auto 4% 4% auto;
+  width: auto;
+  min-width: 1.75rem;
+  padding: 0 0.125rem;
+  color: currentcolor;
+  border: 2px dashed currentcolor;
+  border-radius: 50% 0;
+  font-size: 0.625rem;
+}
+
 .board__closed {
   position: absolute;
   inset: 0;

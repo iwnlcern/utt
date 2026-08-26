@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { PV_UNAVAILABLE_MESSAGE } from '../../src/analysis/extract'
-import { Board } from '../../src/components/Board'
+import { Board, ConditionalGhostBadges } from '../../src/components/Board'
 import type { Position } from '../../src/replay/model'
 
 const position = (overrides: Partial<Position> = {}): Position => ({
@@ -75,5 +75,18 @@ describe('Board', () => {
     expect(screen.queryByTestId('conditional-ghost-X')).toBeNull()
     expect(screen.queryByTestId('conditional-ghost-O')).toBeNull()
     expect(screen.getByText(PV_UNAVAILABLE_MESSAGE)).not.toBeNull()
+  })
+
+  it('renders seat-distinct badges and a single split badge for coincident enabled conditional ghosts', () => {
+    const { rerender } = render(<ConditionalGhostBadges seats={['X', 'O']} />)
+
+    expect(screen.getByTestId('conditional-ghost-X').className).toContain('board__ghost--X')
+    expect(screen.getByTestId('conditional-ghost-O').className).toContain('board__ghost--O')
+
+    rerender(<ConditionalGhostBadges seats={['X', 'O']} coincident />)
+    expect(screen.queryByTestId('conditional-ghost-X')).toBeNull()
+    expect(screen.queryByTestId('conditional-ghost-O')).toBeNull()
+    expect(screen.getByTestId('conditional-ghost-split').textContent).toBe('X/O')
+    expect(screen.getByTestId('conditional-ghost-split').className).toContain('board__ghost--split')
   })
 })
