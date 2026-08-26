@@ -56,13 +56,21 @@ const faultClasses = [
 
 const conformanceText = (path: string) => readFileSync(resolve(conformanceRoot, path), 'utf8')
 
-const conformanceFilesOnDisk = (directory = conformanceRoot, prefix = ''): string[] =>
-  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
-    return entry.isDirectory()
-      ? conformanceFilesOnDisk(resolve(directory, entry.name), relative)
-      : entry.name.endsWith('.jsonl') ? [relative] : []
-  })
+const conformanceFilesOnDisk = (): string[] => {
+  const rootEntries = readdirSync(conformanceRoot, { withFileTypes: true })
+  const rootLogs = rootEntries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+    .map((entry) => entry.name)
+  const parityLogs = rootEntries
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith('parity-'))
+    .flatMap((directory) =>
+      readdirSync(resolve(conformanceRoot, directory.name), { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+        .map((entry) => `${directory.name}/${entry.name}`),
+    )
+
+  return [...rootLogs, ...parityLogs]
+}
 
 const fixtureGame = (path: string) => parseGameLog(fixtureText(path))
 
