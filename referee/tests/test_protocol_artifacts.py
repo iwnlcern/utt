@@ -311,3 +311,17 @@ def test_generator_runs_manifest_argv_unchanged_from_temp_root(tmp_path):
         "type": "hello",
         "version": "1",
     }
+
+
+def test_protocol_pins_all_three_corpus_locations_and_stream_shape():
+    markdown = SPEC.read_text(encoding="utf-8")
+
+    assert "`docs/protocol/transcript-v1.jsonl`" in markdown
+    assert "`referee/tests/fixtures/*.jsonl`" in markdown
+    assert "`referee/tests/fixtures/parity-*/*.jsonl`" in markdown
+    assert "`referee/tests/fixtures/engine-stdin/**/*.jsonl`" in markdown
+    assert "`<log-relative-path minus .jsonl>.<seat>.jsonl`" in markdown
+    assert (
+        "raw canonical JSONL bytes written to that seat's standard input, "
+        "with no wrapper, envelope, or extra fields"
+    ) in markdown

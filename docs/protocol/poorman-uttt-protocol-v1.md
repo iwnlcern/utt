@@ -232,9 +232,19 @@ Double-fault recoveries occur before their auction event, while a continuing sin
 
 The `game_end` event records result, reason, integer budget margin, attempted plies, per-seat delivery status, and per-seat stderr file metadata.
 
-[`transcript-v1.jsonl`](transcript-v1.jsonl) is a real seeded fraction-versus-random game produced by this referee.
+### Conformance corpora
 
-The conformance logs under `referee/tests/fixtures/` cover success, every fault class, a fault-won terminal move with no recovery, both recovery-fault dispositions, both-seat recovery failure, and both pair-seed parities.
+The standalone seeded transcript is pinned at `docs/protocol/transcript-v1.jsonl` and records a real fraction-versus-random game produced by this referee.
+
+The event-log corpus is pinned by the two disjoint globs `referee/tests/fixtures/*.jsonl` and `referee/tests/fixtures/parity-*/*.jsonl`.
+
+Those logs cover success, every fault class, a fault-won terminal move with no recovery, both recovery-fault dispositions, both-seat recovery failure, and both pair-seed parities.
+
+The engine-input stream corpus is pinned at `referee/tests/fixtures/engine-stdin/**/*.jsonl`.
+
+Each stream path is a bijective mapping from an event log and canonical seat, relative to the stream-corpus root: `<log-relative-path minus .jsonl>.<seat>.jsonl`.
+
+Each stream file contains the raw canonical JSONL bytes written to that seat's standard input, with no wrapper, envelope, or extra fields.
 
 The shared replay reader reconstructs every frame only from logged events and rejects missing attempts, boards, terminal events, or ply gaps.
 
