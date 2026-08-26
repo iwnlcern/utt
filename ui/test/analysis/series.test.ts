@@ -12,6 +12,25 @@ const fixtureText = (name: string) =>
 
 const modelFrom = (name: string) => deriveReplayModel(parseGameLog(fixtureText(name)))
 
+const modelWithLaterVoidInfo = () => {
+  const model = modelFrom('success-macro-win.jsonl')
+  const pre = model.positions.at(-1)
+  const finalAttempt = structuredClone(model.auctions.at(-1)?.attempts.at(-1))
+  if (pre === undefined || finalAttempt === undefined) throw new Error('success fixture must provide a final position and attempt')
+  finalAttempt.turns.X.info = { t: 0.875 }
+
+  return {
+    ...model,
+    auctions: [...model.auctions, {
+      ply: model.auctions.length,
+      pre,
+      attempts: [finalAttempt],
+      recoveries: [],
+      outcome: 'voided' as const,
+    }],
+  }
+}
+
 describe('buildTPSeries', () => {
   it('aligns threshold and actual-share values to replay cursor positions with gaps for unavailable analysis', () => {
     const model = modelFrom('success-macro-win.jsonl')
@@ -31,5 +50,15 @@ describe('buildTPSeries', () => {
     expect(series.p).toHaveLength(model.positions.length)
     expect(series.p).toContain(null)
     expect(series.p.at(-1)).toBeNull()
+  })
+
+  it('places analysis from a non-advancing terminal auction at its later pre-position cursor', () => {
+    const model = modelWithLaterVoidInfo()
+    const series = buildTPSeries(model, 'X')
+
+    expect(model.auctions.at(-1)?.outcome).toBe('voided')
+    expect(model.positions.length).toBeGreaterThan(1)
+    expect(series.t.at(-1)).toBe(0.875)
+    expect(series.t.at(-2)).toBeNull()
   })
 })

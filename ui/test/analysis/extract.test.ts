@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { PV_PIN, extractAnalysis } from '../../src/analysis/extract'
+import { PV_PIN, PV_UNAVAILABLE_MESSAGE, extractAnalysis } from '../../src/analysis/extract'
 import { deriveReplayModel } from '../../src/replay/derive'
 import { parseGameLog } from '../../src/log/validate'
 
@@ -44,6 +44,7 @@ describe('extractAnalysis', () => {
     })
     expect(analysis.O).toEqual({ kind: 'unavailable', why: 'no info in log' })
     expect(PV_PIN).toEqual({ pinned: false, source: null })
+    expect(PV_UNAVAILABLE_MESSAGE).toBe('unavailable — awaiting harness artifact pin')
   })
 
   it('uses only the last attempt for a seat', () => {
@@ -58,6 +59,20 @@ describe('extractAnalysis', () => {
     if (step === undefined) throw new Error('success fixture must contain an auction')
 
     expect(extractAnalysis(step).X).toEqual({ kind: 'ok', t: 0.25, degraded: [] })
+  })
+
+  it('suppresses earlier analysis when the final attempt carries no info', () => {
+    const events = fixtureText('success-macro-win.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const auction = events.find((event) => event.event === 'auction')
+    const retry = structuredClone(auction.attempts[0])
+    retry.attempt = 2
+    retry.request_id = `${retry.request_id}-retry`
+    delete retry.turns.X.info
+    auction.attempts.push(retry)
+    const step = deriveReplayModel(parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)).auctions[0]
+    if (step === undefined) throw new Error('success fixture must contain an auction')
+
+    expect(extractAnalysis(step).X).toEqual({ kind: 'unavailable', why: 'no info in log' })
   })
 
   it('marks every seat unavailable when a log has no info objects', () => {
@@ -87,6 +102,38 @@ describe('extractAnalysis', () => {
       t: 0.375,
       pvIfWin: [0, 8],
       degraded: ['criticalBid', 'complete'],
+    })
+  })
+
+  it.each([
+    ['both endpoints', { t: 0.375, quality: 'bound' }],
+    ['the lower endpoint', { t: 0.375, quality: 'bound', hi: 0.75 }],
+    ['the upper endpoint', { t: 0.375, quality: 'bound', lo: 0.5 }],
+  ])('degrades a bound quality missing %s', (_missing, info) => {
+    expect(extractAnalysis(firstStepWithInfo(info)).X).toEqual({
+      kind: 'ok',
+      t: 0.375,
+      degraded: ['quality', 'lo', 'hi'],
+    })
+  })
+
+  it('does not report a bare bound quality as usable analysis', () => {
+    expect(extractAnalysis(firstStepWithInfo({ quality: 'bound' })).X).toEqual({
+      kind: 'unavailable',
+      why: 'malformed info in log',
+    })
+  })
+
+  it('degrades an inverted bound interval rather than reporting a contradictory bound', () => {
+    expect(extractAnalysis(firstStepWithInfo({
+      t: 0.375,
+      quality: 'bound',
+      lo: 0.75,
+      hi: 0.5,
+    })).X).toEqual({
+      kind: 'ok',
+      t: 0.375,
+      degraded: ['quality', 'lo', 'hi'],
     })
   })
 })

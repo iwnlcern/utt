@@ -138,6 +138,29 @@ function extractEntry(info: unknown): AnalysisEntry {
     }
   }
 
+  if (entry.quality === 'bound' && (
+    entry.lo === undefined || entry.hi === undefined || entry.lo > entry.hi
+  )) {
+    delete entry.quality
+    delete entry.lo
+    delete entry.hi
+    for (const field of ['quality', 'lo', 'hi']) {
+      if (!degraded.includes(field)) degraded.push(field)
+    }
+    malformed = true
+    extracted = [
+      entry.t,
+      entry.criticalBid,
+      entry.pvIfWin,
+      entry.pvIfLose,
+      entry.quality,
+      entry.lo,
+      entry.hi,
+      entry.depth,
+      entry.complete,
+    ].some((value) => value !== undefined)
+  }
+
   if (!extracted) return unavailable(malformed ? 'malformed info in log' : 'no recognized analysis in log')
   return entry
 }
