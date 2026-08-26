@@ -194,8 +194,15 @@ Let `e` bound the remaining auctions (the number of empty cells suffices). The
 claim is strict: if `bx-T*M>e`, X can force the continuous-side X outcome; if
 `T*M-bx>e`, O can force the O outcome. Induct on `e`.
 
+Base case: at a terminal with `T=1/2`, positive strict surplus forces `bx>bo`
+after the final payment (and strict deficit forces `bo>bx`); the `T=0` and
+`T=1` cases are immediate. A UTTT macro terminal may retain `E(s)>0`, but the
+same stronger premise carries directly because no auction remains.
+
 For `a<=b`, let a player bid `k=ceil(r*M)` using C2's `r`. Affordability follows
-from `r<=T` for X and `r<=1-T` for O. If X wins and pays, write
+at a nonterminal from `e>=1`: for X,
+`k<=r*M+1<=T*M+e<bx`, and symmetrically for O,
+`k<=r*M+1<=(1-T)*M+e<bo`. If X wins and pays, write
 `delta=k-r*M`, where `0<=delta<1`. Choosing the `a` child gives
 
 `bx-k-a(M-k) = (bx-T*M) - (1-a)*delta`.
@@ -205,9 +212,10 @@ Thus the strict surplus loses less than one unit and remains greater than
 most `b`, and `b(M-j)<=b(1-r)M=T*M`, so X's surplus does not shrink. The O-side
 argument is symmetric: on an O win the strict deficit loses `b*delta<1`; on an
 X win with `j>=k`, every X child threshold is at least `a` and
-`a(M-j)+j>=a(1-r)M+rM=T*M`. C7 permits replacing selected extrema by bounded
-children. In the `a>b` branch, bid zero and the C3 one-step inequalities lose
-no unit. Every applied mark reduces `e` by one, completing the induction.
+`a(M-j)+j>=a(1-r)M+rM=T*M`. Linearity permits replacing selected extrema by
+bounded children. In the `a>b` branch, bid zero and the C3 one-step
+inequalities lose no unit. Every applied mark reduces `e` by one, completing
+the induction.
 
 Therefore the `E(s)` envelope is a theorem-backed sufficient margin at every
 integer scale, including 10^9 units. It does not classify points inside the
@@ -269,11 +277,12 @@ Econometrica 2000.
 Status: `computationally-verified`
 
 The exhaustive continuous census contains 22,186 `(board,h)` nonterminal nodes,
-zero with `a>b`, and at least one with `a=b`. The regression test hard-pins that
-count and the empty zugzwang set. The census is why C3 uses synthetic exact
-threshold-payoff terminals and why no reachable zugzwang threshold fixture is
-manufactured. `fixture:threshold-a-equals-b-zero-critical` records the census
-minimum `.OXXOOOXX` equality state.
+zero with `a>b`, and at least one with `a=b`. The regression test hard-pins both
+the 22,186-node count (11,093 boards) and the empty zugzwang set. The census is
+why C3 uses synthetic exact threshold-payoff terminals and why no reachable
+zugzwang threshold fixture is manufactured.
+`fixture:threshold-a-equals-b-zero-critical` records the census minimum
+`.OXXOOOXX` equality state.
 
 ### C11 lemma — Extra-own-mark monotonicity attempt
 

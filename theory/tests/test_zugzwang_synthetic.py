@@ -11,6 +11,8 @@ from auction_ttt.discrete import OWIN, XWIN
 def test_c11_no_reachable_zugzwang():
     solved = solve()
 
+    assert len(solved) == 22186
+    assert len({board for board, _h in solved}) == 11093
     assert sum(1 for node in solved.values() if node.zugzwang) == 0
     assert all(node.a <= node.b for node in solved.values())
 

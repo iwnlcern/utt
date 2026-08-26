@@ -21,5 +21,9 @@ boolean. Auction traces record the move actually applied after resolving a bid;
 the first-move coin appears only when a root tie consults it. Terminal chip
 margins are measured after the winning bid has been paid.
 
+The double-line macro-win example lives in `closure_routing.json` because it
+pins closure aggregation and macro-before-all-closed ordering; its category
+placement does not alter the normative schema.
+
 `schema-v1.json` is normative. This prose summarizes its wire conventions and
 does not independently extend them.

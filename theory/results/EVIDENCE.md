@@ -116,6 +116,15 @@ The normative per-scale records are `crosscheck-N1.json` through
   diff-clean. Backup cases remain `consumed_by: ["theory"]` because no addressed
   MR17 engine-tag acknowledgment landed.
 
+### Kalai/E0 discrepancy
+
+The exact ordinary-ttt3 root is `T_lo=T_hi=1/2`, hence an exact budget ratio of
+`1:1`. This does not agree with the E0 contextual target of approximately
+`101.84:100`; the discrepancy is material and is not presented as numerical
+agreement. The locked exact solver is authoritative for Stage 1 because it
+implements the specified conditional-tie-owner rules and exact backward
+induction. The E0 value remains comparison context only.
+
 ## LP emitted-case certification
 
 Every emitted matrix has entries in `{-1,0,1}` and an exact `Fraction`

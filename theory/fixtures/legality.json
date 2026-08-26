@@ -31,7 +31,7 @@
     {
       "id": "legality-forced-closed-means-free-choice",
       "game": "uttt",
-      "consumed_by": ["engine", "harness", "theory"],
+      "consumed_by": ["harness", "theory"],
       "notes": "HAND-VERIFIED free choice: forced local 4 is closed; complete list is cells 6,7,8 in each of open locals 2 and 6.",
       "state": {
         "board": ["XOXXOOOXX", "XOXXOOOXX", "XOXOXO...", "XOXXOOOXX", "XOXXOOOXX", "XOXXOOOXX", "OXOXOX...", "XOXXOOOXX", "XOXXOOOXX"],

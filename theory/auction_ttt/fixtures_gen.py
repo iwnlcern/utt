@@ -79,7 +79,10 @@ def _threshold_fixture(
         "id": fixture_id,
         "game": "ttt3",
         "consumed_by": ["engine", "ui", "theory"],
-        "notes": notes,
+        "notes": (
+            f"{notes} The engine tag reserves future search-consumer use; "
+            "the landed engine rules fixture runner skips game != uttt."
+        ),
         "state": {
             "board": board,
             "forced": None,

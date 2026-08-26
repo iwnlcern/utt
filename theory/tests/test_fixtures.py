@@ -2,6 +2,9 @@ import json
 import re
 from pathlib import Path
 
+from auction_ttt.__main__ import main
+from auction_ttt.fixtures_gen import write_or_check
+
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 HAND_AUTHORED = [
@@ -111,3 +114,35 @@ def test_generated_fixtures_valid():
         for fixture_id in _load_and_validate(filename, schema)
     ]
     assert len(all_ids) == len(set(all_ids)), "fixture ids must be globally unique"
+
+
+def test_generated_fixtures_are_reproducible(capsys):
+    assert main(["fixtures", "--check"]) == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_generated_fixture_check_reports_tampered_file(
+    tmp_path, monkeypatch, capsys
+):
+    expected = {"thresholds_ttt3.json": {"schema_version": 1}}
+    monkeypatch.setattr(
+        "auction_ttt.fixtures_gen.generated_payloads", lambda: expected
+    )
+    tampered = tmp_path / "thresholds_ttt3.json"
+    tampered.write_text('{"schema_version": 2}\n', encoding="utf-8")
+
+    assert write_or_check(tmp_path, check=True) == ["thresholds_ttt3.json"]
+    output = capsys.readouterr().out
+    assert f"--- {tampered}" in output
+    assert "+++ generated:thresholds_ttt3.json" in output
+
+
+def test_forced_closed_free_choice_fixture_excludes_engine_consumer():
+    envelope = json.loads((FIXTURES / "legality.json").read_text(encoding="utf-8"))
+    fixture = next(
+        item
+        for item in envelope["fixtures"]
+        if item["id"] == "legality-forced-closed-means-free-choice"
+    )
+
+    assert fixture["consumed_by"] == ["harness", "theory"]

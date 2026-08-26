@@ -30,12 +30,9 @@ def test_forced_bad_support_exercises_ladder():
 
     result = solve_zero_sum(matrix, _support_hook=bad_hook)
 
-    assert result.path in ("perturbed", "fallback")
+    assert result.path == "perturbed"
     assert result.value == F(0)
-    assert result.certificate in (
-        "exact-verified",
-        "exact-fallback-verified",
-    )
+    assert result.certificate == "exact-verified"
 
 
 def test_exact_rational_fallback_is_independently_executable(monkeypatch):

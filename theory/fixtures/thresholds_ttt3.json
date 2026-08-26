@@ -41,7 +41,7 @@
       "expected_critical_bid": "0/1",
       "game": "ttt3",
       "id": "threshold-a-equals-b-zero-critical",
-      "notes": "Census-minimum reachable a=b state; r=0. All scale points are selected only from the exact reachability mask and serve as knife-edge checks.",
+      "notes": "Census-minimum reachable a=b state; r=0. All scale points are selected only from the exact reachability mask and serve as knife-edge checks. The engine tag reserves future search-consumer use; the landed engine rules fixture runner skips game != uttt.",
       "state": {
         "board": ".OXXOOOXX",
         "budgets": {
@@ -93,7 +93,7 @@
       "expected_critical_bid": "1003/6071",
       "game": "ttt3",
       "id": "threshold-a-less-than-b-after-x-opening",
-      "notes": "Reachable non-root a<b state after X opens; continuous backup and masked discrete outcomes are kept in separate fields.",
+      "notes": "Reachable non-root a<b state after X opens; continuous backup and masked discrete outcomes are kept in separate fields. The engine tag reserves future search-consumer use; the landed engine rules fixture runner skips game != uttt.",
       "state": {
         "board": "X........",
         "budgets": {
@@ -145,7 +145,7 @@
       "expected_critical_bid": "2825/19367",
       "game": "ttt3",
       "id": "threshold-root-conditional-h-x",
-      "notes": "Conditional ordinary-ttt3 root with X owning a bid tie; paired with the h=O fixture rather than assigning a value to the hidden coin.",
+      "notes": "Conditional ordinary-ttt3 root with X owning a bid tie; paired with the h=O fixture rather than assigning a value to the hidden coin. The engine tag reserves future search-consumer use; the landed engine rules fixture runner skips game != uttt.",
       "state": {
         "board": ".........",
         "budgets": {
@@ -197,7 +197,7 @@
       "expected_critical_bid": "2825/19367",
       "game": "ttt3",
       "id": "threshold-root-conditional-h-o",
-      "notes": "Conditional ordinary-ttt3 root with O owning a bid tie; paired with the h=X fixture rather than assigning a value to the hidden coin.",
+      "notes": "Conditional ordinary-ttt3 root with O owning a bid tie; paired with the h=X fixture rather than assigning a value to the hidden coin. The engine tag reserves future search-consumer use; the landed engine rules fixture runner skips game != uttt.",
       "state": {
         "board": ".........",
         "budgets": {

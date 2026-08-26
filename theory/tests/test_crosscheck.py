@@ -14,6 +14,7 @@ from auction_ttt.crosscheck import (
     BandReport,
     check,
     in_band,
+    population_counts,
     select_spot_targets,
     targeted_report,
 )
@@ -82,10 +83,14 @@ def test_check_reports_only_masked_nonterminal_positive_total_mismatch():
 
 def test_small_exact_masked_crosschecks_have_no_out_of_band_mismatches():
     solved_continuous = solve_continuous()
+    expected_out_of_band = {2: 160, 4: 6060, 8: 162856}
 
     for N in (2, 4, 8):
         values, masks = solve_discrete(N)
         report = check(solved_continuous, values, masks, N)
+        population = population_counts(solved_continuous, masks, N)
+
+        assert population["out_of_band"] == expected_out_of_band[N]
         assert report.out_of_band_mismatches == []
 
 
