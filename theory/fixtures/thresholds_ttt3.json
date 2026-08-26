@@ -1,0 +1,214 @@
+{
+  "fixtures": [
+    {
+      "consumed_by": [
+        "engine",
+        "ui",
+        "theory"
+      ],
+      "discrete_expectations": [
+        {
+          "bo": 1,
+          "bx": 1,
+          "result": "draw",
+          "scale": 8
+        },
+        {
+          "bo": 1,
+          "bx": 1,
+          "result": "draw",
+          "scale": 16
+        },
+        {
+          "bo": 1,
+          "bx": 1,
+          "result": "draw",
+          "scale": 32
+        }
+      ],
+      "expected_T": {
+        "O": "1/2",
+        "X": "1/2"
+      },
+      "expected_best_move": {
+        "if_O_wins": 0,
+        "if_X_wins": 0
+      },
+      "expected_child_h": {
+        "if_O_wins": "X",
+        "if_X_wins": "O"
+      },
+      "expected_critical_bid": "0/1",
+      "game": "ttt3",
+      "id": "threshold-a-equals-b-zero-critical",
+      "notes": "Census-minimum reachable a=b state; r=0. All scale points are selected only from the exact reachability mask and serve as knife-edge checks. The engine tag reserves future search-consumer use; the landed engine rules fixture runner skips game != uttt.",
+      "state": {
+        "board": ".OXXOOOXX",
+        "budgets": {
+          "o": 1,
+          "x": 1
+        },
+        "forced": null,
+        "h": "X"
+      }
+    },
+    {
+      "consumed_by": [
+        "engine",
+        "ui",
+        "theory"
+      ],
+      "discrete_expectations": [
+        {
+          "bo": 8,
+          "bx": 6,
+          "result": "O",
+          "scale": 8
+        },
+        {
+          "bo": 16,
+          "bx": 12,
+          "result": "O",
+          "scale": 16
+        },
+        {
+          "bo": 32,
+          "bx": 24,
+          "result": "O",
+          "scale": 32
+        }
+      ],
+      "expected_T": {
+        "O": "2632/6071",
+        "X": "2632/6071"
+      },
+      "expected_best_move": {
+        "if_O_wins": 4,
+        "if_X_wins": 4
+      },
+      "expected_child_h": {
+        "if_O_wins": "X",
+        "if_X_wins": "O"
+      },
+      "expected_critical_bid": "1003/6071",
+      "game": "ttt3",
+      "id": "threshold-a-less-than-b-after-x-opening",
+      "notes": "Reachable non-root a<b state after X opens; continuous backup and masked discrete outcomes are kept in separate fields. The engine tag reserves future search-consumer use; the landed engine rules fixture runner skips game != uttt.",
+      "state": {
+        "board": "X........",
+        "budgets": {
+          "o": 32,
+          "x": 24
+        },
+        "forced": null,
+        "h": "O"
+      }
+    },
+    {
+      "consumed_by": [
+        "engine",
+        "ui",
+        "theory"
+      ],
+      "discrete_expectations": [
+        {
+          "bo": 8,
+          "bx": 8,
+          "result": "X",
+          "scale": 8
+        },
+        {
+          "bo": 16,
+          "bx": 16,
+          "result": "X",
+          "scale": 16
+        },
+        {
+          "bo": 32,
+          "bx": 32,
+          "result": "X",
+          "scale": 32
+        }
+      ],
+      "expected_T": {
+        "O": "1/2",
+        "X": "1/2"
+      },
+      "expected_best_move": {
+        "if_O_wins": 4,
+        "if_X_wins": 4
+      },
+      "expected_child_h": {
+        "if_O_wins": "X",
+        "if_X_wins": "O"
+      },
+      "expected_critical_bid": "2825/19367",
+      "game": "ttt3",
+      "id": "threshold-root-conditional-h-x",
+      "notes": "Conditional ordinary-ttt3 root with X owning a bid tie; paired with the h=O fixture rather than assigning a value to the hidden coin. The engine tag reserves future search-consumer use; the landed engine rules fixture runner skips game != uttt.",
+      "state": {
+        "board": ".........",
+        "budgets": {
+          "o": 32,
+          "x": 32
+        },
+        "forced": null,
+        "h": "X"
+      }
+    },
+    {
+      "consumed_by": [
+        "engine",
+        "ui",
+        "theory"
+      ],
+      "discrete_expectations": [
+        {
+          "bo": 8,
+          "bx": 8,
+          "result": "O",
+          "scale": 8
+        },
+        {
+          "bo": 16,
+          "bx": 16,
+          "result": "O",
+          "scale": 16
+        },
+        {
+          "bo": 32,
+          "bx": 32,
+          "result": "O",
+          "scale": 32
+        }
+      ],
+      "expected_T": {
+        "O": "1/2",
+        "X": "1/2"
+      },
+      "expected_best_move": {
+        "if_O_wins": 4,
+        "if_X_wins": 4
+      },
+      "expected_child_h": {
+        "if_O_wins": "X",
+        "if_X_wins": "O"
+      },
+      "expected_critical_bid": "2825/19367",
+      "game": "ttt3",
+      "id": "threshold-root-conditional-h-o",
+      "notes": "Conditional ordinary-ttt3 root with O owning a bid tie; paired with the h=X fixture rather than assigning a value to the hidden coin. The engine tag reserves future search-consumer use; the landed engine rules fixture runner skips game != uttt.",
+      "state": {
+        "board": ".........",
+        "budgets": {
+          "o": 32,
+          "x": 32
+        },
+        "forced": null,
+        "h": "O"
+      }
+    }
+  ],
+  "game": "ttt3",
+  "schema_version": 1
+}
