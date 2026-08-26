@@ -1,0 +1,205 @@
+import { formatPercent, formatUnits, share } from '../format/money'
+import type { HelloRecord, Mark, RecoveryEvent, TurnRecord } from '../log/types'
+import type { AuctionStep, ReplayModel } from '../replay/model'
+import '../styles/tokens.css'
+
+export interface TimelineProps {
+  model: ReplayModel
+  onSelect: (cursor: number) => void
+}
+
+function intent(turn: TurnRecord): string {
+  return turn.move === undefined ? 'none' : `[${turn.move.join(', ')}]`
+}
+
+function budgetShare(units: number, combined: number): string {
+  return `${formatPercent(share(units, combined))} (${formatUnits(units)} units)`
+}
+
+function Bid({ seat, turn, combinedBudget, ply, showUnits }: {
+  seat: Mark
+  turn: TurnRecord
+  combinedBudget: number
+  ply: number
+  showUnits: boolean
+}) {
+  if (turn.bid === undefined) {
+    return <span data-testid={`bid-${seat}-${ply}`} title="no bid recorded">{seat}: n/a</span>
+  }
+
+  return (
+    <span data-testid={`bid-${seat}-${ply}`} title={`${formatUnits(turn.bid)} units`}>
+      {seat}: {formatPercent(share(turn.bid, combinedBudget))}
+      {showUnits && ` (${formatUnits(turn.bid)} units)`}
+    </span>
+  )
+}
+
+function faultClass(step: AuctionStep): string | undefined {
+  const finalAttempt = step.attempts.at(-1)
+  if (finalAttempt === undefined) return undefined
+  for (const seat of ['X', 'O'] as const) {
+    const validation = finalAttempt.turns[seat].validation
+    if (validation !== 'ok') return validation
+  }
+  return undefined
+}
+
+function resolutionLabel(step: AuctionStep): string {
+  if (step.outcome !== 'resolved') return step.outcome
+  if (step.resolution.reason === 'tie_coin') return `tie_coin: ${step.resolution.coin ?? 'none'}`
+  if (step.resolution.reason === 'fault') return `fault: ${faultClass(step) ?? 'unknown'}`
+  return step.resolution.reason
+}
+
+function recoveryLabel(recovery: RecoveryEvent): string {
+  const restart = recovery.hello.validation === 'ok'
+    ? recovery.hello.name
+    : `${recovery.hello.validation} fault`
+  return `${recovery.seat} · ${recovery.fault} · restart hello: ${restart}`
+}
+
+function helloLabel(hello: HelloRecord): string {
+  if (hello.validation === 'ok') return `ok · ${hello.name}`
+  return `${hello.validation} fault${hello.name === undefined ? '' : ` · ${hello.name}`}`
+}
+
+function RecoveryMarkers({ recoveries, placement, ply }: {
+  recoveries: readonly RecoveryEvent[]
+  placement: 'pre' | 'post'
+  ply: number
+}) {
+  if (recoveries.length === 0) return null
+  return (
+    <div data-testid={`${placement}-recoveries-${ply}`}>
+      {recoveries.map((recovery, index) => (
+        <p key={`${recovery.seat}-${recovery.trigger_request_id}-${index}`}>
+          recovery {placement === 'pre' ? 'before' : 'after'} ply {ply}: {recoveryLabel(recovery)}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+function splitRecoveries(step: AuctionStep): { pre: RecoveryEvent[]; post: RecoveryEvent[] } {
+  if (step.outcome !== 'resolved') return { pre: [...step.recoveries], post: [] }
+
+  const finalRequestId = step.attempts.at(-1)?.request_id
+  return {
+    pre: step.recoveries.filter((recovery) => recovery.trigger_request_id !== finalRequestId),
+    post: step.recoveries.filter((recovery) => recovery.trigger_request_id === finalRequestId),
+  }
+}
+
+function AttemptRows({ step }: { step: AuctionStep }) {
+  return (
+    <details>
+      <summary>Attempts ({step.attempts.length})</summary>
+      {step.attempts.map((attempt, index) => (
+        <p data-testid={`attempt-${step.ply}-${index + 1}`} key={attempt.request_id}>
+          Attempt {attempt.attempt} · X: {attempt.turns.X.validation}
+          {attempt.turns.X.raw !== undefined ? ' (raw captured)' : ' (no raw capture)'} · O: {attempt.turns.O.validation}
+          {attempt.turns.O.raw !== undefined ? ' (raw captured)' : ' (no raw capture)'}
+        </p>
+      ))}
+    </details>
+  )
+}
+
+function isInteractiveArticleTarget(target: EventTarget): boolean {
+  return target instanceof Element && target.closest(
+    'button, a, input, select, textarea, summary, details, [contenteditable]:not([contenteditable="false"])',
+  ) !== null
+}
+
+function AuctionRow({ step, index, onSelect }: {
+  step: AuctionStep
+  index: number
+  onSelect: TimelineProps['onSelect']
+}) {
+  const finalAttempt = step.attempts.at(-1)
+  const recoveries = splitRecoveries(step)
+  const cursor = index
+  const label = resolutionLabel(step)
+  const combinedBudget = step.pre.budgets.X + step.pre.budgets.O
+  const tiedBids = step.outcome === 'resolved'
+    && (step.resolution.reason === 'tie_last_mover' || step.resolution.reason === 'tie_coin')
+
+  return (
+    <>
+      <RecoveryMarkers recoveries={recoveries.pre} placement="pre" ply={step.ply} />
+      <article
+        aria-label={`ply ${step.ply}: ${label}`}
+        data-testid={`auction-row-${step.ply}`}
+        onClick={(event) => {
+          if (!isInteractiveArticleTarget(event.target)) onSelect(cursor)
+        }}
+      >
+        <button aria-label={`select pending ply ${step.ply}`} onClick={() => onSelect(cursor)} type="button">
+          ply {step.ply}
+        </button>
+        {finalAttempt !== undefined && (
+          <>
+            <p>
+              <Bid combinedBudget={combinedBudget} ply={step.ply} seat="X" showUnits={tiedBids} turn={finalAttempt.turns.X} />
+              {' · '}
+              <Bid combinedBudget={combinedBudget} ply={step.ply} seat="O" showUnits={tiedBids} turn={finalAttempt.turns.O} />
+            </p>
+            <p>
+              <span data-testid={`intent-X-${step.ply}`}>Intent X: {intent(finalAttempt.turns.X)}</span>
+              {' · '}
+              <span data-testid={`intent-O-${step.ply}`}>Intent O: {intent(finalAttempt.turns.O)}</span>
+            </p>
+          </>
+        )}
+        <p data-testid={`resolution-${step.ply}`}>resolution: {label}</p>
+        {step.outcome === 'resolved' && (
+          <>
+            <p data-testid={`payment-${step.ply}`}>payment: {formatUnits(step.resolution.payment)} units</p>
+            <p data-testid={`post-budgets-${step.ply}`}>
+              post budgets: X {budgetShare(step.post.budgets.X, step.post.budgets.X + step.post.budgets.O)}
+              {' · '}
+              O {budgetShare(step.post.budgets.O, step.post.budgets.X + step.post.budgets.O)}
+            </p>
+            <p data-testid={`forced-next-${step.ply}`}>
+              forced_next: {step.resolution.forced_next ?? 'any'}
+            </p>
+          </>
+        )}
+        <AttemptRows step={step} />
+      </article>
+      <RecoveryMarkers recoveries={recoveries.post} placement="post" ply={step.ply} />
+    </>
+  )
+}
+
+export function Timeline({ model, onSelect }: TimelineProps) {
+  return (
+    <section aria-label="auction timeline" className="timeline">
+      <article data-testid="setup-row">
+        <p>setup / hello</p>
+        <p>X hello: {helloLabel(model.setup.start.hellos.X)}</p>
+        <p>O hello: {helloLabel(model.setup.start.hellos.O)}</p>
+      </article>
+      {model.auctions.map((step, index) => (
+        <AuctionRow index={index} key={step.ply} onSelect={onSelect} step={step} />
+      ))}
+      {model.trailingRecoveries.length > 0 && (
+        <div data-testid="trailing-recoveries">
+          {model.trailingRecoveries.map((recovery, index) => (
+            <p key={`${recovery.seat}-${recovery.trigger_request_id}-${index}`}>
+              trailing recovery: {recoveryLabel(recovery)}
+            </p>
+          ))}
+        </div>
+      )}
+      {model.truncation === 'discarded_final_line' && <p>log ends mid-game (truncated final line discarded)</p>}
+      {model.truncation === 'missing_game_end' && <p>log ends mid-game</p>}
+      {model.terminal !== undefined && (
+        <p data-testid={`terminal-${model.terminal.reason}`}>
+          terminal: {model.terminal.reason} ({model.terminal.result})
+        </p>
+      )}
+    </section>
+  )
+}

@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Poor Man's UTTT auction log event",
+  "type": "object",
+  "$defs": {
+    "move": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "integer", "minimum": 0, "maximum": 8},
+        {"type": "integer", "minimum": 0, "maximum": 8}
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "board": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[.XO]{9}$"},
+      "minItems": 9,
+      "maxItems": 9
+    },
+    "budgets": {
+      "type": "object",
+      "required": ["X", "O"],
+      "properties": {
+        "X": {"type": "integer", "minimum": 0},
+        "O": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "raw": {
+      "type": "object",
+      "required": ["b64", "truncated", "bytes_total"],
+      "properties": {
+        "b64": {"type": "string"},
+        "truncated": {"type": "boolean"},
+        "bytes_total": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "turn": {
+      "type": "object",
+      "required": ["validation", "elapsed_ms"],
+      "properties": {
+        "validation": {"enum": ["ok", "timeout", "eof_or_crash", "invalid_utf8", "invalid_json", "schema_violation", "wrong_request_id", "extra_protocol_line", "oversize_line", "illegal_bid", "illegal_move"]},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "bid": {"type": "integer", "minimum": 0},
+        "move": {"$ref": "#/$defs/move"},
+        "info": {"type": "object"},
+        "raw": {"$ref": "#/$defs/raw"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"validation": {"const": "ok"}}, "required": ["validation"]},
+          "then": {"required": ["bid", "move"], "not": {"required": ["raw"]}},
+          "else": {"required": ["raw"]}
+        }
+      ],
+      "additionalProperties": true
+    },
+    "attempt": {
+      "type": "object",
+      "required": ["request_id", "attempt", "turns"],
+      "properties": {
+        "request_id": {"type": "string"},
+        "attempt": {"type": "integer", "minimum": 1, "maximum": 3},
+        "turns": {
+          "type": "object",
+          "required": ["X", "O"],
+          "properties": {"X": {"$ref": "#/$defs/turn"}, "O": {"$ref": "#/$defs/turn"}},
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "closure": {
+      "type": "object",
+      "required": ["local", "result"],
+      "properties": {
+        "local": {"type": "integer", "minimum": 0, "maximum": 8},
+        "result": {"enum": ["X", "O", "full"]}
+      },
+      "additionalProperties": true
+    },
+    "resolution": {
+      "type": "object",
+      "required": ["winner", "reason", "payment", "move", "closures", "macro_line", "forced_next"],
+      "properties": {
+        "winner": {"enum": ["X", "O"]},
+        "reason": {"enum": ["higher_bid", "tie_last_mover", "tie_coin", "fault"]},
+        "coin": {"enum": ["X", "O", null]},
+        "payment": {"type": "integer", "minimum": 0},
+        "move": {"$ref": "#/$defs/move"},
+        "closures": {"type": "array", "items": {"$ref": "#/$defs/closure"}},
+        "macro_line": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "array",
+              "items": {"type": "integer", "minimum": 0, "maximum": 8},
+              "minItems": 3,
+              "maxItems": 3
+            }
+          ]
+        },
+        "forced_next": {"type": ["integer", "null"], "minimum": 0, "maximum": 8}
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": ["event", "ply", "outcome", "attempts", "budgets_after", "post_board"],
+  "properties": {
+    "event": {"const": "auction"},
+    "ply": {"type": "integer", "minimum": 0},
+    "outcome": {"enum": ["resolved", "voided", "aborted_recovery_fault"]},
+    "attempts": {"type": "array", "items": {"$ref": "#/$defs/attempt"}, "minItems": 1},
+    "resolution": {"$ref": "#/$defs/resolution"},
+    "budgets_after": {"$ref": "#/$defs/budgets"},
+    "post_board": {"$ref": "#/$defs/board"}
+  },
+  "if": {"properties": {"outcome": {"const": "resolved"}}, "required": ["outcome"]},
+  "then": {"required": ["resolution"]},
+  "else": {"not": {"required": ["resolution"]}},
+  "additionalProperties": true
+}
