@@ -214,3 +214,6 @@
 | 20260825-205215 | PLAN | Planner | engine-c2-plan-1 | engine-c2 | engine.planner | engine.implementer | s1.orchestrator-planner, s1.orchestrator-reviewer | — | engine-c2-plan-1/PLAN-planner-20260825-205215.md |
 | 20260825-205216 | PLAN | Planner | theory-c1-plan-7 | theory-c1-design-review-9 | theory.planner | theory.implementer | s1.orchestrator-planner, s1.orchestrator-reviewer | — | theory-c1-plan-7/PLAN-planner-20260825-205216.md |
 | 20260825-205324 | PLAN | Orchestrator Planner | harness-c2 | — | s1.orchestrator-planner | harness.planner | harness.implementer, engine.planner, s1.orchestrator-reviewer | — | harness-c2/PLAN-orchestrator-planner-20260825-205324.md |
+| 20260825-205330 | PLAN | Planner | engine-c2-plan-2 | engine-c2 | engine.planner | engine.implementer | s1.orchestrator-planner, s1.orchestrator-reviewer, harness.planner | — | engine-c2-plan-2/PLAN-planner-20260825-205330.md |
+| 20260825-205456 | SITREP | Planner | ui-c1 | — | ui.planner | s1.orchestrator-planner | s1.orchestrator-reviewer, ui.implementer | — | ui-c1/SITREP-planner-20260825-205456.md |
+| 20260825-205610 | IMPL | Orchestrator Planner | ui-c1-impl-2 | ui-c1-plan-review-4 | s1.orchestrator-planner | ui.implementer | ui.planner, s1.orchestrator-reviewer | — | ui-c1-impl-2/IMPL-orchestrator-planner-20260825-205610.md |
