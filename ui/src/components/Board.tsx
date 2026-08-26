@@ -104,7 +104,9 @@ export function Board({
                   const conditionalSeats = (['X', 'O'] as const).filter((seat) =>
                     sameMove(conditionalGhosts?.[seat], local, cell),
                   )
-                  const label = `local ${local}, cell ${cell}, ${occupied ? mark : 'empty'}`
+                  const label = `local ${local}, cell ${cell}, ${occupied ? mark : 'empty'}${
+                    showLosingGhost && losingIntent !== undefined ? `, losing intent ${losingIntent.seat}` : ''
+                  }`
 
                   return (
                     <button

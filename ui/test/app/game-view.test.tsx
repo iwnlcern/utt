@@ -343,12 +343,16 @@ describe('GameView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next position' }))
 
     expect(screen.getByTestId('losing-intent-ghost').textContent).toBe('O')
+    expect(screen.getByTestId('losing-intent-ghost').closest('button')?.getAttribute('aria-label')).toMatch(
+      /empty, losing intent O$/,
+    )
     const hideToggle = screen.getByRole('button', { name: 'Hide losing intent' })
     expect(hideToggle.getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(hideToggle)
 
     expect(screen.queryByTestId('losing-intent-ghost')).toBeNull()
     expect(screen.getByRole('button', { name: 'Show losing intent' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.queryByRole('button', { name: /losing intent O$/ })).toBeNull()
   })
 
   it('starts a fresh reveal marker when a forward step resolves an auction', () => {

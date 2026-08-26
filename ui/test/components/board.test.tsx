@@ -52,9 +52,14 @@ describe('Board', () => {
     const { rerender } = render(<Board position={position()} annotations={annotations} />)
 
     expect(screen.getByTestId('losing-intent-ghost').textContent).toBe('O')
+    expect(screen.getByRole('button', {
+      name: 'local 2, cell 6, empty, losing intent O',
+    })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'local 2, cell 5, empty' })).not.toBeNull()
 
     rerender(<Board position={position()} annotations={annotations} showLosingIntent={false} />)
     expect(screen.queryByTestId('losing-intent-ghost')).toBeNull()
+    expect(screen.getByRole('button', { name: 'local 2, cell 6, empty' })).not.toBeNull()
   })
 
   it('keeps a losing intent in the timeline only when the current position occupies its cell', () => {
@@ -64,6 +69,8 @@ describe('Board', () => {
     />)
 
     expect(screen.queryByTestId('losing-intent-ghost')).toBeNull()
+    expect(screen.getByRole('button', { name: 'local 2, cell 6, X' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: /local 2, cell 6, X, losing intent/i })).toBeNull()
   })
 
   it('keeps conditional ghosts unavailable until the harness artifact pin exists', () => {
