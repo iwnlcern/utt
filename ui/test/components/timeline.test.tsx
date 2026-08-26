@@ -1,0 +1,112 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { Timeline } from '../../src/components/Timeline'
+import { formatUnits } from '../../src/format/money'
+import { parseGameLog } from '../../src/log/validate'
+import { deriveReplayModel } from '../../src/replay/derive'
+
+const fixtureModel = (name: string) => deriveReplayModel(parseGameLog(
+  readFileSync(resolve(import.meta.dirname, '../../fixtures', name), 'utf8'),
+))
+
+describe('Timeline', () => {
+  afterEach(cleanup)
+
+  it('selects cursor zero from the first row without subtracting the zero-based wire ply', () => {
+    const onSelect = vi.fn()
+    render(<Timeline model={fixtureModel('success-macro-win.jsonl')} onSelect={onSelect} />)
+
+    expect(screen.getByTestId('auction-row-0').textContent).toContain('ply 0')
+    fireEvent.click(screen.getByRole('button', { name: 'select pending ply 0' }))
+
+    expect(onSelect).toHaveBeenCalledWith(0)
+  })
+
+  it('selects the middle row pending cursor from its one-based ordinal', () => {
+    const onSelect = vi.fn()
+    render(<Timeline model={fixtureModel('success-macro-win.jsonl')} onSelect={onSelect} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'select pending ply 4' }))
+
+    expect(onSelect).toHaveBeenCalledWith(4)
+  })
+
+  it('keeps a terminal unresolved row on its pending cursor without exceeding the position range', () => {
+    const model = fixtureModel('void-triple-double-fault.jsonl')
+    const onSelect = vi.fn()
+    const lastRow = model.auctions.length - 1
+    render(<Timeline model={model} onSelect={onSelect} />)
+
+    fireEvent.click(screen.getByRole('button', { name: `select pending ply ${lastRow}` }))
+
+    expect(onSelect).toHaveBeenCalledWith(model.positions.length - 1)
+    expect(onSelect).not.toHaveBeenCalledWith(model.positions.length)
+    expect(screen.getByTestId(`auction-row-${lastRow}`).textContent).toContain('voided')
+  })
+
+  it('renders logged bids, intents, resolution, payment, budgets, and forced next without rule recomputation', () => {
+    const model = fixtureModel('chip-count.jsonl')
+    const first = model.auctions[0]
+    if (first === undefined || first.outcome !== 'resolved') throw new Error('fixture must begin resolved')
+    render(<Timeline model={model} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('bid-X-0').getAttribute('title')).toBe(`${formatUnits(first.attempts[0]?.turns.X.bid ?? 0)} units`)
+    expect(screen.getByTestId('bid-O-0').getAttribute('title')).toBe(`${formatUnits(first.attempts[0]?.turns.O.bid ?? 0)} units`)
+    expect(screen.getByTestId('intent-X-0').textContent).toContain(`[${first.attempts[0]?.turns.X.move?.join(', ')}]`)
+    expect(screen.getByTestId('intent-O-0').textContent).toContain(`[${first.attempts[0]?.turns.O.move?.join(', ')}]`)
+    expect(screen.getByTestId('resolution-0').textContent).toContain(first.resolution.reason)
+    expect(screen.getByTestId('payment-0').textContent).toContain(`${formatUnits(first.resolution.payment)} units`)
+    expect(screen.getByTestId('post-budgets-0').textContent).toContain(`X ${formatUnits(first.post.budgets.X)}`)
+    expect(screen.getByTestId('forced-next-0').textContent).toContain(String(first.resolution.forced_next))
+  })
+
+  it('renders raw-ordered pre-auction recoveries above an expandable two-attempt retry', () => {
+    const model = fixtureModel('double-fault-retry.jsonl')
+    render(<Timeline model={model} onSelect={vi.fn()} />)
+
+    const row = screen.getByTestId('auction-row-0')
+    const preMarkers = screen.getByTestId('pre-recoveries-0')
+    expect(preMarkers.textContent).toContain('X · invalid_json')
+    expect(preMarkers.textContent).toContain('O · invalid_json')
+    expect(preMarkers.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+
+    fireEvent.click(screen.getByText('Attempts (2)'))
+    expect(screen.getAllByTestId(/attempt-0-/)).toHaveLength(2)
+    expect(screen.getByTestId('attempt-0-1').textContent).toContain('X: invalid_json (raw captured)')
+    expect(screen.getByTestId('attempt-0-1').textContent).toContain('O: invalid_json (raw captured)')
+  })
+
+  it('renders a keyed post-auction recovery below its resolved row', () => {
+    render(<Timeline model={fixtureModel('fault-single.jsonl')} onSelect={vi.fn()} />)
+
+    const row = screen.getByTestId('auction-row-0')
+    const postMarkers = screen.getByTestId('post-recoveries-0')
+    expect(postMarkers.textContent).toContain('X · illegal_move')
+    expect(row.compareDocumentPosition(postMarkers) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(screen.getByTestId('resolution-0').textContent).toContain('fault: illegal_move')
+  })
+
+  it('renders trailing recovery markers and the incomplete-log tail notice', () => {
+    render(<Timeline model={fixtureModel('trailing-recovery.jsonl')} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('trailing-recoveries').textContent).toContain('X · invalid_json')
+    expect(screen.getByText('log ends mid-game')).not.toBeNull()
+  })
+
+  it.each([
+    ['success-macro-win.jsonl', 'macro_win'],
+    ['chip-count.jsonl', 'chip_count'],
+    ['exact-tie-draw.jsonl', 'exact_tie_draw'],
+    ['hello-fault.jsonl', 'hello_fault'],
+    ['recovery-fault-abort.jsonl', 'recovery_fault'],
+    ['void-triple-double-fault.jsonl', 'triple_double_fault_void'],
+  ])('renders the %s terminal reason distinctly', (fixture, reason) => {
+    render(<Timeline model={fixtureModel(fixture)} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId(`terminal-${reason}`).textContent).toContain(reason)
+  })
+})
