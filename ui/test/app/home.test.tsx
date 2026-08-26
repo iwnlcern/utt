@@ -111,8 +111,48 @@ describe('Home', () => {
     expect(onLoaded.mock.calls[0][0].end).toMatchObject({ result: 'X', reason: 'macro_win' })
   })
 
+  it('re-fetches the bundled sample after a rejected fetch and opens it after recovery', async () => {
+    const onLoaded = vi.fn()
+    const fetchSample = vi.fn()
+      .mockRejectedValueOnce(new Error('sample unavailable'))
+      .mockResolvedValueOnce(new Response(fixtureText('success-macro-win.jsonl')))
+    vi.stubGlobal('fetch', fetchSample)
+    render(<Home onLoaded={onLoaded} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open bundled sample game' }))
+
+    expect(await screen.findByRole('heading', { name: 'Could not open sample-game.jsonl' })).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toMatch(/sample unavailable/i)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry sample-game.jsonl' }))
+
+    await waitFor(() => expect(fetchSample).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(onLoaded).toHaveBeenCalledTimes(1))
+  })
+
+  it('re-fetches the bundled sample after a rejected response body and opens it after recovery', async () => {
+    const onLoaded = vi.fn()
+    const fetchSample = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        text: vi.fn().mockRejectedValueOnce(new Error('sample body unavailable')),
+      } as unknown as Response)
+      .mockResolvedValueOnce(new Response(fixtureText('success-macro-win.jsonl')))
+    vi.stubGlobal('fetch', fetchSample)
+    render(<Home onLoaded={onLoaded} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open bundled sample game' }))
+
+    expect(await screen.findByRole('heading', { name: 'Could not open sample-game.jsonl' })).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toMatch(/sample body unavailable/i)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry sample-game.jsonl' }))
+
+    await waitFor(() => expect(fetchSample).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(onLoaded).toHaveBeenCalledTimes(1))
+  })
+
   it('renders a structured LogError and retains the malformed file for retry', async () => {
-    render(<Home onLoaded={vi.fn()} />)
+    const onLoaded = vi.fn()
+    render(<Home onLoaded={onLoaded} />)
 
     await dropFile(new File([fixtureText('malformed-interior.jsonl')], 'bad-log.jsonl'))
 
@@ -120,6 +160,9 @@ describe('Home', () => {
     expect(screen.getByText('Line 2')).toBeTruthy()
     expect(screen.getByText('Event 1')).toBeTruthy()
     expect(screen.getByText('invalid JSON event')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Retry bad-log.jsonl' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry bad-log.jsonl' }))
+    expect(await screen.findByText('Line 2')).toBeTruthy()
+    expect(screen.getByText('Event 1')).toBeTruthy()
+    expect(onLoaded).not.toHaveBeenCalled()
   })
 })

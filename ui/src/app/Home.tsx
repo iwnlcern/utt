@@ -4,14 +4,25 @@ import type { GameRecord } from '../log/gameRecord'
 import { LogError, parseGameLog } from '../log/validate'
 import { clearRecents, readRecents, recentForGame, saveRecent, type RecentGame } from './recents'
 
-type Source = {
+type FileSource = {
+  kind: 'file'
   name: string
-  text?: string
-  file?: File
+  file: File
+}
+
+type TextSource = {
+  kind: 'text'
+  name: string
+  text: string
+}
+
+type SampleSource = {
+  kind: 'sample'
+  name: 'sample-game.jsonl'
 }
 
 type LoadFailure = {
-  source: Source
+  source: FileSource | TextSource | SampleSource
   error: LogError | Error
 }
 
@@ -36,9 +47,9 @@ function Home({ onLoaded }: HomeProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [failure, setFailure] = useState<LoadFailure | null>(null)
 
-  const openSource = async (source: Source): Promise<void> => {
+  const openSource = async (source: FileSource | TextSource): Promise<void> => {
     try {
-      const text = source.text ?? (source.file === undefined ? '' : await readFile(source.file))
+      const text = source.kind === 'text' ? source.text : await readFile(source.file)
       const game = parseGameLog(text)
       const saved = saveRecent(recentForGame(source.name, text, game))
       setRecents(saved.recents)
@@ -53,20 +64,21 @@ function Home({ onLoaded }: HomeProps) {
   const openFile = (file: File | undefined): void => {
     if (file === undefined) return
     if (!isJsonlFile(file)) {
-      setFailure({ source: { name: file.name, file }, error: new Error('Choose a .jsonl game log') })
+      setFailure({ source: { kind: 'file', name: file.name, file }, error: new Error('Choose a .jsonl game log') })
       return
     }
-    void openSource({ name: file.name, file })
+    void openSource({ kind: 'file', name: file.name, file })
   }
 
   const openSample = async (): Promise<void> => {
+    const source: SampleSource = { kind: 'sample', name: 'sample-game.jsonl' }
     try {
       const response = await fetch('/sample-game.jsonl')
       if (!response.ok) throw new Error('Could not load the bundled sample game')
-      await openSource({ name: 'sample-game.jsonl', text: await response.text() })
+      await openSource({ kind: 'text', name: source.name, text: await response.text() })
     } catch (error) {
       setFailure({
-        source: { name: 'sample-game.jsonl' },
+        source,
         error: error instanceof Error ? error : new Error('Could not load the bundled sample game'),
       })
     }
@@ -85,7 +97,12 @@ function Home({ onLoaded }: HomeProps) {
             <div><dt>Reason</dt><dd>{error.reason}</dd></div>
           </dl>
         )}
-        <button type="button" onClick={() => void openSource(source)}>Retry {source.name}</button>
+        <button
+          type="button"
+          onClick={() => source.kind === 'sample' ? void openSample() : void openSource(source)}
+        >
+          Retry {source.name}
+        </button>
         <button type="button" onClick={() => setFailure(null)}>Choose another file</button>
       </main>
     )
@@ -121,7 +138,7 @@ function Home({ onLoaded }: HomeProps) {
           <ul>
             {recents.map((recent) => (
               <li key={`${recent.name}-${recent.opened_at}`}>
-                <button type="button" onClick={() => void openSource({ name: recent.name, text: recent.log_text })}>
+                <button type="button" onClick={() => void openSource({ kind: 'text', name: recent.name, text: recent.log_text })}>
                   Open recent {recent.name} ({recent.result})
                 </button>
               </li>
