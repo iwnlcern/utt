@@ -221,4 +221,43 @@ describe('Home', () => {
     expect(await screen.findByText('recovery trigger_request_id does not match an attempt at ply 0')).toBeTruthy()
     expect(onLoaded).not.toHaveBeenCalled()
   })
+
+  it('shows a structured error for invalid attempt ordinals before saving or opening', async () => {
+    const onLoaded = vi.fn()
+    const events = fixtureText('double-fault-retry.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const auction = events.find((event) => event.event === 'auction')
+    auction.attempts[1].attempt = 3
+    render(<Home onLoaded={onLoaded} />)
+
+    await dropFile(new File([`${events.map(JSON.stringify).join('\n')}\n`], 'bad-attempts.jsonl'))
+
+    expect(await screen.findByRole('heading', { name: 'Could not open bad-attempts.jsonl' })).toBeTruthy()
+    expect(screen.getByText('Line 4')).toBeTruthy()
+    expect(screen.getByText('Event 3')).toBeTruthy()
+    expect(screen.getByText(
+      'attempt ordinals must be 1..N in logged order at event 3: expected 2, received 3',
+    )).toBeTruthy()
+    expect(window.localStorage.getItem(RECENTS_STORAGE_KEY)).toBeNull()
+    expect(onLoaded).not.toHaveBeenCalled()
+  })
+
+  it('shows a structured error for an auction after a final unresolved auction', async () => {
+    const onLoaded = vi.fn()
+    const events = fixtureText('recovery-fault-abort.jsonl').trimEnd().split('\n').map((line) => JSON.parse(line))
+    const laterAuction = JSON.parse(fixtureText('success-macro-win.jsonl').split('\n')[1])
+    laterAuction.ply = 1
+    events.splice(-1, 0, laterAuction)
+    render(<Home onLoaded={onLoaded} />)
+
+    await dropFile(new File([`${events.map(JSON.stringify).join('\n')}\n`], 'post-unresolved.jsonl'))
+
+    expect(await screen.findByRole('heading', { name: 'Could not open post-unresolved.jsonl' })).toBeTruthy()
+    expect(screen.getByText('Line 5')).toBeTruthy()
+    expect(screen.getByText('Event 4')).toBeTruthy()
+    expect(screen.getByText(
+      'auction at event 4 follows unresolved ply 0; an unresolved auction must be final',
+    )).toBeTruthy()
+    expect(window.localStorage.getItem(RECENTS_STORAGE_KEY)).toBeNull()
+    expect(onLoaded).not.toHaveBeenCalled()
+  })
 })

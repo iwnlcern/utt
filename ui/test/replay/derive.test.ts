@@ -17,6 +17,46 @@ const resolvedAuctions = (text: string) => parseGameLog(text).events.filter(
 const fixtureRecord = (name: string) => parseGameLog(fixtureText(name))
 
 describe('deriveReplayModel', () => {
+  it.each([
+    ['a first attempt numbered 2', 'success-macro-win.jsonl', 0, 2, 2, 1, 1],
+    ['a retry that skips attempt 2', 'double-fault-retry.jsonl', 1, 3, 4, 3, 2],
+  ] as const)(
+    'rejects %s at its auction event coordinate',
+    (_name, fixture, attemptIndex, received, line, eventIndex, expected) => {
+      const events = fixtureText(fixture).trimEnd().split('\n').map((event) => JSON.parse(event))
+      const auction = events.find((event) => event.event === 'auction')
+      auction.attempts[attemptIndex].attempt = received
+      const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+      expect(() => deriveReplayModel(record)).toThrow(
+        expect.objectContaining({
+          line,
+          event_index: eventIndex,
+          reason: `attempt ordinals must be 1..N in logged order at event ${eventIndex}: expected ${expected}, received ${received}`,
+        } satisfies Partial<LogError>),
+      )
+    },
+  )
+
+  it.each([
+    ['voided', 'void-triple-double-fault.jsonl', 7, 6],
+    ['aborted_recovery_fault', 'recovery-fault-abort.jsonl', 5, 4],
+  ] as const)('rejects a later auction after a final %s auction', (_outcome, fixture, line, eventIndex) => {
+    const events = fixtureText(fixture).trimEnd().split('\n').map((event) => JSON.parse(event))
+    const laterAuction = JSON.parse(fixtureText('success-macro-win.jsonl').split('\n')[1])
+    laterAuction.ply = 1
+    events.splice(-1, 0, laterAuction)
+    const record = parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`)
+
+    expect(() => deriveReplayModel(record)).toThrow(
+      expect.objectContaining({
+        line,
+        event_index: eventIndex,
+        reason: `auction at event ${eventIndex} follows unresolved ply 0; an unresolved auction must be final`,
+      } satisfies Partial<LogError>),
+    )
+  })
+
   it('rejects a non-sequential wire ply with its event coordinate', () => {
     const record = parseGameLog(fixtureText('success-macro-win.jsonl').replace('"ply":1', '"ply":2'))
 

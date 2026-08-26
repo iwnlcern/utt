@@ -25,10 +25,18 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
     : [],
   )
   let expectedPly = 0
+  let unresolvedPly: number | undefined
 
   for (const [eventIndex, event] of game.events.entries()) {
     if (event.event !== 'auction') continue
 
+    if (unresolvedPly !== undefined) {
+      throw new LogError(
+        eventIndex + 1,
+        eventIndex,
+        `auction at event ${eventIndex} follows unresolved ply ${unresolvedPly}; an unresolved auction must be final`,
+      )
+    }
     if (event.ply !== expectedPly) {
       throw new LogError(
         eventIndex + 1,
@@ -37,6 +45,17 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
       )
     }
     expectedPly += 1
+
+    for (const [attemptIndex, attempt] of event.attempts.entries()) {
+      const expectedAttempt = attemptIndex + 1
+      if (attempt.attempt !== expectedAttempt) {
+        throw new LogError(
+          eventIndex + 1,
+          eventIndex,
+          `attempt ordinals must be 1..N in logged order at event ${eventIndex}: expected ${expectedAttempt}, received ${attempt.attempt}`,
+        )
+      }
+    }
 
     const pre = positions.at(-1)
     if (pre === undefined) throw new Error('replay positions must start with position_0')
@@ -62,6 +81,7 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
         recoveries: stepRecoveries,
         outcome: event.outcome,
       })
+      unresolvedPly = event.ply
       continue
     }
 
