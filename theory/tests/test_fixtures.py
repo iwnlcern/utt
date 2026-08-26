@@ -94,3 +94,20 @@ def test_hand_authored_fixtures_valid():
 
     ids = [fixture_id for filename in HAND_AUTHORED for fixture_id in _load_and_validate(filename, schema)]
     assert len(ids) == len(set(ids)), "fixture ids must be unique across hand-authored files"
+
+
+def test_generated_fixtures_valid():
+    schema = json.loads((FIXTURES / "schema-v1.json").read_text(encoding="utf-8"))
+    generated_ids = [
+        fixture_id
+        for filename in GENERATED
+        for fixture_id in _load_and_validate(filename, schema)
+    ]
+    assert len(generated_ids) == len(set(generated_ids))
+
+    all_ids = [
+        fixture_id
+        for filename in HAND_AUTHORED + GENERATED
+        for fixture_id in _load_and_validate(filename, schema)
+    ]
+    assert len(all_ids) == len(set(all_ids)), "fixture ids must be globally unique"

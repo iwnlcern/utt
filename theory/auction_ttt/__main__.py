@@ -15,6 +15,7 @@ from auction_ttt.crosscheck import (
     targeted_report,
 )
 from auction_ttt.discrete import solve as solve_discrete
+from auction_ttt.fixtures_gen import write_or_check
 
 
 def _print_report(report: dict[str, object]) -> None:
@@ -75,6 +76,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("solve", help="solve and print conditional root thresholds")
     commands.add_parser("kalai", help="report root budget ratios against the E0 reference")
+    fixtures_parser = commands.add_parser(
+        "fixtures", help="generate or check theory-owned oracle fixtures"
+    )
+    fixtures_parser.add_argument("--check", action="store_true")
+    fixtures_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "fixtures",
+    )
     crosscheck_parser = commands.add_parser(
         "crosscheck", help="cross-check one exact discrete scale"
     )
@@ -93,6 +103,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if sorted(args.spots) != [64, 128]:
             parser.error("--spots requires exactly 64 and 128")
         args.spots = [64, 128]
+
+    if args.command == "fixtures":
+        mismatches = write_or_check(args.output_dir, check=args.check)
+        return 1 if mismatches else 0
 
     solved = solve_continuous()
     if args.command == "solve":
