@@ -52,3 +52,17 @@ Task 2 verification: controller reran owner Draft 2020-12 validation plus replay
 Task 3: minor (deferred): broad budget fields remain TypeScript number; Task 4 owns runtime integer validation.
 Task 3: fix round 1/5 (3 addressed, 0 open — bounded Cell type, extensible SeatMap, newline-invalid handoff regression; commits 4c090ca..b0d6369).
 Task 3: complete (commits 5723753..b0d6369, review clean).
+Task 4: minor (deferred): malformed-interior test checks coordinates but not LogError instance/reason; final review must triage.
+Task 4: fix round 1/5 (3 addressed, 0 open — one-based empty-prefix coordinate, nested unknown-key proof, named partial-prefix coverage; commits cfa4140..11e8136).
+Task 4: complete (commits b0d6369..11e8136, review clean).
+Task 5: complete (commits 11e8136..602509c, review clean).
+Task 6: minor (deferred): add explicit fault-single tieOwner regression.
+Task 6: minor (deferred): add explicit truncated forwarding regression.
+Task 6: fix round 1/5 (1 addressed, 0 open — AuctionStep discriminated union; commits 4c65ca3..0cb3136).
+Task 6: complete (commits 602509c..0cb3136, review clean).
+Task 7: fix round 1/5 (1 addressed, 0 open — compound ply/trigger_request_id recovery key with fail-closed stale-ID regression; commits f71f956..23e4051).
+Task 7: complete (commits 0cb3136..23e4051, review clean).
+Task 7 residual risk: live referee/conformance-log E3 validation was not performed; local fixture coverage and explicit E2 gates are green.
+Task 8: fix round 1/5 (1 important + 1 minor addressed, 0 open — bound interval contract and focused gate/cursor regressions; commits 37ab47a..4666bbc).
+Task 8: complete (commits 23e4051..4666bbc, review clean).
+Task 8 residual risk: PV_PIN remains intentionally false until the harness publishes the exact state-hash/convention artifact; all consumers must preserve that gate.
