@@ -6,8 +6,10 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <expected>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -15,6 +17,85 @@ using namespace uttt;
 using json = nlohmann::json;
 
 namespace {
+
+struct ClosureRecord {
+  int local;
+  std::string result;
+};
+
+std::expected<Seat, std::string> parse_move_by(const json& fixture) {
+  if (!fixture.contains("move_by")) {
+    return std::unexpected("move_by is required for move-bearing fixture");
+  }
+  if (!fixture.at("move_by").is_string()) {
+    return std::unexpected("move_by must be \"X\" or \"O\"");
+  }
+  const std::string move_by = fixture.at("move_by").get<std::string>();
+  if (move_by == "X") return Seat::X;
+  if (move_by == "O") return Seat::O;
+  return std::unexpected("move_by must be \"X\" or \"O\"");
+}
+
+std::expected<std::vector<ClosureRecord>, std::string> parse_closure_records(
+    const json& fixture) {
+  if (!fixture.contains("expected_closures") || !fixture.at("expected_closures").is_array()) {
+    return std::unexpected("expected_closures must be an array");
+  }
+  std::vector<ClosureRecord> records;
+  for (const auto& raw : fixture.at("expected_closures")) {
+    if (!raw.is_object() || !raw.contains("local") || !raw.at("local").is_number_integer() ||
+        !raw.contains("result") || !raw.at("result").is_string()) {
+      return std::unexpected("expected_closures entries require integer local and string result");
+    }
+    const int local = raw.at("local").get<int>();
+    const std::string result = raw.at("result").get<std::string>();
+    if (local < 0 || local > 8) {
+      return std::unexpected("expected_closures local must be between 0 and 8");
+    }
+    if (result != "X" && result != "O" && result != "full") {
+      return std::unexpected("expected_closures result must be \"X\", \"O\", or \"full\"");
+    }
+    if (!records.empty() && records.back().local >= local) {
+      return std::unexpected("expected_closures must be ordered by local");
+    }
+    records.push_back({local, result});
+  }
+  return records;
+}
+
+std::expected<bool, std::string> reduce_terminal_kind(
+    const json& fixture, TerminalKind terminal) {
+  if (!fixture.contains("expected_terminal")) {
+    return std::unexpected("expected_terminal is required for move-bearing fixture");
+  }
+  std::optional<std::string> expected;
+  const auto& raw = fixture.at("expected_terminal");
+  if (raw.is_null()) {
+    expected = std::nullopt;
+  } else if (raw.is_string()) {
+    expected = raw.get<std::string>();
+    if (expected != "macro_win" && expected != "all_closed") {
+      return std::unexpected("expected_terminal must be null, \"macro_win\", or \"all_closed\"");
+    }
+  } else {
+    return std::unexpected("expected_terminal must be null, \"macro_win\", or \"all_closed\"");
+  }
+
+  std::optional<std::string> actual;
+  switch (terminal) {
+    case TerminalKind::None:
+      actual = std::nullopt;
+      break;
+    case TerminalKind::MacroWinX:
+    case TerminalKind::MacroWinO:
+      actual = "macro_win";
+      break;
+    case TerminalKind::AllClosed:
+      actual = "all_closed";
+      break;
+  }
+  return actual == expected;
+}
 
 std::expected<Position, std::string> position_from_state(const json& state) {
   if (!state.contains("board") || !state["board"].is_array() || state["board"].size() != 9) {
@@ -78,9 +159,12 @@ void run_engine_fixture(const json& fixture) {
   if (fixture.contains("move")) {
     const auto& raw_move = fixture.at("move");
     const Move move{raw_move.at(0).get<uint8_t>(), raw_move.at(1).get<uint8_t>()};
-    Seat mover = Seat::X;
-    if (fixture.contains("mover") && fixture.at("mover") == "O") mover = Seat::O;
-    const auto child = p.applied(move, mover);
+    const auto move_by = parse_move_by(fixture);
+    if (!move_by.has_value()) {
+      REQUIRE_MESSAGE(false, move_by.error());
+      return;
+    }
+    const auto child = p.applied(move, move_by.value());
     REQUIRE(child.has_value());
     if (fixture.contains("expected_forced")) {
       const int expected = fixture.at("expected_forced").is_null()
@@ -88,16 +172,33 @@ void run_engine_fixture(const json& fixture) {
           : fixture.at("expected_forced").get<int>();
       CHECK(child->forced == expected);
     }
-    if (fixture.contains("expected_closures")) {
-      std::vector<int> actual_closed;
-      for (int b = 0; b < 9; ++b) {
-        if (((child->closed ^ p.closed) >> b) & 1u) actual_closed.push_back(b);
-      }
-      CHECK(actual_closed == fixture.at("expected_closures").get<std::vector<int>>());
+    const auto expected_closures = parse_closure_records(fixture);
+    if (!expected_closures.has_value()) {
+      REQUIRE_MESSAGE(false, expected_closures.error());
+      return;
     }
-    if (fixture.contains("expected_terminal")) {
-      CHECK((child->terminal() != TerminalKind::None) == fixture.at("expected_terminal").get<bool>());
+    std::vector<int> actual_closed;
+    for (int b = 0; b < 9; ++b) {
+      if (((child->closed ^ p.closed) >> b) & 1u) actual_closed.push_back(b);
     }
+    std::vector<int> expected_closed;
+    for (const auto& record : expected_closures.value()) expected_closed.push_back(record.local);
+    CHECK(actual_closed == expected_closed);
+    for (const auto& record : expected_closures.value()) {
+      const uint16_t mask = uint16_t(1u << record.local);
+      std::optional<std::string> actual_result;
+      if ((child->macro_x & mask) != 0) actual_result = "X";
+      else if ((child->macro_o & mask) != 0) actual_result = "O";
+      else if ((child->closed & mask) != 0) actual_result = "full";
+      REQUIRE_MESSAGE(actual_result.has_value(), "expected closure local is not closed");
+      CHECK(actual_result.value() == record.result);
+    }
+    const auto terminal_matches = reduce_terminal_kind(fixture, child->terminal());
+    if (!terminal_matches.has_value()) {
+      REQUIRE_MESSAGE(false, terminal_matches.error());
+      return;
+    }
+    CHECK_MESSAGE(terminal_matches.value(), "expected_terminal does not match child terminal kind");
   }
   if (fixture.contains("expected_result")) {
     const std::string result = fixture.at("expected_result").get<std::string>();
@@ -124,6 +225,9 @@ TEST_CASE("fixture consumption requires a recognized engine expectation") {
   CHECK_FALSE(has_recognized_expectation(fixture));
 
   fixture["expected_forced"] = nullptr;
+  fixture["move_by"] = "X";
+  fixture["expected_closures"] = json::array();
+  fixture["expected_terminal"] = nullptr;
   CHECK(has_recognized_expectation(fixture));
 
   fixture.erase("move");
@@ -131,6 +235,84 @@ TEST_CASE("fixture consumption requires a recognized engine expectation") {
 
   fixture["expected_result"] = "draw";
   CHECK(has_recognized_expectation(fixture));
+}
+
+TEST_CASE("fixture schema requires a valid move_by") {
+  json fixture = {{"move", {0, 0}}};
+
+  auto parsed = parse_move_by(fixture);
+  REQUIRE_FALSE(parsed.has_value());
+  CHECK(parsed.error() == "move_by is required for move-bearing fixture");
+
+  fixture["move_by"] = "invalid";
+  parsed = parse_move_by(fixture);
+  REQUIRE_FALSE(parsed.has_value());
+  CHECK(parsed.error() == "move_by must be \"X\" or \"O\"");
+
+  fixture["move_by"] = "O";
+  parsed = parse_move_by(fixture);
+  REQUIRE(parsed.has_value());
+  CHECK(parsed.value() == Seat::O);
+}
+
+TEST_CASE("fixture schema parses ordered closure records") {
+  json fixture = {{"expected_closures", {{{"local", 2}, {"result", "X"}},
+                                           {{"local", 4}, {"result", "full"}}}}};
+
+  auto parsed = parse_closure_records(fixture);
+  REQUIRE(parsed.has_value());
+  REQUIRE(parsed->size() == 2);
+  CHECK(parsed->at(0).local == 2);
+  CHECK(parsed->at(0).result == "X");
+  CHECK(parsed->at(1).local == 4);
+  CHECK(parsed->at(1).result == "full");
+
+  fixture["expected_closures"] = {{{"local", 4}, {"result", "full"}},
+                                    {{"local", 2}, {"result", "X"}}};
+  parsed = parse_closure_records(fixture);
+  REQUIRE_FALSE(parsed.has_value());
+  CHECK(parsed.error() == "expected_closures must be ordered by local");
+}
+
+TEST_CASE("fixture schema reduces canonical terminal kinds") {
+  json fixture = {{"expected_terminal", nullptr}};
+  auto reduced = reduce_terminal_kind(fixture, TerminalKind::None);
+  REQUIRE(reduced.has_value());
+  CHECK(reduced.value());
+
+  fixture["expected_terminal"] = "macro_win";
+  reduced = reduce_terminal_kind(fixture, TerminalKind::MacroWinX);
+  REQUIRE(reduced.has_value());
+  CHECK(reduced.value());
+  reduced = reduce_terminal_kind(fixture, TerminalKind::MacroWinO);
+  REQUIRE(reduced.has_value());
+  CHECK(reduced.value());
+
+  fixture["expected_terminal"] = "all_closed";
+  reduced = reduce_terminal_kind(fixture, TerminalKind::AllClosed);
+  REQUIRE(reduced.has_value());
+  CHECK(reduced.value());
+
+  fixture["expected_terminal"] = false;
+  reduced = reduce_terminal_kind(fixture, TerminalKind::None);
+  REQUIRE_FALSE(reduced.has_value());
+  CHECK(reduced.error() == "expected_terminal must be null, \"macro_win\", or \"all_closed\"");
+}
+
+TEST_CASE("fixture runner consumes canonical closure and terminal shapes") {
+  const json fixture = {
+      {"state", {{"board", {".........", ".........", ".........", ".........",
+                              "XX.OO....", ".........", ".........", ".........",
+                              "........."}},
+                 {"forced", 4},
+                 {"h", "O"}}},
+      {"move", {4, 2}},
+      {"move_by", "X"},
+      {"expected_closures", {{{"local", 4}, {"result", "X"}}}},
+      {"expected_forced", 2},
+      {"expected_terminal", nullptr}};
+
+  run_engine_fixture(fixture);
 }
 
 TEST_CASE("theory schema-v1 UTTT fixtures") {
