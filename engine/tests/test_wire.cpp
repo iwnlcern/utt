@@ -58,6 +58,38 @@ TEST_CASE("turn validation fails closed and ignores unknown keys") {
   CHECK(parse_turn(value.dump()).has_value());
 }
 
+TEST_CASE("adapter ply-0 contract") {
+  auto check_rejected = [](json value, const std::string& expected_error) {
+    const auto result = parse_turn(value.dump());
+    CHECK_FALSE(result.has_value());
+    if (!result) CHECK(result.error() == expected_error);
+  };
+
+  json value = json::parse(kTurn);
+  value["forced"] = 3;
+  check_rejected(value, "ply-0 turn must carry forced 4");
+
+  value = json::parse(kTurn);
+  value["forced"] = nullptr;
+  check_rejected(value, "ply-0 turn must carry forced 4");
+
+  value = json::parse(kTurn);
+  value["tie_owner"] = "X";
+  check_rejected(value, "ply-0 turn must carry null tie_owner");
+
+  value = json::parse(kTurn);
+  value["ply"] = 1;
+  value["forced"] = nullptr;
+  value["tie_owner"] = "X";
+  value["legal"] = json::array();
+  for (int board = 0; board < 9; ++board) {
+    for (int cell = 0; cell < 9; ++cell) {
+      value["legal"].push_back({board, cell});
+    }
+  }
+  CHECK(parse_turn(value.dump()).has_value());
+}
+
 TEST_CASE("reply serialization echoes request and always emits move") {
   TurnReply reply{"abc", 0, {4, 2}, {"estimate", std::nullopt, std::nullopt, 0, true}};
   const json value = json::parse(serialize_reply(reply));
