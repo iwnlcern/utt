@@ -100,20 +100,41 @@ describe('Timeline', () => {
     )
   })
 
-  it('labels a bid against one zero seat budget without claiming both budgets are exhausted', () => {
+  it('uses the combined pre-auction budget for each bid when one seat has zero budget', () => {
     const model = fixtureModel('success-macro-win.jsonl')
     const first = model.auctions[0]
     if (first === undefined) throw new Error('fixture must begin with an auction')
     first.pre = { ...first.pre, budgets: { X: 1, O: 0 } }
+    const xBid = first.attempts.at(-1)?.turns.X.bid
     const oBid = first.attempts.at(-1)?.turns.O.bid
-    if (oBid === undefined) throw new Error('fixture must contain a logged O bid')
+    if (xBid === undefined || oBid === undefined) throw new Error('fixture must contain logged bids')
+    first.attempts.at(-1)!.turns.X.bid = 1
 
     render(<Timeline model={model} onSelect={vi.fn()} />)
 
     const bid = screen.getByTestId('bid-O-0')
-    expect(bid.textContent).toBe('O: n/a — seat budget is zero')
+    expect(screen.getByTestId('bid-X-0').textContent).toBe('X: 100.00% (1 units)')
+    expect(bid.textContent).toBe('O: 0.00% (0 units)')
     expect(bid.getAttribute('title')).toBe(`${formatUnits(oBid)} units`)
     expect(bid.textContent).not.toContain('both budgets exhausted')
+  })
+
+  it('renders tie bids with logged inline units and shared-budget percentages', () => {
+    render(<Timeline model={fixtureModel('chip-count.jsonl')} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('bid-X-45').textContent).toBe('X: 30.77% (4 units)')
+    expect(screen.getByTestId('bid-O-45').textContent).toBe('O: 30.77% (4 units)')
+    expect(screen.getByTestId('bid-X-45').getAttribute('title')).toBe('4 units')
+    expect(screen.getByTestId('bid-O-45').getAttribute('title')).toBe('4 units')
+  })
+
+  it('names each auction article with its ply and outcome', () => {
+    const { rerender } = render(<Timeline model={fixtureModel('no-info.jsonl')} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('auction-row-0').getAttribute('aria-label')).toBe('ply 0: tie_coin: X')
+
+    rerender(<Timeline model={fixtureModel('void-triple-double-fault.jsonl')} onSelect={vi.fn()} />)
+    expect(screen.getByTestId('auction-row-0').getAttribute('aria-label')).toBe('ply 0: voided')
   })
 
   it('renders raw-ordered pre-auction recoveries above an expandable two-attempt retry', () => {

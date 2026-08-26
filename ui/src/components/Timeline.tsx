@@ -16,26 +16,21 @@ function budgetShare(units: number, combined: number): string {
   return `${formatPercent(share(units, combined))} (${formatUnits(units)} units)`
 }
 
-function Bid({ seat, turn, budget, ply }: {
+function Bid({ seat, turn, combinedBudget, ply, showUnits }: {
   seat: Mark
   turn: TurnRecord
-  budget: number
+  combinedBudget: number
   ply: number
+  showUnits: boolean
 }) {
   if (turn.bid === undefined) {
     return <span data-testid={`bid-${seat}-${ply}`} title="no bid recorded">{seat}: n/a</span>
   }
-  if (budget === 0) {
-    return (
-      <span data-testid={`bid-${seat}-${ply}`} title={`${formatUnits(turn.bid)} units`}>
-        {seat}: n/a — seat budget is zero
-      </span>
-    )
-  }
 
   return (
     <span data-testid={`bid-${seat}-${ply}`} title={`${formatUnits(turn.bid)} units`}>
-      {seat}: {formatPercent(share(turn.bid, budget))}
+      {seat}: {formatPercent(share(turn.bid, combinedBudget))}
+      {showUnits && ` (${formatUnits(turn.bid)} units)`}
     </span>
   )
 }
@@ -125,11 +120,16 @@ function AuctionRow({ step, index, onSelect }: {
   const finalAttempt = step.attempts.at(-1)
   const recoveries = splitRecoveries(step)
   const cursor = index
+  const label = resolutionLabel(step)
+  const combinedBudget = step.pre.budgets.X + step.pre.budgets.O
+  const tiedBids = step.outcome === 'resolved'
+    && (step.resolution.reason === 'tie_last_mover' || step.resolution.reason === 'tie_coin')
 
   return (
     <>
       <RecoveryMarkers recoveries={recoveries.pre} placement="pre" ply={step.ply} />
       <article
+        aria-label={`ply ${step.ply}: ${label}`}
         data-testid={`auction-row-${step.ply}`}
         onClick={(event) => {
           if (!isInteractiveArticleTarget(event.target)) onSelect(cursor)
@@ -141,9 +141,9 @@ function AuctionRow({ step, index, onSelect }: {
         {finalAttempt !== undefined && (
           <>
             <p>
-              <Bid budget={step.pre.budgets.X} ply={step.ply} seat="X" turn={finalAttempt.turns.X} />
+              <Bid combinedBudget={combinedBudget} ply={step.ply} seat="X" showUnits={tiedBids} turn={finalAttempt.turns.X} />
               {' · '}
-              <Bid budget={step.pre.budgets.O} ply={step.ply} seat="O" turn={finalAttempt.turns.O} />
+              <Bid combinedBudget={combinedBudget} ply={step.ply} seat="O" showUnits={tiedBids} turn={finalAttempt.turns.O} />
             </p>
             <p>
               <span data-testid={`intent-X-${step.ply}`}>Intent X: {intent(finalAttempt.turns.X)}</span>
@@ -152,7 +152,7 @@ function AuctionRow({ step, index, onSelect }: {
             </p>
           </>
         )}
-        <p data-testid={`resolution-${step.ply}`}>resolution: {resolutionLabel(step)}</p>
+        <p data-testid={`resolution-${step.ply}`}>resolution: {label}</p>
         {step.outcome === 'resolved' && (
           <>
             <p data-testid={`payment-${step.ply}`}>payment: {formatUnits(step.resolution.payment)} units</p>
