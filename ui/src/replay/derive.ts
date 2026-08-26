@@ -96,5 +96,6 @@ export function deriveReplayModel(game: GameRecord): ReplayModel {
     terminal: game.end,
     positions,
     truncated: game.truncated,
+    truncation: game.truncation,
   }
 }

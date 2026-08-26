@@ -30,11 +30,11 @@ function Bid({ seat, turn, budget, ply }: {
 }
 
 function faultClass(step: AuctionStep): string | undefined {
-  for (const attempt of step.attempts) {
-    for (const seat of ['X', 'O'] as const) {
-      const validation = attempt.turns[seat].validation
-      if (validation !== 'ok') return validation
-    }
+  const finalAttempt = step.attempts.at(-1)
+  if (finalAttempt === undefined) return undefined
+  for (const seat of ['X', 'O'] as const) {
+    const validation = finalAttempt.turns[seat].validation
+    if (validation !== 'ok') return validation
   }
   return undefined
 }
@@ -159,7 +159,8 @@ export function Timeline({ model, onSelect }: TimelineProps) {
           ))}
         </div>
       )}
-      {model.truncated && <p>log ends mid-game</p>}
+      {model.truncation === 'discarded_final_line' && <p>log ends mid-game (truncated final line discarded)</p>}
+      {model.truncation === 'missing_game_end' && <p>log ends mid-game</p>}
       {model.terminal !== undefined && (
         <p data-testid={`terminal-${model.terminal.reason}`}>
           terminal: {model.terminal.reason} ({model.terminal.result})

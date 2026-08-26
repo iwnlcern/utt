@@ -6,6 +6,7 @@ import type {
   RecoveryEvent,
   Resolution,
 } from '../log/types'
+import type { Truncation } from '../log/gameRecord'
 
 export interface Position {
   board: readonly string[]
@@ -47,4 +48,5 @@ export interface ReplayModel {
   terminal?: GameEndEvent
   positions: Position[]
   truncated: boolean
+  truncation: Truncation
 }

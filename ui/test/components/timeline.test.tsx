@@ -90,11 +90,46 @@ describe('Timeline', () => {
     expect(screen.getByTestId('resolution-0').textContent).toContain('fault: illegal_move')
   })
 
+  it('uses the final resolving attempt for a fault label after a double-fault retry', () => {
+    const events = readFileSync(resolve(import.meta.dirname, '../../fixtures/double-fault-retry.jsonl'), 'utf8')
+      .trimEnd()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+    const auction = events.find((event) => event.event === 'auction') as {
+      attempts: Array<{ turns: { X: Record<string, unknown> } }>
+      resolution: Record<string, unknown>
+    } | undefined
+    if (auction === undefined) throw new Error('fixture must contain an auction')
+    const finalAttempt = auction.attempts[1]
+    if (finalAttempt === undefined) throw new Error('fixture must contain a retry')
+    finalAttempt.turns.X = {
+      validation: 'illegal_move',
+      elapsed_ms: 0,
+      raw: { b64: '', truncated: false, bytes_total: 0 },
+    }
+    auction.resolution.reason = 'fault'
+
+    render(<Timeline model={deriveReplayModel(parseGameLog(`${events.map(JSON.stringify).join('\n')}\n`))} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('resolution-0').textContent).toContain('fault: illegal_move')
+    expect(screen.getByTestId('resolution-0').textContent).not.toContain('invalid_json')
+  })
+
   it('renders trailing recovery markers and the incomplete-log tail notice', () => {
     render(<Timeline model={fixtureModel('trailing-recovery.jsonl')} onSelect={vi.fn()} />)
 
     expect(screen.getByTestId('trailing-recoveries').textContent).toContain('X · invalid_json')
     expect(screen.getByText('log ends mid-game')).not.toBeNull()
+  })
+
+  it('distinguishes a discarded malformed final line from a complete prefix that lacks game_end', () => {
+    const { rerender } = render(<Timeline model={fixtureModel('truncated-line.jsonl')} onSelect={vi.fn()} />)
+
+    expect(screen.getByText('log ends mid-game (truncated final line discarded)')).not.toBeNull()
+
+    rerender(<Timeline model={fixtureModel('missing-game-end.jsonl')} onSelect={vi.fn()} />)
+    expect(screen.getByText('log ends mid-game')).not.toBeNull()
+    expect(screen.queryByText('log ends mid-game (truncated final line discarded)')).toBeNull()
   })
 
   it.each([

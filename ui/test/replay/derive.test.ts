@@ -178,6 +178,14 @@ describe('deriveReplayModel', () => {
     expect(model.trailingRecoveries[0]?.trigger_request_id).toBeTruthy()
     expect(model.trailingRecoveries[0]?.hello).toBeDefined()
     expect(model.truncated).toBe(true)
+    expect(model.truncation).toBe('missing_game_end')
+  })
+
+  it('forwards discarded-final-line provenance from the validated record', () => {
+    const model = deriveReplayModel(fixtureRecord('truncated-line.jsonl'))
+
+    expect(model.truncated).toBe(true)
+    expect(model.truncation).toBe('discarded_final_line')
   })
 
   it('preserves X then O order for multiple trailing recoveries', () => {

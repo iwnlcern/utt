@@ -30,6 +30,7 @@ describe('parseGameLog', () => {
     const record = parseGameLog(fixtureText('truncated-line.jsonl'))
     expect(record.end?.event).toBe('game_end')
     expect(record.truncated).toBe(true)
+    expect(record.truncation).toBe('discarded_final_line')
   })
 
   it.each([
@@ -43,6 +44,7 @@ describe('parseGameLog', () => {
     const record = parseGameLog(fixtureText('missing-game-end.jsonl'))
     expect(record.end).toBeUndefined()
     expect(record.truncated).toBe(true)
+    expect(record.truncation).toBe('missing_game_end')
   })
 
   it.each(['post-auction-recovery-eof.jsonl', 'trailing-recovery.jsonl', 'trailing-recovery-xo.jsonl'])(
@@ -51,6 +53,7 @@ describe('parseGameLog', () => {
       const record = parseGameLog(fixtureText(fixture))
       expect(record.end).toBeUndefined()
       expect(record.truncated).toBe(true)
+      expect(record.truncation).toBe('missing_game_end')
     },
   )
 

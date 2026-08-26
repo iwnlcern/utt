@@ -139,5 +139,10 @@ export function parseGameLog(text: string): GameRecord {
   if (start.log_version !== 1) throw new LogError(split.lines[0].line, 0, 'unsupported log version')
 
   const end = events.findLast((event) => event.event === 'game_end')
-  return { start, events, end, truncated: split.discardedTail !== null || end === undefined }
+  const truncation = split.discardedTail !== null
+    ? 'discarded_final_line'
+    : end === undefined
+      ? 'missing_game_end'
+      : null
+  return { start, events, end, truncated: truncation !== null, truncation }
 }
