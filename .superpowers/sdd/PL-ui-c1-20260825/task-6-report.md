@@ -65,3 +65,50 @@ Task 6 deliberately rejects non-resolved auctions after validating their wire
 ply. Task 7 owns the total fold: recovery attachment, voided/aborted outcomes,
 trailing recoveries, and zero-auction setup terminals. The model already
 carries the fields needed for that extension.
+
+## Fix Round 1 — discriminated `AuctionStep`
+
+Changed `AuctionStep` into a union with a shared base:
+
+- `outcome: 'resolved'` requires both `resolution` and `post`.
+- `outcome: 'voided' | 'aborted_recovery_fault'` forbids both fields with
+  optional `never` fields, preserving the Task 7 extension seam.
+
+The focused test derives the real first fixture step, narrows on
+`outcome === 'resolved'`, then reads its winner and post-board without optional
+guards. That use failed typechecking before the model change and passes now.
+
+### RED
+
+```text
+$ cd ui && ./node_modules/.bin/tsc --ignoreConfig --noEmit --target es2023 --lib es2023,dom --module esnext --moduleResolution bundler --allowImportingTsExtensions --verbatimModuleSyntax --moduleDetection force --skipLibCheck --types vite/client,node --jsx react-jsx test/replay/derive.test.ts
+test/replay/derive.test.ts(36,12): error TS18048: 'step.resolution' is possibly 'undefined'.
+test/replay/derive.test.ts(37,12): error TS18048: 'step.post' is possibly 'undefined'.
+```
+
+### GREEN
+
+```text
+$ cd ui && npm test -- test/replay/derive.test.ts
+Test Files 1 passed; Tests 5 passed
+
+$ cd ui && ./node_modules/.bin/tsc --ignoreConfig --noEmit --target es2023 --lib es2023,dom --module esnext --moduleResolution bundler --allowImportingTsExtensions --verbatimModuleSyntax --moduleDetection force --skipLibCheck --types vite/client,node --jsx react-jsx test/replay/derive.test.ts
+exit 0
+
+$ cd ui && npm test
+Test Files 6 passed; Tests 35 passed
+
+$ cd ui && npm run build
+tsc -b && vite build
+built in 133ms
+
+$ cd ui && npm run lint
+eslint .
+exit 0
+
+$ git diff --check
+exit 0
+```
+
+Deferred by instruction: the fault-single tie-owner assertion and explicit
+truncated-forwarding regression were not changed in this fix round.

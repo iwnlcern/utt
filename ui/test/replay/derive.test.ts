@@ -27,6 +27,20 @@ describe('deriveReplayModel', () => {
     )
   })
 
+  it('narrows a resolved derived step to its required resolution and post-position', () => {
+    const step = deriveReplayModel(parseGameLog(fixtureText('success-macro-win.jsonl'))).auctions[0]
+
+    expect(step).toBeDefined()
+    if (step === undefined || step.outcome !== 'resolved') throw new Error('fixture must start with a resolved auction')
+
+    expect(step.resolution.winner).toBe('X')
+    expect(step.post.board).toEqual([
+      '.........', '.........', '.........',
+      '.........', '...X.....', '.........',
+      '.........', '.........', '.........',
+    ])
+  })
+
   it('folds resolved fixture positions from logged fields and persists logged closures', () => {
     const text = fixtureText('success-macro-win.jsonl')
     const record = parseGameLog(text)

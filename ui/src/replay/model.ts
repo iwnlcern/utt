@@ -19,15 +19,26 @@ export interface SetupStep {
   start: GameStartEvent
 }
 
-export interface AuctionStep {
+interface AuctionStepBase {
   ply: number
   pre: Position
   attempts: Attempt[]
   recoveries: RecoveryEvent[]
-  outcome: 'resolved' | 'voided' | 'aborted_recovery_fault'
-  resolution?: Resolution
-  post?: Position
 }
+
+export interface ResolvedAuctionStep extends AuctionStepBase {
+  outcome: 'resolved'
+  resolution: Resolution
+  post: Position
+}
+
+export interface UnresolvedAuctionStep extends AuctionStepBase {
+  outcome: 'voided' | 'aborted_recovery_fault'
+  resolution?: never
+  post?: never
+}
+
+export type AuctionStep = ResolvedAuctionStep | UnresolvedAuctionStep
 
 export interface ReplayModel {
   setup: SetupStep
