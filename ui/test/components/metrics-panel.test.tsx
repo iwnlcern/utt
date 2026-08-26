@@ -69,6 +69,22 @@ describe('MetricsPanel', () => {
     expect(screen.getByText('both budgets exhausted')).not.toBeNull()
   })
 
+  it('keeps missing t semantics explicit for a usable degraded analysis at nonzero budgets', () => {
+    render(<MetricsPanel analyses={{ X: { kind: 'ok', criticalBid: 100_000_000, degraded: ['t'] } }} position={position()} />)
+
+    expect(screen.getByText('T: unavailable — t not present in analysis')).not.toBeNull()
+    expect(screen.getByText('margin p−T: unavailable — t not present in analysis')).not.toBeNull()
+    expect(screen.queryByText('margin p−T: n/a — both budgets exhausted')).toBeNull()
+  })
+
+  it('marks bound interval percentages not applicable when both budgets are zero', () => {
+    render(<MetricsPanel analyses={{ X: bound }} position={position({ X: 0, O: 0 })} />)
+
+    expect(screen.getByText((_, element) => element?.tagName === 'P'
+      && element.textContent === 'interval [n/a — both budgets exhausted (0 units), n/a — both budgets exhausted (0 units)]')).not.toBeNull()
+    expect(screen.queryByText(/interval \[50\.00%/)).toBeNull()
+  })
+
   it('shows a seat selector only when both seats have usable analysis', () => {
     const oEntry: AnalysisEntry = { kind: 'ok', t: 0.5, degraded: [] }
     const { rerender } = render(<MetricsPanel analyses={{ X: bound }} position={position()} />)

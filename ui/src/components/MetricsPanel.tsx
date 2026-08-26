@@ -20,12 +20,16 @@ export interface MetricsPanelProps {
 }
 
 const seats: readonly Mark[] = ['X', 'O']
+const MISSING_THRESHOLD_MESSAGE = 'unavailable — t not present in analysis'
 
 function firstUsableSeat(analyses: MetricsPanelProps['analyses']): Mark | undefined {
   return seats.find((seat) => analyses[seat]?.kind === 'ok')
 }
 
 function dualShare(value: number, combined: number): string {
+  if (combined === 0) {
+    return `${formatPercent(share(0, combined))} (${formatUnits(0)} units)`
+  }
   const basisPoints = percentBasisPoints({ kind: 'ok', value }) ?? 0
   return `${formatPercentBasisPoints(basisPoints)} (${formatUnits((basisPoints * combined) / 10_000)} units)`
 }
@@ -97,10 +101,12 @@ function Metrics({ entry, p, combined }: {
     : percentBasisPoints({ kind: 'ok', value: threshold })
   const margin = actualBasisPoints !== undefined && thresholdBasisPoints !== undefined
     ? formatPercentBasisPoints(actualBasisPoints - thresholdBasisPoints)
-    : formatPercent({ kind: 'na', why: 'both budgets exhausted' })
+    : threshold === undefined
+      ? MISSING_THRESHOLD_MESSAGE
+      : formatPercent({ kind: 'na', why: 'both budgets exhausted' })
   const favored = favoredLabel(p, threshold)
   const thresholdText = threshold === undefined
-    ? 'unavailable — t not present in analysis'
+    ? MISSING_THRESHOLD_MESSAGE
     : p.kind === 'na'
       ? formatPercent(p)
       : dualShare(threshold, combined)
