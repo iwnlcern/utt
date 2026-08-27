@@ -79,3 +79,13 @@ TEST_CASE("tvalue ordered backup clips its interval to the unit range") {
   CHECK_FALSE(contains(result, -std::numeric_limits<double>::denorm_min()));
   CHECK_FALSE(contains(result, std::nextafter(1.0, kInf)));
 }
+
+TEST_CASE("tvalue ordered backup preserves a finite subnormal boundary") {
+  const double minimum = std::numeric_limits<double>::denorm_min();
+  const TInterval result = f_backup({0.5, 1.0}, {minimum, minimum});
+
+  CHECK(0.0 <= result.lo);
+  CHECK(result.lo <= result.hi);
+  CHECK(result.hi <= 1.0);
+  CHECK(TestRational{1}.inside(result.lo, result.hi));
+}

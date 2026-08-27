@@ -46,9 +46,12 @@ inline double div_up(double lhs, double rhs) {
 inline TInterval f_backup(TInterval a, TInterval b) {
   const double lo_denominator = add_up(sub_up(1.0, a.lo), b.lo);
   const double hi_denominator = add_down(sub_down(1.0, a.hi), b.hi);
+  const double hi = hi_denominator <= 0.0
+      ? 1.0
+      : std::clamp(div_up(b.hi, hi_denominator), 0.0, 1.0);
   return {
       std::clamp(div_down(b.lo, lo_denominator), 0.0, 1.0),
-      std::clamp(div_up(b.hi, hi_denominator), 0.0, 1.0),
+      hi,
   };
 }
 
