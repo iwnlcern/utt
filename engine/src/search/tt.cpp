@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <limits>
-#include <stdexcept>
 
 namespace uttt {
 namespace {
@@ -31,15 +30,15 @@ uint8_t worse_quality(uint8_t lhs, uint8_t rhs) {
                   static_cast<uint8_t>(rhs & kTTQualityMask));
 }
 
+bool sound(const TTEntry &entry) {
+  return (entry.flags & kTTQualityMask) != kTTQualityEstimate;
+}
+
 } // namespace
 
 TT::TT(uint8_t entries_log2, Mode mode) : mode_(mode) {
-  constexpr uint8_t kSizeBits =
-      static_cast<uint8_t>(std::numeric_limits<std::size_t>::digits);
-  if (entries_log2 < 2 || entries_log2 >= kSizeBits - 5)
-    throw std::invalid_argument("TT entries_log2 is out of range");
-
-  const std::size_t entries = std::size_t{1} << entries_log2;
+  const std::size_t entries =
+      bytes_for_entries_log2(entries_log2) / sizeof(TTEntry);
   buckets_.resize(entries / kWays);
   if (mode_ == Mode::FullKey)
     sidecars_.resize(entries);
@@ -115,6 +114,16 @@ void TT::store(TTKey key, const PosId &id, TTEntry incoming) {
       return;
 
     if (incoming.depth == resident.depth) {
+      if (sound(resident) != sound(incoming)) {
+        if (sound(incoming))
+          write(bucket, *same_way, key, id, incoming);
+        return;
+      }
+      if (!sound(resident)) {
+        write(bucket, *same_way, key, id, incoming);
+        return;
+      }
+
       TTEntry merged = resident;
       const double merged_lo = std::max(resident.lo, incoming.lo);
       const double merged_hi = std::min(resident.hi, incoming.hi);

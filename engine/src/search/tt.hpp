@@ -4,7 +4,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
+#include <stdexcept>
 #include <vector>
 
 namespace uttt {
@@ -63,6 +65,9 @@ public:
   enum class Mode : uint8_t { Play, FullKey };
 
   static constexpr uint8_t kDefaultEntriesLog2 = 22;
+  static constexpr uint8_t kMinEntriesLog2 = 2;
+  static constexpr uint8_t kMaxEntriesLog2 =
+      static_cast<uint8_t>(std::numeric_limits<std::size_t>::digits - 6);
 
   explicit TT(uint8_t entries_log2 = kDefaultEntriesLog2,
               Mode mode = Mode::Play);
@@ -81,6 +86,8 @@ public:
   Mode mode() const { return mode_; }
 
   static constexpr std::size_t bytes_for_entries_log2(uint8_t entries_log2) {
+    if (entries_log2 < kMinEntriesLog2 || entries_log2 > kMaxEntriesLog2)
+      throw std::invalid_argument("TT entries_log2 is out of range");
     return (std::size_t{1} << entries_log2) * sizeof(TTEntry);
   }
 

@@ -42,6 +42,7 @@ struct SearchResult {
   Quality quality = Quality::Estimate;
   uint8_t depth = 0;
   bool complete = false;
+  bool hull = false;
   CutCounters cuts{};
 };
 
@@ -92,6 +93,7 @@ template <GameModel M> struct Search {
       };
       result.quality =
           combine_quality(conditional_x.quality, conditional_o.quality);
+      result.hull = false;
     } else {
       assert(h == Tie::X || h == Tie::O);
       result = dfs(state, h, horizon, window, false);
@@ -106,6 +108,7 @@ template <GameModel M> struct Search {
         result.quality,
         static_cast<uint8_t>(std::min(horizon, 255)),
         true,
+        result.hull,
         cuts_,
     };
   }
@@ -117,6 +120,7 @@ private:
     uint8_t best_o = std::numeric_limits<uint8_t>::max();
     Quality quality = Quality::Estimate;
     bool complete = false;
+    bool hull = false;
   };
 
   uint64_t nodes_ = 0;
@@ -152,6 +156,7 @@ private:
         std::numeric_limits<uint8_t>::max(),
         Quality::Estimate,
         0,
+        false,
         false,
         cuts_,
     };
@@ -199,6 +204,12 @@ private:
     if (has_unvisited)
       return {aggregates.b.lo, 1.0};
     return aggregates.b;
+  }
+
+  static bool is_hull(const Aggregates &aggregates) {
+    assert(aggregates.has_x && aggregates.has_o);
+    return aggregates.a.hi > aggregates.b.lo &&
+           aggregates.a.lo <= aggregates.b.hi;
   }
 
   std::optional<Window> x_child_window(const Aggregates &aggregates, Tie h,
@@ -335,6 +346,7 @@ private:
     const TInterval b = reachable_b(aggregates, unvisited_o);
     TInterval reachable{};
     WindowSide side = WindowSide::None;
+    bool hull = false;
     if (a.hi <= b.lo) {
       reachable = f_backup(a, b);
       side = side_of(reachable, window.w);
@@ -342,6 +354,7 @@ private:
       reachable = h == Tie::X ? a : b;
       side = side_of(reachable, window.w);
     } else {
+      hull = true;
       const TInterval ordered = f_backup(a, b);
       const TInterval zugzwang = h == Tie::X ? a : b;
       const WindowSide ordered_side = side_of(ordered, window.w);
@@ -361,18 +374,19 @@ private:
       ++cuts_.window_lo;
       return NodeResult{reachable, best_x, best_o,
                         unvisited_x || unvisited_o ? as_bound(quality) : quality,
-                        true};
+                        true, hull};
     }
     if (side == WindowSide::High) {
       ++cuts_.window_hi;
       return NodeResult{reachable, best_x, best_o,
                         unvisited_x || unvisited_o ? as_bound(quality) : quality,
-                        true};
+                        true, hull};
     }
     if ((unvisited_x || unvisited_o) && window.eps_node > 0.0 &&
         width(reachable) <= window.eps_node) {
       ++cuts_.precision;
-      return NodeResult{reachable, best_x, best_o, as_bound(quality), true};
+      return NodeResult{reachable, best_x, best_o, as_bound(quality), true,
+                        hull};
     }
     return std::nullopt;
   }
@@ -433,7 +447,8 @@ private:
                 hit->move_x,
                 hit->move_o,
                 decode_quality(hit->flags),
-                true};
+                true,
+                (hit->flags & kTTHull) != 0};
       }
     }
 
@@ -450,6 +465,8 @@ private:
       entry.flags = encode_quality(result.quality);
       if (result.quality == Quality::Exact)
         entry.flags |= kTTComplete;
+      if (result.hull)
+        entry.flags |= kTTHull;
       tt_->store(M::tt_key(state), id, entry);
     }
     return result;
@@ -579,11 +596,12 @@ private:
       const TInterval b = reachable_b(aggregates, unknown_o);
       Aggregates reachable{a, b, true, true};
       return {backup_node(reachable, h), best_x, best_o, as_bound(quality),
-              true};
+              true, is_hull(reachable)};
     }
 
     return {
         backup_node(aggregates, h), best_x, best_o, quality, true,
+        is_hull(aggregates),
     };
   }
 
