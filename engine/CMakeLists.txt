@@ -19,12 +19,14 @@ string(STRIP "${UTTT_COMPILE_FLAGS_VALUE}" UTTT_COMPILE_FLAGS_VALUE)
 add_library(uttt_core
   src/core/local_table.cpp
   src/core/position.cpp
-  src/core/zobrist.cpp)
+  src/core/zobrist.cpp
+  src/search/tvalue.hpp)
 target_include_directories(uttt_core PUBLIC src)
 
 add_executable(uttt_tests
   tests/test_smoke.cpp
   tests/test_rational.cpp
+  tests/test_tvalue.cpp
   tests/test_types.cpp
   tests/test_naive_local.cpp
   tests/test_local_table.cpp
