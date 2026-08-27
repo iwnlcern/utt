@@ -1,13 +1,15 @@
 #include "doctest/doctest.h"
 #include "nlohmann/json.hpp"
-#include "support/ttt3_continuous.hpp"
 #include "support/ttt3_discrete.hpp"
+
+#include "support/ttt3_continuous.hpp"
 
 #include <algorithm>
 #include <cstdlib>
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -274,5 +276,9 @@ TEST_CASE("exact discrete ttt3 rejects totals beyond its bounded scale") {
   const Ttt3State terminal = Ttt3State::from_board("XXX......", Tie::X);
 
   CHECK_THROWS_AS(solve_discrete(terminal, Tie::X, 65, 0),
+                  std::invalid_argument);
+  CHECK_THROWS_AS(solve_discrete(terminal, Tie::X,
+                                 std::numeric_limits<int>::max(),
+                                 std::numeric_limits<int>::max()),
                   std::invalid_argument);
 }

@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "search/backup.hpp"
 #include "ttt3_model.hpp"
 
 namespace uttt {
@@ -21,13 +22,14 @@ public:
     if (tie != Tie::X && tie != Tie::O) {
       throw std::invalid_argument("discrete ttt3 tie owner must be X or O");
     }
-    if (bx < 0 || bo < 0 || bx + bo > 64) {
+    const int64_t total = int64_t{bx} + int64_t{bo};
+    if (bx < 0 || bo < 0 || total > 64) {
       throw std::invalid_argument(
           "discrete ttt3 total budget must be in [0,64]");
     }
     assert(bx >= 0);
     assert(bo >= 0);
-    assert(bx + bo <= 64);
+    assert(total <= 64);
     state.tie = tie;
     return solve_memoized(state, tie, bx, bo);
   }
