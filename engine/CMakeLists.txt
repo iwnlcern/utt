@@ -17,6 +17,8 @@ set(UTTT_COMPILE_FLAGS_VALUE
 string(STRIP "${UTTT_COMPILE_FLAGS_VALUE}" UTTT_COMPILE_FLAGS_VALUE)
 
 add_library(uttt_core
+  src/eval/eval.hpp
+  src/eval/weights.hpp
   src/core/local_table.cpp
   src/core/position.cpp
   src/core/zobrist.cpp
@@ -35,6 +37,7 @@ add_executable(uttt_tests
   tests/test_backup.cpp
   tests/test_game_model.cpp
   tests/test_cutoffs.cpp
+  tests/test_eval_quality.cpp
   tests/test_search_core.cpp
   tests/test_p2_gate.cpp
   tests/test_tt.cpp
@@ -59,6 +62,7 @@ add_executable(uttt_engine
   src/adapter/wire.cpp)
 target_link_libraries(uttt_engine PRIVATE uttt_core)
 target_include_directories(uttt_engine PRIVATE third_party)
+add_dependencies(uttt_tests uttt_engine)
 
 add_executable(uttt_bench bench/bench_playout.cpp)
 target_link_libraries(uttt_bench PRIVATE uttt_core)

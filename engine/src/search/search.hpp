@@ -1,5 +1,6 @@
 #pragma once
 
+#include "eval/eval.hpp"
 #include "search/backup.hpp"
 #include "search/game_model.hpp"
 #include "search/tt.hpp"
@@ -9,6 +10,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <type_traits>
 #include <vector>
 
 namespace uttt {
@@ -19,6 +21,8 @@ struct Limits {
   int max_depth = 0;
   uint64_t node_cap = std::numeric_limits<uint64_t>::max();
   bool use_tt = false;
+  bool widen_free_choice = true;
+  std::size_t widening_k = 12;
 };
 
 struct Window {
@@ -67,6 +71,8 @@ template <GameModel M> struct Search {
     cuts_enabled_ = window.eps_node > 0.0 || window.w.lo > 0.0 ||
                     window.w.hi < 1.0;
     tt_enabled_ = limits.use_tt;
+    widen_free_choice_ = limits.widen_free_choice;
+    widening_k_ = std::max<std::size_t>(limits.widening_k, 6);
     if (tt_enabled_) {
       if (!tt_)
         tt_.emplace(tt_entries_log2_, tt_mode_);
@@ -121,6 +127,7 @@ private:
     Quality quality = Quality::Estimate;
     bool complete = false;
     bool hull = false;
+    double guide = 0.5;
   };
 
   uint64_t nodes_ = 0;
@@ -132,6 +139,8 @@ private:
   std::optional<TT> tt_;
   uint8_t generation_ = 0;
   bool tt_enabled_ = false;
+  bool widen_free_choice_ = true;
+  std::size_t widening_k_ = 12;
 
   enum class WindowSide : uint8_t { None, Low, High };
 
@@ -432,6 +441,43 @@ private:
            interval_satisfies({entry.lo, entry.hi}, window);
   }
 
+  static bool is_free_choice(const State &state) {
+    if constexpr (requires { M::free_choice(state); }) {
+      return M::free_choice(state);
+    } else if constexpr (std::same_as<State, Position>) {
+      return state.forced == kForcedAny;
+    } else {
+      return false;
+    }
+  }
+
+  template <class Children>
+  Children scheduled_children(Children children, const State &state,
+                              Seat mover) const {
+    if (!widen_free_choice_ || !is_free_choice(state)) return children;
+    if constexpr (std::same_as<State, Position>) {
+      std::stable_sort(children.begin(), children.end(),
+                       [&](const auto &lhs, const auto &rhs) {
+        const auto left = tactical_order_key(state, mover, lhs.move);
+        const auto right = tactical_order_key(state, mover, rhs.move);
+        if (left != right) return left > right;
+        const double left_eval = eval_estimate(lhs.state);
+        const double right_eval = eval_estimate(rhs.state);
+        if (left_eval != right_eval)
+          return mover == Seat::X ? left_eval < right_eval
+                                  : left_eval > right_eval;
+        return lhs.move < rhs.move;
+      });
+    }
+    if (children.size() > widening_k_) children.resize(widening_k_);
+    return children;
+  }
+
+  static double guide_backup(double a, double b, Tie h) {
+    if (a <= b) return b / (1.0 - a + b);
+    return h == Tie::X ? a : b;
+  }
+
   NodeResult dfs(const State &state, Tie h, int remaining_depth, Window window,
                  bool allow_cut) {
     if (nodes_ >= node_cap_)
@@ -476,28 +522,36 @@ private:
                          Window window, bool allow_cut) {
     switch (M::terminal(state)) {
     case TerminalKind::MacroWinX:
-      return {{0.0, 0.0}, no_move(), no_move(), Quality::Exact, true};
+      return {{0.0, 0.0}, no_move(), no_move(), Quality::Exact, true, false, 0.0};
     case TerminalKind::MacroWinO:
-      return {{1.0, 1.0}, no_move(), no_move(), Quality::Exact, true};
+      return {{1.0, 1.0}, no_move(), no_move(), Quality::Exact, true, false, 1.0};
     case TerminalKind::AllClosed:
-      return {{0.5, 0.5}, no_move(), no_move(), Quality::Exact, true};
+      return {{0.5, 0.5}, no_move(), no_move(), Quality::Exact, true, false, 0.5};
     case TerminalKind::None:
       break;
     }
 
     if (remaining_depth == 0) {
-      return {{0.0, 1.0}, no_move(), no_move(), Quality::Estimate, true};
+      double guide = 0.5;
+      if constexpr (std::same_as<State, Position>) guide = eval_estimate(state);
+      return {{0.0, 1.0}, no_move(), no_move(), Quality::Estimate, true,
+              false, guide};
     }
 
-    const auto x_children = M::children_x(state);
-    const auto o_children = M::children_o(state);
+    const auto all_x_children = M::children_x(state);
+    const auto all_o_children = M::children_o(state);
+    const auto x_children = scheduled_children(all_x_children, state, Seat::X);
+    const auto o_children = scheduled_children(all_o_children, state, Seat::O);
     assert(!x_children.empty() && !o_children.empty());
+    const bool widened_x = x_children.size() < all_x_children.size();
+    const bool widened_o = o_children.size() < all_o_children.size();
 
     Aggregates aggregates{};
     Quality quality = Quality::Exact;
     uint8_t best_x = no_move();
     double best_x_hi = std::numeric_limits<double>::infinity();
-    bool unknown_x = false;
+    bool unknown_x = widened_x;
+    double guide_a = 1.0;
     std::vector<TInterval> x_bounds;
     if (cuts_enabled_ && !allow_cut)
       x_bounds.reserve(x_children.size());
@@ -518,6 +572,7 @@ private:
       if (cuts_enabled_ && !allow_cut)
         x_bounds.push_back(searched.t);
       quality = combine_quality(quality, searched.quality);
+      guide_a = std::min(guide_a, searched.guide);
       if (searched.t.hi < best_x_hi ||
           (searched.t.hi == best_x_hi && child.move < best_x)) {
         best_x_hi = searched.t.hi;
@@ -538,7 +593,8 @@ private:
 
     uint8_t best_o = no_move();
     double best_o_lo = -std::numeric_limits<double>::infinity();
-    bool unknown_o = false;
+    bool unknown_o = widened_o;
+    double guide_b = 0.0;
     std::vector<TInterval> o_bounds;
     if (cuts_enabled_ && !allow_cut)
       o_bounds.reserve(o_children.size());
@@ -560,6 +616,7 @@ private:
       if (cuts_enabled_ && !allow_cut)
         o_bounds.push_back(searched.t);
       quality = combine_quality(quality, searched.quality);
+      guide_b = std::max(guide_b, searched.guide);
       if (searched.t.lo > best_o_lo ||
           (searched.t.lo == best_o_lo && child.move > best_o)) {
         best_o_lo = searched.t.lo;
@@ -596,12 +653,12 @@ private:
       const TInterval b = reachable_b(aggregates, unknown_o);
       Aggregates reachable{a, b, true, true};
       return {backup_node(reachable, h), best_x, best_o, as_bound(quality),
-              true, is_hull(reachable)};
+              true, is_hull(reachable), guide_backup(guide_a, guide_b, h)};
     }
 
     return {
         backup_node(aggregates, h), best_x, best_o, quality, true,
-        is_hull(aggregates),
+        is_hull(aggregates), guide_backup(guide_a, guide_b, h),
     };
   }
 
