@@ -351,3 +351,4 @@
 | 20260826-204436 | SITREP | Orchestrator Planner | s1-mr17-routing-1 | — | s1.orchestrator-planner | theory.planner | engine.planner, s1.orchestrator-reviewer | — | s1-mr17/SITREP-orchestrator-planner-20260826-204436.md |
 | 20260827-021436 | SITREP | Pair Planner | theory-c1 | — | theory.planner | s1.orchestrator-planner | engine.planner, s1.orchestrator-reviewer, theory.implementer | — | theory-c1/SITREP-pair-planner-20260827-021436.md |
 | 20260827-021748 | PLAN | Planner | engine-c4-plan-1 | engine-c4-design-review-5 | engine.planner | engine.implementer | s1.orchestrator-planner, s1.orchestrator-reviewer, theory.planner | — | engine-c4-plan-1/PLAN-planner-20260827-021748.md |
+| 20260827-022525 | PLAN | Orchestrator Planner | theory-c2 | — | s1.orchestrator-planner | theory.planner | theory.implementer, engine.planner, s1.orchestrator-reviewer | — | theory-c2/PLAN-orchestrator-planner-20260827-022525.md |
