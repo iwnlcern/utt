@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include "nlohmann/json.hpp"
 #include "search/search.hpp"
 #include "support/test_rational.hpp"
 #include "support/ttt3_continuous.hpp"
@@ -9,11 +10,16 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace uttt;
+using json = nlohmann::json;
 
 namespace {
 
@@ -56,6 +62,46 @@ void check_subset(TInterval inner, TInterval outer) {
 
 TestRational abs_rational(TestRational value) {
   return value < TestRational{0} ? TestRational{0} - value : value;
+}
+
+TestRational parse_rational(std::string_view text) {
+  const std::size_t slash = text.find('/');
+  if (slash == std::string_view::npos) {
+    return TestRational{std::stoll(std::string{text})};
+  }
+  return TestRational{std::stoll(std::string{text.substr(0, slash)}),
+                      std::stoll(std::string{text.substr(slash + 1)})};
+}
+
+std::vector<json> conditional_root_fixtures() {
+  const char *override_dir = std::getenv("UTTT_FIXTURES_DIR");
+  const std::filesystem::path directory =
+      override_dir == nullptr ? std::filesystem::path("../../theory/fixtures")
+                              : std::filesystem::path(override_dir);
+  std::ifstream input(directory / "thresholds_ttt3.json");
+  REQUIRE_MESSAGE(input.good(), "required ttt3 threshold fixture is missing");
+  const json root = json::parse(input);
+  REQUIRE(root.at("schema_version") == 1);
+  REQUIRE(root.at("game") == "ttt3");
+
+  std::vector<json> result;
+  for (const auto &fixture : root.at("fixtures")) {
+    const std::string id = fixture.at("id").get<std::string>();
+    const auto &consumers = fixture.at("consumed_by");
+    const bool engine_owned = std::find(consumers.begin(), consumers.end(),
+                                        "engine") != consumers.end();
+    if (engine_owned && (id == "threshold-root-conditional-h-x" ||
+                         id == "threshold-root-conditional-h-o")) {
+      result.push_back(fixture);
+    }
+  }
+  return result;
+}
+
+Tie fixture_tie(const json &state) {
+  const std::string owner = state.at("h").get<std::string>();
+  REQUIRE((owner == "X" || owner == "O"));
+  return owner == "X" ? Tie::X : Tie::O;
 }
 
 } // namespace
@@ -149,34 +195,48 @@ TEST_CASE("A3 a deeper full-width limit only narrows the three-empty family") {
 }
 
 TEST_CASE(
-    "A2 both conditional roots contain one half within every fixture unit") {
-  constexpr std::array<int64_t, 3> kFixtureScales{8, 16, 32};
-  const TestRational exact{1, 2};
+    "A2 fixture-bound conditional roots narrow around their exact values") {
+  const auto fixtures = conditional_root_fixtures();
+  REQUIRE(fixtures.size() == 2);
 
-  for (Tie tie : {Tie::X, Tie::O}) {
+  std::array<bool, 2> seen_ties{};
+  for (const auto &fixture : fixtures) {
+    const std::string id = fixture.at("id").get<std::string>();
+    const json &state_fixture = fixture.at("state");
+    const Tie tie = fixture_tie(state_fixture);
+    seen_ties[tie == Tie::X ? 0 : 1] = true;
     Search<Ttt3Model> search;
-    const Ttt3State root = Ttt3State::from_board(".........", tie);
-    const SearchResult actual = search.solve(root, tie, {2, 100000});
+    const Ttt3State root = Ttt3State::from_board(
+        state_fixture.at("board").get<std::string>(), tie);
+    const SearchResult actual = search.solve(root, tie, {6, 10000000});
     const TestRational oracle = solve_continuous(root, tie).T;
+    const std::string tie_name = tie == Tie::X ? "X" : "O";
+    const TestRational fixture_exact = parse_rational(
+        fixture.at("expected_T").at(tie_name).get<std::string>());
     const TestRational midpoint = (TestRational::from_double(actual.t.lo) +
                                    TestRational::from_double(actual.t.hi)) /
                                   TestRational{2};
 
+    CAPTURE(id);
     CAPTURE(tie);
-    CHECK(oracle == exact);
+    CHECK(oracle == fixture_exact);
     CHECK(oracle.inside(actual.t.lo, actual.t.hi));
-    for (const int64_t scale : kFixtureScales) {
+    CHECK(width(actual.t) < 0.05);
+    CHECK(actual.quality == Quality::Estimate);
+    for (const auto &expectation : fixture.at("discrete_expectations")) {
+      const int64_t scale = expectation.at("scale").get<int64_t>();
       CAPTURE(scale);
-      CHECK(abs_rational(midpoint - exact) * TestRational{scale} <=
+      CHECK(abs_rational(midpoint - fixture_exact) * TestRational{scale} <=
             TestRational{1});
     }
     CHECK(actual.complete);
-    CHECK(actual.depth == 2);
+    CHECK(actual.depth == 6);
   }
+  CHECK(seen_ties == std::array<bool, 2>{true, true});
 }
 
 TEST_CASE("null root is only the envelope of both conditional games") {
-  const Ttt3State root = Ttt3State::from_board("X........", Tie::NullFirstMove);
+  const Ttt3State root = Ttt3State::from_board(".........", Tie::NullFirstMove);
   Search<Ttt3Model> x_search;
   Search<Ttt3Model> o_search;
   Search<Ttt3Model> null_search;
