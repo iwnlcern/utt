@@ -31,6 +31,7 @@ add_executable(uttt_tests
   tests/test_smoke.cpp
   tests/test_backup.cpp
   tests/test_game_model.cpp
+  tests/test_cutoffs.cpp
   tests/test_search_core.cpp
   tests/test_ttt3_oracles.cpp
   tests/test_rational.cpp

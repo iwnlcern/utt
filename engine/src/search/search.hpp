@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstdint>
 #include <limits>
+#include <optional>
 
 namespace uttt {
 
@@ -17,6 +18,20 @@ struct Limits {
   uint64_t node_cap = std::numeric_limits<uint64_t>::max();
 };
 
+struct Window {
+  TInterval w{0.0, 1.0};
+  double eps_node = 0.0;
+};
+
+struct CutCounters {
+  uint64_t min_dominance = 0;
+  uint64_t max_dominance = 0;
+  uint64_t window_lo = 0;
+  uint64_t window_hi = 0;
+  uint64_t precision = 0;
+  uint64_t hull_blocked = 0;
+};
+
 struct SearchResult {
   TInterval t{0.0, 1.0};
   uint8_t best_x = std::numeric_limits<uint8_t>::max();
@@ -24,25 +39,35 @@ struct SearchResult {
   Quality quality = Quality::Estimate;
   uint8_t depth = 0;
   bool complete = false;
+  CutCounters cuts{};
 };
 
 template <GameModel M> struct Search {
   using State = typename M::State;
 
-  SearchResult solve(State state, Tie h, Limits limits) {
+  SearchResult solve(State state, Tie h, Limits limits,
+                     Window window = {{0.0, 1.0}, 0.0}) {
+    assert(0.0 <= window.w.lo && window.w.lo <= window.w.hi &&
+           window.w.hi <= 1.0);
+    assert(window.eps_node >= 0.0);
     nodes_ = 0;
+    cuts_ = {};
     const int horizon = std::max(limits.max_depth, 0);
     node_cap_ = limits.node_cap;
+    cuts_enabled_ = window.eps_node > 0.0 || window.w.lo > 0.0 ||
+                    window.w.hi < 1.0;
 
     NodeResult result;
     // TieState::NullFirstMove is the repository's existing representation of
     // F-C6's null root. It is a request for the two-conditional envelope, not
     // a claim about the simultaneous hidden-coin game.
     if (h == Tie::NullFirstMove) {
-      const NodeResult conditional_x = dfs(state, Tie::X, horizon);
+      const NodeResult conditional_x =
+          dfs(state, Tie::X, horizon, window, false);
       if (!conditional_x.complete)
         return incomplete_result();
-      const NodeResult conditional_o = dfs(state, Tie::O, horizon);
+      const NodeResult conditional_o =
+          dfs(state, Tie::O, horizon, window, false);
       if (!conditional_o.complete)
         return incomplete_result();
       result = conditional_x;
@@ -54,7 +79,7 @@ template <GameModel M> struct Search {
           combine_quality(conditional_x.quality, conditional_o.quality);
     } else {
       assert(h == Tie::X || h == Tie::O);
-      result = dfs(state, h, horizon);
+      result = dfs(state, h, horizon, window, false);
     }
 
     if (!result.complete)
@@ -66,6 +91,7 @@ template <GameModel M> struct Search {
         result.quality,
         static_cast<uint8_t>(std::min(horizon, 255)),
         true,
+        cuts_,
     };
   }
 
@@ -80,6 +106,15 @@ private:
 
   uint64_t nodes_ = 0;
   uint64_t node_cap_ = 0;
+  CutCounters cuts_{};
+  bool cuts_enabled_ = false;
+
+  enum class WindowSide : uint8_t { None, Low, High };
+
+  struct IntervalIntersection {
+    TInterval value{};
+    bool empty = true;
+  };
 
   static Quality combine_quality(Quality lhs, Quality rhs) {
     if (lhs == Quality::Estimate || rhs == Quality::Estimate) {
@@ -90,7 +125,7 @@ private:
     return Quality::Exact;
   }
 
-  static SearchResult incomplete_result() {
+  SearchResult incomplete_result() const {
     return {
         {0.0, 1.0},
         std::numeric_limits<uint8_t>::max(),
@@ -98,10 +133,146 @@ private:
         Quality::Estimate,
         0,
         false,
+        cuts_,
     };
   }
 
-  NodeResult dfs(const State &state, Tie h, int remaining_depth) {
+  static WindowSide side_of(TInterval interval, TInterval window) {
+    if (interval.hi < window.lo)
+      return WindowSide::Low;
+    if (interval.lo > window.hi)
+      return WindowSide::High;
+    return WindowSide::None;
+  }
+
+  static IntervalIntersection intersect(TInterval lhs, TInterval rhs) {
+    const TInterval value{std::max(lhs.lo, rhs.lo),
+                          std::min(lhs.hi, rhs.hi)};
+    return {value, value.lo > value.hi};
+  }
+
+  static std::optional<TInterval>
+  unite(IntervalIntersection lhs, IntervalIntersection rhs) {
+    if (lhs.empty && rhs.empty)
+      return std::nullopt;
+    if (lhs.empty)
+      return rhs.value;
+    if (rhs.empty)
+      return lhs.value;
+    return TInterval{std::min(lhs.value.lo, rhs.value.lo),
+                     std::max(lhs.value.hi, rhs.value.hi)};
+  }
+
+  static TInterval reachable_a(const Aggregates &aggregates,
+                               bool has_unvisited) {
+    if (!aggregates.has_x)
+      return {0.0, 1.0};
+    if (has_unvisited)
+      return {0.0, aggregates.a.hi};
+    return aggregates.a;
+  }
+
+  static TInterval reachable_b(const Aggregates &aggregates,
+                               bool has_unvisited) {
+    if (!aggregates.has_o)
+      return {0.0, 1.0};
+    if (has_unvisited)
+      return {aggregates.b.lo, 1.0};
+    return aggregates.b;
+  }
+
+  std::optional<Window> x_child_window(const Aggregates &aggregates, Tie h,
+                                       Window parent) const {
+    const double domain_hi =
+        aggregates.has_x ? aggregates.a.hi : 1.0;
+    const TInterval b = aggregates.has_o ? aggregates.b : TInterval{0.0, 1.0};
+    const IntervalIntersection ordered = intersect(
+        x_preimage(parent.w, b), {0.0, std::min(domain_hi, b.hi)});
+    const IntervalIntersection zugzwang =
+        h == Tie::X ? intersect(parent.w, {0.0, domain_hi})
+                    : IntervalIntersection{{0.0, domain_hi}, false};
+    const auto combined = unite(ordered, zugzwang);
+    if (!combined)
+      return std::nullopt;
+    return Window{*combined, parent.eps_node};
+  }
+
+  std::optional<Window> o_child_window(const Aggregates &aggregates, Tie h,
+                                       Window parent,
+                                       bool has_unvisited_x) const {
+    const double domain_lo =
+        aggregates.has_o ? aggregates.b.lo : 0.0;
+    const TInterval a = reachable_a(aggregates, has_unvisited_x);
+    const IntervalIntersection ordered = intersect(
+        o_preimage(parent.w, a), {std::max(domain_lo, a.lo), 1.0});
+    const IntervalIntersection zugzwang =
+        h == Tie::O ? intersect(parent.w, {domain_lo, 1.0})
+                    : IntervalIntersection{{domain_lo, 1.0}, false};
+    const auto combined = unite(ordered, zugzwang);
+    if (!combined)
+      return std::nullopt;
+    return Window{*combined, parent.eps_node};
+  }
+
+  static Quality as_bound(Quality quality) {
+    return quality == Quality::Estimate ? Quality::Estimate : Quality::Bound;
+  }
+
+  std::optional<NodeResult>
+  cutoff_result(const Aggregates &aggregates, Tie h, bool unvisited_x,
+                bool unvisited_o, Quality quality, uint8_t best_x,
+                uint8_t best_o, Window window, bool allow_cut) {
+    if (!allow_cut || !aggregates.has_x || !aggregates.has_o)
+      return std::nullopt;
+
+    const TInterval a = reachable_a(aggregates, unvisited_x);
+    const TInterval b = reachable_b(aggregates, unvisited_o);
+    TInterval reachable{};
+    WindowSide side = WindowSide::None;
+    if (a.hi <= b.lo) {
+      reachable = f_backup(a, b);
+      side = side_of(reachable, window.w);
+    } else if (a.lo > b.hi) {
+      reachable = h == Tie::X ? a : b;
+      side = side_of(reachable, window.w);
+    } else {
+      const TInterval ordered = f_backup(a, b);
+      const TInterval zugzwang = h == Tie::X ? a : b;
+      const WindowSide ordered_side = side_of(ordered, window.w);
+      const WindowSide zugzwang_side = side_of(zugzwang, window.w);
+      reachable = {std::min(ordered.lo, zugzwang.lo),
+                   std::max(ordered.hi, zugzwang.hi)};
+      if (ordered_side != WindowSide::None &&
+          ordered_side == zugzwang_side) {
+        side = ordered_side;
+      } else if (ordered_side != WindowSide::None ||
+                 zugzwang_side != WindowSide::None) {
+        ++cuts_.hull_blocked;
+      }
+    }
+
+    if (side == WindowSide::Low) {
+      ++cuts_.window_lo;
+      return NodeResult{reachable, best_x, best_o,
+                        unvisited_x || unvisited_o ? as_bound(quality) : quality,
+                        true};
+    }
+    if (side == WindowSide::High) {
+      ++cuts_.window_hi;
+      return NodeResult{reachable, best_x, best_o,
+                        unvisited_x || unvisited_o ? as_bound(quality) : quality,
+                        true};
+    }
+    if ((unvisited_x || unvisited_o) && window.eps_node > 0.0 &&
+        width(reachable) <= window.eps_node) {
+      ++cuts_.precision;
+      return NodeResult{reachable, best_x, best_o, as_bound(quality), true};
+    }
+    return std::nullopt;
+  }
+
+  NodeResult dfs(const State &state, Tie h, int remaining_depth, Window window,
+                 bool allow_cut) {
     if (nodes_ >= node_cap_)
       return {};
     ++nodes_;
@@ -129,32 +300,83 @@ private:
     Quality quality = Quality::Exact;
     uint8_t best_x = no_move();
     double best_x_hi = std::numeric_limits<double>::infinity();
-    for (const auto &child : x_children) {
-      const NodeResult searched = dfs(child.state, Tie::O, remaining_depth - 1);
+    bool unknown_x = false;
+    for (std::size_t index = 0; index < x_children.size(); ++index) {
+      const auto &child = x_children[index];
+      const auto child_window = cuts_enabled_
+                                    ? x_child_window(aggregates, h, window)
+                                    : std::optional<Window>{window};
+      if (!child_window && allow_cut) {
+        unknown_x = true;
+        continue;
+      }
+      const NodeResult searched = dfs(
+          child.state, Tie::O, remaining_depth - 1,
+          child_window.value_or(Window{{0.0, 1.0}, window.eps_node}), true);
       if (!searched.complete)
         return {};
-      fold_x(aggregates, searched.t);
       quality = combine_quality(quality, searched.quality);
       if (searched.t.hi < best_x_hi ||
           (searched.t.hi == best_x_hi && child.move < best_x)) {
         best_x_hi = searched.t.hi;
         best_x = child.move;
       }
+      if (cuts_enabled_ && aggregates.has_x &&
+          searched.t.lo >= aggregates.a.hi) {
+        ++cuts_.min_dominance;
+      } else {
+        fold_x(aggregates, searched.t);
+      }
+      const bool unvisited_x = unknown_x || index + 1 < x_children.size();
+      if (const auto cut = cutoff_result(
+              aggregates, h, unvisited_x, true, quality, best_x, no_move(),
+              window, allow_cut))
+        return *cut;
     }
 
     uint8_t best_o = no_move();
     double best_o_lo = -std::numeric_limits<double>::infinity();
-    for (const auto &child : o_children) {
-      const NodeResult searched = dfs(child.state, Tie::X, remaining_depth - 1);
+    bool unknown_o = false;
+    for (std::size_t index = 0; index < o_children.size(); ++index) {
+      const auto &child = o_children[index];
+      const auto child_window = cuts_enabled_
+                                    ? o_child_window(aggregates, h, window,
+                                                     unknown_x)
+                                    : std::optional<Window>{window};
+      if (!child_window && allow_cut) {
+        unknown_o = true;
+        continue;
+      }
+      const NodeResult searched = dfs(
+          child.state, Tie::X, remaining_depth - 1,
+          child_window.value_or(Window{{0.0, 1.0}, window.eps_node}), true);
       if (!searched.complete)
         return {};
-      fold_o(aggregates, searched.t);
       quality = combine_quality(quality, searched.quality);
       if (searched.t.lo > best_o_lo ||
           (searched.t.lo == best_o_lo && child.move > best_o)) {
         best_o_lo = searched.t.lo;
         best_o = child.move;
       }
+      if (cuts_enabled_ && aggregates.has_o &&
+          searched.t.hi <= aggregates.b.lo) {
+        ++cuts_.max_dominance;
+      } else {
+        fold_o(aggregates, searched.t);
+      }
+      const bool unvisited_o = unknown_o || index + 1 < o_children.size();
+      if (const auto cut = cutoff_result(
+              aggregates, h, unknown_x, unvisited_o, quality, best_x, best_o,
+              window, allow_cut))
+        return *cut;
+    }
+
+    if (unknown_x || unknown_o) {
+      const TInterval a = reachable_a(aggregates, unknown_x);
+      const TInterval b = reachable_b(aggregates, unknown_o);
+      Aggregates reachable{a, b, true, true};
+      return {backup_node(reachable, h), best_x, best_o, as_bound(quality),
+              true};
     }
 
     return {
