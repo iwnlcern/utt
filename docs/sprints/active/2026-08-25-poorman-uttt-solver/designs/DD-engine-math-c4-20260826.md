@@ -1,0 +1,212 @@
+# DD-engine-math-c4-20260826 — Engine search math: interval threshold search, TT, widening, root bid layer, evaluator
+
+DESIGN_DOC_ID: DD-engine-math-c4-20260826
+Revision: 1 (2026-08-26)
+Author seat: engine.planner (dispatch engine-c4, s1.orchestrator-planner, 2026-08-26)
+Status: awaiting DESIGN-REVIEW (engine.implementer)
+
+## 1. Scope and normative sources
+
+This design settles the engine's search mathematics deferred from DD-engine-rules-c1 (split option a): the Poorman threshold backup operator, cutoff/bound math, the transposition-table contract, selective widening, the root bid layer, the evaluator, time management, and the acceptance-criteria design.
+
+Normative sources, consumed as-is at their landed states:
+
+- `theory/FINDINGS.md` on main @ digest `79ee0c14d4bc973c5db79394818c7e5cbe8ab7751603073d1455d6a2dbd44ef5` (merged at 1211639; claims C1–C11, ratifications P1a/P1b/P1c, P2, P3). Referenced below as F-C1 … F-P3.
+- `theory/fixtures/**` on main (canonical schema per s1-closure-ruling-1; consumed via the conforming runner landed in engine-c3).
+- DD-engine-rules-c1-20260825 locked seams: §5 Zobrist key inputs and collision policy, §9 RootContext and budget plumbing, §10 value-quality metadata shape, §7 oracle tolerance (±1 fixed-point unit, engine-side-only, theory-subordinate).
+- Operator ratifications carried in the dispatch: R4 integer-unit rounding with ±1–2 unit exploration; 27 s soft clock; F-C10 regret-reporting contract.
+
+Out of scope: implementation; any change to landed rules-core, protocol, or fixture contracts; ML distillation (post-s1); play-vs-engine UI.
+
+Base context: main @ `d7acb6a883d73ad5406c42fb7d329f2b77320b56` (supersedes the dispatch's 18a6be1 by two receipt filings; no engine or theory surface differs).
+
+## 2. Value representation: directed-rounding double intervals (operator decision G1)
+
+Every threshold value in the search is a `TInterval { double lo, hi; }` with the invariant `0.0 <= lo <= hi <= 1.0` and the meaning: the true continuous threshold T lies in `[lo, hi]`.
+
+Soundness discipline: every arithmetic composite that produces an interval endpoint is outward-rounded — `lo` is stepped down and `hi` stepped up by TWO ulps via iterated `std::nextafter` after evaluation in default round-to-nearest.
+Two ulps cover the worst case of F's endpoint expression (section 3), which chains three roundings (`1-a`, `+b`, `b/…`) of at most half an ulp of relative error each: the accumulated relative error is strictly below 1.5 ulp of the final magnitude, so a two-ulp outward step strictly contains the exact value with margin.
+The plan must carry this bound as a stated invariant with a property test (section 11, row A5), not as an unstated assumption.
+
+A point value (an exactly-known terminal) is the degenerate interval `lo == hi`.
+Exact-rational arithmetic appears only on the test side (section 11) for fixture and oracle comparisons; the engine runtime never allocates rationals.
+
+## 3. Backup operator (theory-normative: F-C1 … F-C6)
+
+Scalar definition, verbatim from the lock: with `a` = min over X-marked children of T, `b` = max over O-marked children of T,
+
+- ordered branch `a <= b`: `T = F(a,b) = b / (1 - a + b)`; critical bid fraction `r = (b - a) / (1 - a + b)` (F-C1, F-C2);
+- zugzwang branch `a > b`: both bid zero, `T = a` when tie owner `h = X`, `T = b` when `h = O`; critical bid `0` (F-C3);
+- tie-owner transition: `h' = opponent(actual mover)` after every applied mark (F-C4);
+- terminals: macro win `T = 0` (X) / `T = 1` (O); all-closed chip comparison `T = 1/2` with final payment ordered before the comparison (F-C5);
+- root `h = null`: solve the two conditional games `T(s,X)` and `T(s,O)` and report the envelope `[min, max]`; no value is claimed for the simultaneous hidden-coin game (F-C6).
+
+Interval lifting, justified by F-C7 monotonicity (`dF/da >= 0`, `dF/db >= 0` on the unit square):
+
+- ordered branch on intervals: `F([a],[b]) = [ down(F(a.lo, b.lo)), up(F(a.hi, b.hi)) ]` where `down`/`up` are the outward roundings of section 2;
+- branch selection on intervals: if `a.hi <= b.lo` take the ordered branch; if `a.lo > b.hi` take the zugzwang branch (`[a]` for `h=X`, `[b]` for `h=O`); otherwise take the interval hull of both branch results;
+- the hull is sound and tight at the seam because both definitions coincide at `a = b` (F-C7's boundary continuity), so no jump is lost between the branches.
+
+Child aggregation on intervals: `a = [ min over X-children of lo, min over X-children of hi ]` and `b = [ max over O-children of lo, max over O-children of hi ]`, each over the visited child set (section 6 governs unvisited children).
+
+## 4. Cutoff and bound math (first-class deliverable)
+
+The pruning layer is an alpha-beta analog in T-space built on three facts: F is monotone in both arguments (F-C7), `a` is a min-selection, and `b` is a max-selection.
+
+Window transport: a node receives a target window `W = [alpha, beta]` meaning "the parent's decision changes only if this node's T lands inside W; outside W, any sound bound suffices".
+The root window is `[0,1]` in analysis mode; in play mode the root layer narrows it to the P2 decision band around `bx/M` (section 7).
+
+Child-level cutoffs (each stated with its soundness argument in-plan; all four derive from min/max selection plus F-monotonicity):
+
+1. Min-side dominance: while aggregating `a`, a child whose interval satisfies `child.lo >= a_visited.hi` cannot become the selected minimum in any way that lowers `a.hi`; it still contributes to `a.lo` only through the value `a_visited.lo`, so its own search can stop at any sound bound with `lo >= a_visited.hi`.
+2. Max-side dominance: symmetric for `b` with `child.hi <= b_visited.lo`.
+3. Parent-window cut: given the partial `[a]`,`[b]` aggregates, compute the reachable parent interval `P_reach` by substituting the extreme still-possible child values (0 or 1 for unvisited slots under full-width, or their sound bounds under widening); if `P_reach` is disjoint from `W`, stop the node and return `P_reach` — the parent cannot be affected inside its window.
+4. Precision cut: when a node's backed interval width is already below the requested precision `eps_node` (plumbed down from the root's P2 needs; `0` means exact-to-terminal), stop deepening below it.
+
+Derived child windows: when descending into an X-child while holding partial aggregates, the child's window is the preimage of `W` under `F(·, [b])` intersected with `[0, a_visited.hi]`; the O-child case is symmetric.
+The preimage endpoints solve `F(a,b) = t` for `a` (namely `a = 1 - b(1-t)/t`, guarded for `t = 0`) and are computed with the same outward rounding; the plan must include the algebra and its guard cases as code, not prose.
+Zugzwang interaction: inside the hull case (branch undecided), cuts 1–3 apply per branch and the node returns the hull; a window cut may fire only if BOTH branch results are disjoint from `W` on the same side.
+
+## 5. Transposition table
+
+Key: 64-bit Zobrist over cells × players, forced-or-ANY, tie state — exactly the rules-DD §5 inputs; budgets are excluded per the spec's budget independence of `T(s,h)`.
+
+Entry (32 bytes, fixed layout):
+
+- `tag` (u32): independent 32-bit verification fold per rules-DD §5.
+- `lo`, `hi` (f64 each): the stored TInterval.
+- `move_x`, `move_o` (u8 each, 0–80): best X-marked child move and best O-marked child move — both conditional moves, feeding the ui's if-X-wins / if-O-wins analysis.
+- `depth` (u8): completed search horizon below this node.
+- `gen` (u8): generation for aging.
+- `flags` (u8): quality 2 bits (exact / bound / estimate per section 8 mapping), `complete` 1 bit (move set exhausted), branch note 1 bit (hull case, diagnostic).
+- 1 spare byte (zeroed).
+
+Buckets: 4-way, 128 bytes = two cache lines; replacement prefers (in order) empty slot, stale generation, shallower depth, then narrower usefulness (wider stored interval evicted first among equal depth).
+Store rule: never overwrite a same-key entry with a strictly worse one (shallower AND wider); merge same-key intervals by intersection when both are sound at equal depth.
+Probe rule: a hit may be used when `entry.depth >= remaining depth` OR the stored interval already satisfies the node's window/precision request; fixture/acceptance mode additionally requires the rules-DD §5 fieldwise full-key verification so oracle-equality runs can never be polluted by a collision.
+SMP-readiness (operator decision G2): the 32-byte entry is specified now to be publishable as two 16-byte atomic halves with the tag XOR-folded over the value half; s1 runs single-threaded and does not implement the atomics, but no field layout change is permitted later — only the publication discipline is added.
+Sizing: configurable power-of-two; the default is set at PLAN time after profiling (plan task, not a design constant).
+
+## 6. Selective widening
+
+At free-choice nodes (forced board closed or won → ANY), the full both-player move set can reach 2 × 81 candidates; widening searches a schedule of top-k candidates per side, ordered by the rules-core tactical masks (macro win, local win, block, fork from the local table) then routing quality (destination board's tactical richness), with a guaranteed minimum coverage floor per side.
+Forced-board nodes (≤ 9 legal cells per side) are always full-width.
+
+Quality semantics under widening (locked shape, rules-DD §10):
+
+- Visited-subset propagation is one-sided sound: the min over a subset of X-children is an UPPER bound on `a`, and the max over a subset of O-children is a LOWER bound on `b`; pushing these through F (monotone) yields a sound one-sided bound on the node's T. When only such sound one-sided information exists, the node reports `quality = bound` with the sound side tight and the other side the trivial 0 or 1 (or an inherited sound bound).
+- The unsound side may be sharpened for SEARCH GUIDANCE ONLY by evaluator estimates (section 8); any value influenced by an evaluator estimate reports `quality = estimate` and its `[lo, hi]` reverts to the widest sound enclosure available.
+- A node whose move set was not exhausted can NEVER report `exact` (rules-DD §10, restated here as a hard invariant with a dedicated acceptance row).
+
+`k`-schedule values and the coverage floor are PLAN-time tunables with committed defaults; the design constraint is only the ordering source, the floor's existence, and the quality semantics above.
+
+## 7. Root bid layer
+
+Inputs: the root position's conditional interval(s) from search, `RootContext { seat, budget_x, budget_o }` (rules-DD §9), `M = budget_x + budget_o`, `E(s)` = remaining empty-cell count.
+
+Forced-classification gate (F-P2, tighten-only): the engine may present a forced continuous-side classification only when the SOUND interval distance clears the margin — for the X side, `budget_x - T.hi * M > E(s)` in exact integer/`__int128` arithmetic on the fixed-point products (T endpoints scaled to fixed-point with outward rounding before the product); symmetrically with `T.lo` for the O side.
+A near-band double interval that cannot prove the strict inequality soundly falls through to the matrix path; there is no epsilon heuristic anywhere at this gate (operator decision G1's purpose).
+
+Bid matrix path (inside the band, or whenever no forced classification holds):
+
+- Bid-only reduction per F-C9a: actions are integer bids; each winner's move is the extremizing move for the resulting budget state, taken from the TT's conditional moves.
+- Candidate set per R4: `k* = round(r_root * M)` from the analytic critical fraction `r` of F-C2 (computed from the root children aggregates; `r = 0` in the zugzwang branch), then candidates `{ clamp(k* + d) : d in {-2,-1,0,+1,+2} } ∪ {0}`, deduplicated, clamped to `[0, own budget]`.
+- Solver: regret matching plus (RM+) over the candidate matrix; the reported strategy is the AVERAGED profile with its average regret and an exploitability figure computed by best response over the candidate set — exactly the F-C10 contract; last-iterate convergence is never asserted. Iteration budget is a PLAN-time constant bounded by the clock layer.
+- LP cross-check: test-time only. Theory's exact LP reference values (the landed conditional root fixtures and any matrix fixtures) are compared against the engine matrix path in acceptance tests; the engine runtime never calls an LP.
+
+Knife-edge classification: at solved scales the exact oracle is authoritative (F-P1a) and appears only in tests; at larger scales an exactly representable `p = T` is classified for the tie owner per F-P1b, and every surface that prints it — analysis metadata included — must label it `convention`, never established optimal play.
+Root `h = null` reporting follows F-C6: both conditional values, envelope lo/hi, no simultaneous-game claim.
+
+## 8. Evaluator and quality mapping (operator decision G3)
+
+The evaluator returns a threshold ESTIMATE in `[0,1]` for a horizon node, budget-independent (T's budget independence), built from local-table features already computed by the rules core: per-board status and tactical masks (win/block/fork counts), macro-line potential over open boards, and routing quality of the forced-board graph.
+Form: a linear model over the feature vector squashed to `(0,1)`; weights live in one committed header with a documented hand-initialized set.
+
+Offline fitting seam: a committed script regresses the weights to deep-search interval midpoints over a committed sampled UTTT position corpus (deep-search bootstrap); the fit run is a plan task whose output is recorded, and it is non-blocking if the hand weights already clear the tournament bar (G3, operator-ratified).
+
+Quality mapping (single normative table for rules-DD §10):
+
+- `exact` — full-width to terminal resolution below the node; interval degenerate up to accumulated ulps.
+- `bound` — every contribution is sound (terminal, exact, or one-sided widening bound); no evaluator value entered.
+- `estimate` — any evaluator value or unsound sharpening entered anywhere below the node.
+
+`depth` is the completed-iteration horizon; `complete` is whether the reported iteration finished before the soft clock; iterative deepening publishes only the last fully completed iteration (rules-DD §10).
+
+## 9. Time management
+
+Iterative deepening on horizon depth; soft clock 27 s (dispatch-locked), hard abort at 29 s with the previously completed iteration's result already staged, so an abort can never publish a partial iteration.
+The search checks the clock at node-count intervals (PLAN-time constant) rather than per node.
+Root matrix iterations run inside the same budget after the final completed deepening iteration, with a reserved minimum slice (PLAN-time constant) so the matrix path always executes when the gate falls through to it.
+
+## 10. Module decomposition (engine/ additions; names final at PLAN)
+
+- `engine/src/search/tvalue.hpp` — TInterval, outward rounding, F and its preimage algebra (pure, exhaustively unit-testable).
+- `engine/src/search/backup.hpp` — branch selection, child aggregation, hull rule (pure).
+- `engine/src/search/tt.hpp` — entry layout, buckets, probe/store rules.
+- `engine/src/search/search.cpp` — DFS driver, windows/cuts, widening schedule, deepening loop, clock.
+- `engine/src/search/game_model.hpp` — the `GameModel` concept: children enumeration with mover marks, terminal classification onto {X-macro, O-macro, all-closed}, tie transition; instantiated by UTTT (production, over Position) and by a test-only ttt3 auction model (acceptance vs theory's solved scales).
+- `engine/src/eval/eval.hpp` (+ committed weights header, + `tools/fit_eval.py` offline seam).
+- `engine/src/root/bid.cpp` — P2 gate, candidate set, RM+, reporting.
+- Tests extend the existing doctest suite plus theory-fixture runner; no harness or theory byte changes.
+
+## 11. Acceptance-criteria design (rows for the c4+ PLANs; each row green only by cited output)
+
+- A1 backup fixtures: F/r/zugzwang/terminal unit tests against every landed `backup_*` and `threshold_*` theory fixture; the engine interval must CONTAIN the fixture's exact rational, with width ≤ 4 ulps in pure-F composition — E2.
+- A2 solved-scale oracle equality (F-P1a): the ttt3 GameModel instantiation, full-width, must reproduce the landed conditional root fixtures `threshold-root-conditional-h-x/-o` — interval containing the exact rational and the fixed-point comparison within the locked ±1 unit tolerance at the fixture scales; equality-point classification defers to the oracle records — E2.
+- A3 interval soundness properties: on sampled positions, (i) deeper-search intervals are contained in shallower ones (with TT off), (ii) full-width intervals contain the exact-rational test evaluator's value on small boards — E2.
+- A4 pruning neutrality: window/dominance/precision cuts produce intervals identical (within stated ulp slack) to the unpruned full-width search on a committed position sample — E2.
+- A5 rounding invariant: property test that every TInterval operation's outward rounding contains the exact rational result on randomized rational inputs — E2.
+- A6 TT neutrality and collision honesty: search with TT equals search without on the sample; fixture mode demonstrates the fieldwise full-key verification path rejects an injected colliding entry — E2.
+- A7 P2 gate: constructed near-band cases prove no forced classification is emitted unless the exact integer margin holds on the SOUND endpoint; the band case returns interval metadata and takes the matrix path — E2.
+- A8 root matrix: averaged-profile exploitability ≤ a PLAN-committed epsilon against the candidate set, regret figures reported, and agreement with theory's exact LP fixture values within the locked tolerance — E2.
+- A9 metadata honesty: a widened node never reports `exact` (mutation-guarded); estimate taint propagates; P1b outputs carry the literal `convention` label — E2.
+- A10 tournament (E3, via referee on main): ≥ 90% points (win 1, draw ½) against EACH of the four harness baseline bots over 50 paired seat-swapped games per bot at a fast time control, with the 27 s/30 s clock discipline separately spot-checked at full time control (operator decision G4) — E3.
+- A11 clock discipline: no move exceeds 30 s at E3; the published value is always a completed iteration — E3 spot-check plus E2 unit test of the staging rule.
+
+## 12. GRILL_LOCK
+
+GRILL_LOCK_ID: GRILL-engine-c4-20260826
+GRILL_REQUIRED: yes
+GRILL_SOURCE:
+- plan/design/audit relay read: engine-c4 DESIGN dispatch (engine-c4/DESIGN-orchestrator-planner-20260826-175144.md); theory landing receipt; engine-criterion1-rerun-1
+- code/docs inspected: theory/FINDINGS.md @ 79ee0c14; DD-engine-rules-c1 §2/3/5/9/10/12; DD-harness-c1 baseline-bot and tournament-runner sections; notes/engine-gated-math-draft-20260825.md
+- questions answered from codebase: tournament-runner shape and baseline-bot list (DD-harness-c1); metadata carrier semantics (rules-DD §10); Zobrist/collision policy (rules-DD §5); LP reference location (F-C10: theory-side, test-time)
+- questions asked operator: 4 (below) plus the design-shape approval
+
+Resolved decisions:
+- G1 T numerics — directed-rounding double intervals; exact rationals test-side only — soundness of the P2 gate without exact-arithmetic runtime cost — source operator.
+- G2 parallelism — single-threaded s1; TT entry layout SMP-publishable, publication discipline deferred — determinism for oracle-equality acceptance — source operator.
+- G3 evaluator supervision — hand weights + deep-search bootstrap fit (committed corpus + script); fit non-blocking if hand weights clear A10 — source operator.
+- G4 tournament bar — ≥ 90% points vs each baseline bot, 50 paired seat-swapped games per bot, fast TC with full-clock spot-check — source operator.
+- Design shape (7 sections as presented) — approved — source operator.
+
+Rejected alternatives:
+- Plain double + epsilon at the P2 gate — heuristic epsilon is not a sound bound; P2 is tighten-only — rejected with G1.
+- Exact rationals (capped) in the runtime — denominator growth infeasible; the cap reintroduces the soundness question — rejected with G1.
+- Lazy SMP in s1 — nondeterminism taxes P1a acceptance and triage; strength bar does not require it — rejected with G2.
+- Self-play SPSA tuning in s1 — wall-clock heavy; adds orchestration machinery — rejected with G3.
+- 100%-sweep or ≥75% tournament bars — flaky versus unselective — rejected with G4.
+- Best-first / proof-number search shape and Monte-Carlo tree shapes — no sound interval bounds, conflicting with P2 — rejected at design-shape approval.
+
+Still operator-owned:
+- None; PLAN-time tunables (TT size, k-schedule, iteration budgets, matrix epsilon, corpus size) are engineering defaults inside locked semantics.
+
+Design-lock impact:
+- Sections 2–9 are the locked semantics; section 11 rows A1–A11 bind the successor PLANs; the rules-DD §10 quality mapping is sharpened by section 8's normative table.
+
+## 13. Boundary contracts
+
+Writes: engine search/eval/root modules and tests (section 10); the offline fit script and its corpus; nothing outside `engine/` except the fit tooling committed beside it.
+Reads: theory FINDINGS @ 79ee0c14 and fixtures on main (consumer, verbatim); harness protocol/log schema @ c935c29c (consumer; the metadata carrier remains harness-owned); rules-core surfaces at their landed state.
+Target entity: the engine's search core, evaluator, and root bid layer conforming to this document.
+Downstream consumer: harness game log and ui analysis view (metadata semantics of section 8), theory cross-validation (A2/A8), referee tournaments (A10).
+Contract: no rules-core, protocol, or fixture contract change; quality metadata per the section 8 table; P1b always labeled convention.
+Proof: E2 rows A1–A9; E3 rows A10–A11.
+No-consumer action: not applicable — consumers named.
+
+## 14. Risks
+
+- Interval width growth with depth could starve the P2 gate near the band; mitigated by TT exact terminals, the precision cut, and deepening — monitored by an A3 width statistic; if widths prove unusable the fallback is a wider fixed-point representation, which is a design AMENDMENT, not a silent change.
+- The ttt3 GameModel is new test surface; scoped small (single 3×3 board, direct rules) and validated against theory fixtures before use as an oracle bridge (A2 ordering inside the PLAN).
+- RM+ epsilon and candidate-set adequacy at knife-edges: bounded by A8's LP agreement row; material disagreement routes to the operator per F-P1c's calibration spirit.
+- The zugzwang hull may be pessimistically wide where branches straddle; acceptable for s1 (quality degrades to bound/estimate honestly); recorded as a possible successor refinement.
