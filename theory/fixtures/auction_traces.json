@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "game": "uttt",
+  "fixtures": [
+    {
+      "id": "auction-root-zero-tie-coin-x",
+      "game": "uttt",
+      "consumed_by": ["harness", "ui", "theory"],
+      "notes": "Root 0-0 tie lazily consults the X coin branch; the tied payment is zero.",
+      "state": {"board": [".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", "........."], "forced": 4, "h": null, "budgets": {"x": 10, "o": 10}},
+      "steps": [{"bids": {"x": 0, "o": 0}, "intended": {"x": [4, 0], "o": [4, 1]}, "expected": {"winner": "X", "paid": 0, "applied_move": [4, 0], "next_h": "O", "next_forced": 0, "tie_resolution": "coin:X"}}]
+    },
+    {
+      "id": "auction-root-zero-tie-coin-o",
+      "game": "uttt",
+      "consumed_by": ["harness", "ui", "theory"],
+      "notes": "Root 0-0 tie lazily consults the O coin branch.",
+      "state": {"board": [".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", "........."], "forced": 4, "h": null, "budgets": {"x": 10, "o": 10}},
+      "steps": [{"bids": {"x": 0, "o": 0}, "intended": {"x": [4, 0], "o": [4, 1]}, "expected": {"winner": "O", "paid": 0, "applied_move": [4, 1], "next_h": "X", "next_forced": 1, "tie_resolution": "coin:O"}}]
+    },
+    {
+      "id": "auction-tied-bid-pays-and-h-wins",
+      "game": "uttt",
+      "consumed_by": ["harness", "ui", "theory"],
+      "notes": "After O moved, h=X wins a 3-3 tie and pays all three units.",
+      "state": {"board": [".........", ".........", ".........", ".........", "O........", ".........", ".........", ".........", "........."], "forced": 0, "h": "X", "budgets": {"x": 3, "o": 9}},
+      "steps": [{"bids": {"x": 3, "o": 3}, "intended": {"x": [0, 1], "o": [0, 2]}, "expected": {"winner": "X", "paid": 3, "applied_move": [0, 1], "next_h": "O", "next_forced": 1, "tie_resolution": "h"}}]
+    },
+    {
+      "id": "auction-consecutive-paid-x-wins-preserve-h",
+      "game": "uttt",
+      "consumed_by": ["harness", "ui", "theory"],
+      "notes": "Two consecutive higher bids by X each set h to O, demonstrating h persistence under consecutive wins.",
+      "state": {"board": [".........", ".........", ".........", ".........", "X........", ".........", ".........", ".........", "........."], "forced": 0, "h": "O", "budgets": {"x": 10, "o": 10}},
+      "steps": [
+        {"bids": {"x": 2, "o": 1}, "intended": {"x": [0, 1], "o": [0, 2]}, "expected": {"winner": "X", "paid": 2, "applied_move": [0, 1], "next_h": "O", "next_forced": 1, "tie_resolution": null}},
+        {"bids": {"x": 3, "o": 2}, "intended": {"x": [1, 2], "o": [1, 3]}, "expected": {"winner": "X", "paid": 3, "applied_move": [1, 2], "next_h": "O", "next_forced": 2, "tie_resolution": null}}
+      ]
+    },
+    {
+      "id": "auction-zero-zero-chain-alternates",
+      "game": "uttt",
+      "consumed_by": ["harness", "ui", "theory"],
+      "notes": "Established h resolves consecutive 0-0 ties; each applied move transfers h to the opponent, so movers alternate.",
+      "state": {"board": [".........", ".........", ".........", ".........", "O........", ".........", ".........", ".........", "........."], "forced": 0, "h": "X", "budgets": {"x": 4, "o": 4}},
+      "steps": [
+        {"bids": {"x": 0, "o": 0}, "intended": {"x": [0, 1], "o": [0, 2]}, "expected": {"winner": "X", "paid": 0, "applied_move": [0, 1], "next_h": "O", "next_forced": 1, "tie_resolution": "h"}},
+        {"bids": {"x": 0, "o": 0}, "intended": {"x": [1, 3], "o": [1, 2]}, "expected": {"winner": "O", "paid": 0, "applied_move": [1, 2], "next_h": "X", "next_forced": 2, "tie_resolution": "h"}}
+      ]
+    },
+    {
+      "id": "auction-all-in-creates-both-zero",
+      "game": "uttt",
+      "consumed_by": ["harness", "ui", "theory"],
+      "notes": "O already has zero; X's legal all-in higher bid is destroyed and leaves both stacks at zero.",
+      "state": {"board": [".........", ".........", ".........", ".........", "X........", ".........", ".........", ".........", "........."], "forced": 0, "h": "O", "budgets": {"x": 5, "o": 0}},
+      "steps": [{"bids": {"x": 5, "o": 0}, "intended": {"x": [0, 1], "o": [0, 2]}, "expected": {"winner": "X", "paid": 5, "applied_move": [0, 1], "next_h": "O", "next_forced": 1, "tie_resolution": null}}]
+    },
+    {
+      "id": "auction-both-zero-alternation-with-routing",
+      "game": "uttt",
+      "consumed_by": ["harness", "ui", "theory"],
+      "notes": "With both stacks zero, h alternates the mover while cell routing changes forced boards across multiple plies.",
+      "state": {"board": [".........", ".........", ".........", ".........", "O........", ".........", ".........", ".........", "........."], "forced": 0, "h": "X", "budgets": {"x": 0, "o": 0}},
+      "steps": [
+        {"bids": {"x": 0, "o": 0}, "intended": {"x": [0, 5], "o": [0, 6]}, "expected": {"winner": "X", "paid": 0, "applied_move": [0, 5], "next_h": "O", "next_forced": 5, "tie_resolution": "h"}},
+        {"bids": {"x": 0, "o": 0}, "intended": {"x": [5, 7], "o": [5, 3]}, "expected": {"winner": "O", "paid": 0, "applied_move": [5, 3], "next_h": "X", "next_forced": 3, "tie_resolution": "h"}},
+        {"bids": {"x": 0, "o": 0}, "intended": {"x": [3, 8], "o": [3, 4]}, "expected": {"winner": "X", "paid": 0, "applied_move": [3, 8], "next_h": "O", "next_forced": 8, "tie_resolution": "h"}}
+      ]
+    },
+    {
+      "id": "auction-one-stack-zero-other-can-bid",
+      "game": "uttt",
+      "consumed_by": ["harness", "ui", "theory"],
+      "notes": "X has no chips, but O may bid one unit and win normally; zero stack does not end the game.",
+      "state": {"board": [".........", ".........", ".........", ".........", "X........", ".........", ".........", ".........", "........."], "forced": 0, "h": "O", "budgets": {"x": 0, "o": 7}},
+      "steps": [{"bids": {"x": 0, "o": 1}, "intended": {"x": [0, 1], "o": [0, 2]}, "expected": {"winner": "O", "paid": 1, "applied_move": [0, 2], "next_h": "X", "next_forced": 2, "tie_resolution": null}}]
+    }
+  ]
+}

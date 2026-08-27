@@ -1,0 +1,21 @@
+{
+  "excluded_m0_points": 21008,
+  "inband_fraction": "120197/120975",
+  "max_inband_ratio": "1/1",
+  "mode": "exhaustive",
+  "offmask_diagnostics": 2920,
+  "out_of_band_mismatches": [],
+  "population": {
+    "in_band": 240394,
+    "masked_positive_total": 241950,
+    "out_of_band": 1556
+  },
+  "r_mis": "1/3",
+  "r_mis_state": [
+    ".OOOOXXXO",
+    "O",
+    1,
+    0
+  ],
+  "scale": 3
+}

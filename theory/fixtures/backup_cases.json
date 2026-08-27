@@ -1,0 +1,84 @@
+{
+  "fixtures": [
+    {
+      "a": "3/4",
+      "b": "1/4",
+      "consumed_by": [
+        "theory"
+      ],
+      "expected_T": "3/4",
+      "expected_critical_bid": "0/1",
+      "game": "backup",
+      "h": "X",
+      "id": "backup-zugzwang-three-quarters-h-x",
+      "notes": "Abstract backup-operator evidence; theory-only until an addressed MR17 engine-tag acknowledgment lands."
+    },
+    {
+      "a": "3/4",
+      "b": "1/4",
+      "consumed_by": [
+        "theory"
+      ],
+      "expected_T": "1/4",
+      "expected_critical_bid": "0/1",
+      "game": "backup",
+      "h": "O",
+      "id": "backup-zugzwang-three-quarters-h-o",
+      "notes": "Abstract backup-operator evidence; theory-only until an addressed MR17 engine-tag acknowledgment lands."
+    },
+    {
+      "a": "2/3",
+      "b": "1/3",
+      "consumed_by": [
+        "theory"
+      ],
+      "expected_T": "2/3",
+      "expected_critical_bid": "0/1",
+      "game": "backup",
+      "h": "X",
+      "id": "backup-zugzwang-two-thirds-h-x",
+      "notes": "Abstract backup-operator evidence; theory-only until an addressed MR17 engine-tag acknowledgment lands."
+    },
+    {
+      "a": "2/3",
+      "b": "1/3",
+      "consumed_by": [
+        "theory"
+      ],
+      "expected_T": "1/3",
+      "expected_critical_bid": "0/1",
+      "game": "backup",
+      "h": "O",
+      "id": "backup-zugzwang-two-thirds-h-o",
+      "notes": "Abstract backup-operator evidence; theory-only until an addressed MR17 engine-tag acknowledgment lands."
+    },
+    {
+      "a": "1/2",
+      "b": "1/2",
+      "consumed_by": [
+        "theory"
+      ],
+      "expected_T": "1/2",
+      "expected_critical_bid": "0/1",
+      "game": "backup",
+      "h": "X",
+      "id": "backup-equal-children-zero-critical",
+      "notes": "Abstract backup-operator evidence; theory-only until an addressed MR17 engine-tag acknowledgment lands."
+    },
+    {
+      "a": "1/4",
+      "b": "3/4",
+      "consumed_by": [
+        "theory"
+      ],
+      "expected_T": "1/2",
+      "expected_critical_bid": "1/3",
+      "game": "backup",
+      "h": "O",
+      "id": "backup-ordered-children-positive-critical",
+      "notes": "Abstract backup-operator evidence; theory-only until an addressed MR17 engine-tag acknowledgment lands."
+    }
+  ],
+  "game": "backup",
+  "schema_version": 1
+}

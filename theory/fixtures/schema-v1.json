@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poorman-uttt.local/theory/fixtures/schema-v1.json",
+  "title": "Poorman UTTT theory fixture envelope v1",
+  "type": "object",
+  "required": ["schema_version", "game", "fixtures"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "game": {"enum": ["uttt", "ttt3", "backup"]},
+    "fixtures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/fixture"}
+    }
+  },
+  "$defs": {
+    "rational": {"type": "string", "pattern": "^-?[0-9]+/[1-9][0-9]*$"},
+    "player": {"enum": ["X", "O"]},
+    "forced": {"type": ["integer", "null"], "minimum": 0, "maximum": 8},
+    "utttMove": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {"type": "integer", "minimum": 0, "maximum": 8}
+    },
+    "move": {
+      "oneOf": [
+        {"$ref": "#/$defs/utttMove"},
+        {"type": "integer", "minimum": 0, "maximum": 8}
+      ]
+    },
+    "budgets": {
+      "type": "object",
+      "required": ["x", "o"],
+      "properties": {
+        "x": {"type": "integer", "minimum": 0},
+        "o": {"type": "integer", "minimum": 0}
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": ["board", "forced", "h", "budgets"],
+      "properties": {
+        "board": {
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 9,
+              "maxItems": 9,
+              "items": {"type": "string", "pattern": "^[.XO]{9}$"}
+            },
+            {"type": "string", "pattern": "^[.XO]{9}$"}
+          ]
+        },
+        "forced": {"$ref": "#/$defs/forced"},
+        "h": {"enum": ["X", "O", null]},
+        "budgets": {"$ref": "#/$defs/budgets"}
+      }
+    },
+    "common": {
+      "type": "object",
+      "required": ["id", "game", "consumed_by"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        "game": {"enum": ["uttt", "ttt3", "backup"]},
+        "consumed_by": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["engine", "harness", "ui", "theory"]}
+        },
+        "notes": {"type": "string"}
+      }
+    },
+    "gameState": {
+      "allOf": [
+        {"$ref": "#/$defs/common"},
+        {"type": "object", "required": ["state"], "properties": {"state": {"$ref": "#/$defs/state"}}}
+      ]
+    },
+    "legality": {
+      "allOf": [
+        {"$ref": "#/$defs/gameState"},
+        {
+          "type": "object",
+          "required": ["expected_legal_moves"],
+          "properties": {
+            "expected_legal_moves": {"type": "array", "items": {"$ref": "#/$defs/move"}}
+          }
+        }
+      ]
+    },
+    "closure": {
+      "allOf": [
+        {"$ref": "#/$defs/gameState"},
+        {
+          "type": "object",
+          "required": ["move", "move_by", "expected_closures", "expected_forced", "expected_terminal"],
+          "properties": {
+            "move": {"$ref": "#/$defs/utttMove"},
+            "move_by": {"$ref": "#/$defs/player"},
+            "expected_closures": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["local", "result"],
+                "properties": {
+                  "local": {"type": "integer", "minimum": 0, "maximum": 8},
+                  "result": {"enum": ["X", "O", "full"]}
+                }
+              }
+            },
+            "expected_forced": {"$ref": "#/$defs/forced"},
+            "expected_terminal": {"enum": [null, "macro_win", "all_closed"]}
+          }
+        }
+      ]
+    },
+    "traceExpected": {
+      "type": "object",
+      "required": ["winner", "paid", "applied_move", "next_h", "next_forced", "tie_resolution"],
+      "properties": {
+        "winner": {"$ref": "#/$defs/player"},
+        "paid": {"type": "integer", "minimum": 0},
+        "applied_move": {"$ref": "#/$defs/move"},
+        "next_h": {"$ref": "#/$defs/player"},
+        "next_forced": {"$ref": "#/$defs/forced"},
+        "tie_resolution": {"enum": [null, "h", "coin:X", "coin:O"]}
+      }
+    },
+    "trace": {
+      "allOf": [
+        {"$ref": "#/$defs/gameState"},
+        {
+          "type": "object",
+          "required": ["steps"],
+          "properties": {
+            "steps": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["bids", "intended", "expected"],
+                "properties": {
+                  "bids": {"$ref": "#/$defs/budgets"},
+                  "intended": {
+                    "type": "object",
+                    "required": ["x", "o"],
+                    "properties": {"x": {"$ref": "#/$defs/move"}, "o": {"$ref": "#/$defs/move"}}
+                  },
+                  "expected": {"$ref": "#/$defs/traceExpected"}
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "terminal": {
+      "allOf": [
+        {"$ref": "#/$defs/gameState"},
+        {
+          "type": "object",
+          "required": ["expected_result", "chip_margin"],
+          "properties": {
+            "expected_result": {"enum": ["X", "O", "draw"]},
+            "chip_margin": {"type": "integer"}
+          }
+        }
+      ]
+    },
+    "threshold": {
+      "allOf": [
+        {"$ref": "#/$defs/gameState"},
+        {
+          "type": "object",
+          "required": ["expected_T", "expected_critical_bid", "expected_best_move", "expected_child_h", "discrete_expectations"],
+          "properties": {
+            "expected_T": {
+              "type": "object",
+              "required": ["X", "O"],
+              "properties": {"X": {"$ref": "#/$defs/rational"}, "O": {"$ref": "#/$defs/rational"}}
+            },
+            "expected_critical_bid": {"$ref": "#/$defs/rational"},
+            "expected_best_move": {
+              "type": "object",
+              "required": ["if_X_wins", "if_O_wins"],
+              "properties": {"if_X_wins": {"$ref": "#/$defs/move"}, "if_O_wins": {"$ref": "#/$defs/move"}}
+            },
+            "expected_child_h": {"type": "object", "required": ["if_X_wins", "if_O_wins"], "properties": {"if_X_wins": {"$ref": "#/$defs/player"}, "if_O_wins": {"$ref": "#/$defs/player"}}},
+            "discrete_expectations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["scale", "bx", "bo", "result"],
+                "properties": {
+                  "scale": {"type": "integer", "minimum": 1},
+                  "bx": {"type": "integer", "minimum": 0},
+                  "bo": {"type": "integer", "minimum": 0},
+                  "result": {"enum": ["X", "O", "draw"]}
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "backup": {
+      "allOf": [
+        {"$ref": "#/$defs/common"},
+        {
+          "type": "object",
+          "required": ["a", "b", "h", "expected_T", "expected_critical_bid"],
+          "properties": {
+            "a": {"$ref": "#/$defs/rational"},
+            "b": {"$ref": "#/$defs/rational"},
+            "h": {"$ref": "#/$defs/player"},
+            "expected_T": {"$ref": "#/$defs/rational"},
+            "expected_critical_bid": {"$ref": "#/$defs/rational"}
+          }
+        }
+      ]
+    },
+    "fixture": {
+      "oneOf": [
+        {"$ref": "#/$defs/legality"},
+        {"$ref": "#/$defs/closure"},
+        {"$ref": "#/$defs/trace"},
+        {"$ref": "#/$defs/terminal"},
+        {"$ref": "#/$defs/threshold"},
+        {"$ref": "#/$defs/backup"}
+      ]
+    }
+  }
+}
