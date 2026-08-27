@@ -21,12 +21,14 @@ add_library(uttt_core
   src/core/position.cpp
   src/core/zobrist.cpp
   src/search/backup.hpp
+  src/search/game_model.hpp
   src/search/tvalue.hpp)
 target_include_directories(uttt_core PUBLIC src)
 
 add_executable(uttt_tests
   tests/test_smoke.cpp
   tests/test_backup.cpp
+  tests/test_game_model.cpp
   tests/test_rational.cpp
   tests/test_tvalue.cpp
   tests/test_types.cpp
