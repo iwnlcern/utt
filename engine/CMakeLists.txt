@@ -22,7 +22,10 @@ add_library(uttt_core
   src/core/local_table.cpp
   src/core/position.cpp
   src/core/zobrist.cpp
+  src/root/bid_matrix.cpp
+  src/root/bid_matrix.hpp
   src/root/p2_gate.hpp
+  src/root/rmplus.hpp
   src/search/backup.hpp
   src/search/game_model.hpp
   src/search/search.cpp
@@ -40,6 +43,7 @@ add_executable(uttt_tests
   tests/test_eval_quality.cpp
   tests/test_search_core.cpp
   tests/test_p2_gate.cpp
+  tests/test_root_matrix.cpp
   tests/test_tt.cpp
   tests/test_ttt3_oracles.cpp
   tests/test_rational.cpp
@@ -65,7 +69,8 @@ target_include_directories(uttt_engine PRIVATE third_party)
 add_dependencies(uttt_tests uttt_engine)
 target_compile_definitions(uttt_tests PRIVATE
   UTTT_TEST_ENGINE_PATH="$<TARGET_FILE:uttt_engine>"
-  UTTT_TEST_FIT_SCRIPT="${CMAKE_CURRENT_SOURCE_DIR}/tools/fit_eval.py")
+  UTTT_TEST_FIT_SCRIPT="${CMAKE_CURRENT_SOURCE_DIR}/tools/fit_eval.py"
+  UTTT_TEST_LP_REFERENCE="${CMAKE_CURRENT_SOURCE_DIR}/tests/data/lp_reference_ttt3.json")
 
 add_executable(uttt_bench bench/bench_playout.cpp)
 target_link_libraries(uttt_bench PRIVATE uttt_core)
