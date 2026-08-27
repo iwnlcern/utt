@@ -72,7 +72,7 @@ inline void validate_p2_inputs(TInterval t, int64_t bx, int64_t total,
       t.hi > 1.0 || t.lo > t.hi) {
     throw std::invalid_argument("P2 interval must be finite, ordered, and in [0,1]");
   }
-  if (total <= 0 || total > kMaxTotal || bx < 0 || bx > total) {
+  if (total < 0 || total > kMaxTotal || bx < 0 || bx > total) {
     throw std::invalid_argument("P2 budgets must satisfy 0 <= bx <= M < 2^32");
   }
   if (empties < 0 || empties > 81) {

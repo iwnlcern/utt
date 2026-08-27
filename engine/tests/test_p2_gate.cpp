@@ -3,7 +3,6 @@
 #include "support/test_rational.hpp"
 
 #include <algorithm>
-#include <bit>
 #include <cstdint>
 #include <limits>
 #include <random>
@@ -80,18 +79,34 @@ TEST_CASE("A7 P2 unresolved interval takes the in-band fallback") {
 
 TEST_CASE("A7 P2 matches exact TestRational arithmetic on 200 seeded cases") {
   std::mt19937_64 rng{0xA7C411ULL};
+  int x_forced_count = 0;
+  int o_forced_count = 0;
+  int in_band_count = 0;
   for (int index = 0; index < 200; ++index) {
-    const auto endpoint = [&]() {
-      const uint64_t exponent_bits = 900 + (rng() % 123);
-      const uint64_t fraction = rng() & ((uint64_t{1} << 52) - 1);
-      return std::bit_cast<double>((exponent_bits << 52) | fraction);
+    const auto unit = [&]() {
+      return static_cast<double>(rng() >> 11) * 0x1.0p-53;
     };
-    double lo = endpoint();
-    double hi = endpoint();
-    if (hi < lo) std::swap(lo, hi);
-    const int64_t total = 1 + static_cast<int64_t>(rng() % 1'000'000'000);
-    const int64_t bx = static_cast<int64_t>(rng() % (total + 1));
+    const int64_t total =
+        1'000 + static_cast<int64_t>(rng() % 999'999'001);
     const int empties = static_cast<int>(rng() % 82);
+    double lo = 0.0;
+    double hi = 0.0;
+    int64_t bx = 0;
+    if (index % 3 == 0) {
+      lo = unit() * 0.25;
+      hi = unit() * 0.25;
+      if (hi < lo) std::swap(lo, hi);
+      bx = total;
+    } else if (index % 3 == 1) {
+      lo = 0.75 + unit() * 0.25;
+      hi = 0.75 + unit() * 0.25;
+      if (hi < lo) std::swap(lo, hi);
+      bx = 0;
+    } else {
+      lo = unit() * 0.25;
+      hi = 0.75 + unit() * 0.25;
+      bx = total / 2;
+    }
     const TInterval interval{lo, hi};
 
     CAPTURE(index);
@@ -100,9 +115,15 @@ TEST_CASE("A7 P2 matches exact TestRational arithmetic on 200 seeded cases") {
     CAPTURE(bx);
     CAPTURE(total);
     CAPTURE(empties);
-    CHECK(p2_classify(interval, bx, total, empties) ==
-          exact_p2_classify(interval, bx, total, empties));
+    const RootClass expected = exact_p2_classify(interval, bx, total, empties);
+    CHECK(p2_classify(interval, bx, total, empties) == expected);
+    if (expected == XForced) ++x_forced_count;
+    if (expected == OForced) ++o_forced_count;
+    if (expected == InBand) ++in_band_count;
   }
+  CHECK(x_forced_count == 67);
+  CHECK(o_forced_count == 67);
+  CHECK(in_band_count == 66);
 }
 
 TEST_CASE("P2 gate rejects inputs outside the locked UTTT domain") {
@@ -120,8 +141,6 @@ TEST_CASE("P2 gate rejects inputs outside the locked UTTT domain") {
                   std::invalid_argument);
   CHECK_THROWS_AS(p2_classify({0.4, inf}, 1, 2, 0),
                   std::invalid_argument);
-  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 0, 0, 0),
-                  std::invalid_argument);
   CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 0, -1, 0),
                   std::invalid_argument);
   CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 0, kTooLarge, 0),
@@ -134,6 +153,16 @@ TEST_CASE("P2 gate rejects inputs outside the locked UTTT domain") {
                   std::invalid_argument);
   CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 1, 10, 82),
                   std::invalid_argument);
+}
+
+TEST_CASE("P2 gate keeps canonical zero-total play in band") {
+  const double subnormal = std::numeric_limits<double>::denorm_min();
+  CHECK(p2_classify({0.0, 0.0}, 0, 0, 0) == InBand);
+  CHECK(p2_classify({0.0, 1.0}, 0, 0, 0) == InBand);
+  CHECK(p2_classify({1.0, 1.0}, 0, 0, 0) == InBand);
+  CHECK(p2_classify({subnormal, subnormal}, 0, 0, 0) == InBand);
+  CHECK(p2_classify({0.25, 0.75}, 0, 0, 81) == InBand);
+  CHECK(p2_classify({-0.0, 0.0}, 0, 0, 81) == InBand);
 }
 
 TEST_CASE("P2 gate accepts signed zero and the maximum locked budget") {
