@@ -1,0 +1,17 @@
+{
+  "engines": [
+    {
+      "id": "c4-engine",
+      "cmd": ["${BUILD}/uttt_engine"]
+    },
+    {
+      "id": "fraction",
+      "cmd": ["${PYTHON}", "${REFEREE}/bots/fraction_bot.py", "--seed", "4301"]
+    }
+  ],
+  "games_per_pair": 50,
+  "tournament_seed": "utt-c4-fraction-v1",
+  "time_ms": 2000,
+  "jobs": 4,
+  "out_dir": "/tmp/utt-c4-gauntlet-fraction"
+}
