@@ -1,6 +1,7 @@
 #include "adapter/policy.hpp"
 #include "doctest/doctest.h"
 #include "nlohmann/json.hpp"
+#include "root/alt_solver.hpp"
 #include "root/bid_matrix.hpp"
 #include "root/rmplus.hpp"
 #include "support/test_rational.hpp"
@@ -169,9 +170,10 @@ TEST_CASE("root matrix A8 action labels payoffs and provider coordinates match "
                                        int64_t bo2) {
         requested.insert({child.x, child.o, h2, bx2, bo2});
         return PayoffResult{
-            static_cast<int>(solve_discrete(child, h2, static_cast<int>(bx2),
-                                            static_cast<int>(bo2))) -
-                1,
+            static_cast<double>(
+                static_cast<int>(solve_discrete(
+                    child, h2, static_cast<int>(bx2), static_cast<int>(bo2))) -
+                1),
             true,
         };
       };
@@ -183,7 +185,7 @@ TEST_CASE("root matrix A8 action labels payoffs and provider coordinates match "
       CHECK(matrix.row_actions == expected_rows);
       CHECK(matrix.column_actions == expected_columns);
       CHECK(matrix.payoffs ==
-            reference.at("matrix").get<std::vector<std::vector<int>>>());
+            reference.at("matrix").get<std::vector<std::vector<double>>>());
       CHECK(requested == expected_coordinates(state, h, scale, scale,
                                               expected_rows, expected_columns));
       CHECK(matrix.all_exact);
@@ -204,29 +206,116 @@ TEST_CASE("root matrix A8 action labels payoffs and provider coordinates match "
   }
 }
 
-TEST_CASE("root matrix production midpoint ordinal taints in-band entries") {
+TEST_CASE("root matrix graded production payoff carries magnitude and taint") {
   const Ttt3State child = Ttt3State::from_board(".........", Tie::X);
-  const SearchResult midpoint{{0.5, 0.5}, 0, 0, Quality::Bound, 4, true};
+  SearchResult midpoint{{0.0, 1.0}, 0, 0, Quality::Estimate, 4, true};
+  midpoint.t_est = 0.5;
 
   const PayoffResult x_side =
-      production_payoff<Ttt3Model>(child, Tie::X, 6, 4, midpoint);
+      production_payoff<Ttt3Model>(child, Tie::X, 51, 49, midpoint);
   const PayoffResult o_side =
-      production_payoff<Ttt3Model>(child, Tie::O, 4, 6, midpoint);
+      production_payoff<Ttt3Model>(child, Tie::O, 49, 51, midpoint);
   const PayoffResult equality =
-      production_payoff<Ttt3Model>(child, Tie::X, 5, 5, midpoint);
-  CHECK(x_side == PayoffResult{+1, false});
-  CHECK(o_side == PayoffResult{-1, false});
-  CHECK(equality == PayoffResult{0, false});
+      production_payoff<Ttt3Model>(child, Tie::X, 50, 50, midpoint);
+  const PayoffResult x_saturated =
+      production_payoff<Ttt3Model>(child, Tie::X, 5, 3, midpoint);
+  const PayoffResult o_saturated =
+      production_payoff<Ttt3Model>(child, Tie::O, 3, 5, midpoint);
+  CHECK(x_side.value == doctest::Approx(0.08));
+  CHECK(o_side.value == doctest::Approx(-0.08));
+  CHECK(equality.value == 0.0);
+  CHECK(x_saturated.value == 1.0);
+  CHECK(o_saturated.value == -1.0);
+  CHECK_FALSE(x_side.exact);
+  CHECK_FALSE(o_side.exact);
+  CHECK_FALSE(equality.exact);
 
-  const Anchors anchors{5, 0, 0};
+  const Anchors anchors{50, 0, 0};
   PayoffFn<Ttt3State> in_band = [&](Ttt3State next, Tie h2, int64_t bx2,
                                     int64_t bo2) {
     return production_payoff<Ttt3Model>(next, h2, bx2, bo2, midpoint);
   };
-  const auto matrix = build_bid_matrix<Ttt3Model>(child, Tie::X, 5, 5, anchors,
-                                                  std::move(in_band));
+  const auto matrix = build_bid_matrix<Ttt3Model>(child, Tie::X, 50, 50,
+                                                  anchors, std::move(in_band));
   CHECK_FALSE(matrix.all_exact);
   CHECK(matrix_quality(Quality::Exact, matrix.all_exact) == Quality::Estimate);
+  CHECK_THROWS_AS(production_payoff<Ttt3Model>(child, Tie::X, 0, 0, midpoint),
+                  std::invalid_argument);
+}
+
+TEST_CASE("root matrix rejects nonfinite and out-of-range double payoffs") {
+  const Ttt3State state = Ttt3State::from_board(".........", Tie::X);
+  const Anchors anchors{0, 0, 0};
+  for (double invalid :
+       {std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::infinity(), 1.01, -1.01}) {
+    CAPTURE(invalid);
+    PayoffFn<Ttt3State> payoff = [invalid](Ttt3State, Tie, int64_t, int64_t) {
+      return PayoffResult{invalid, false};
+    };
+    CHECK_THROWS_AS(build_bid_matrix<Ttt3Model>(state, Tie::X, 1, 1, anchors,
+                                                std::move(payoff)),
+                    std::logic_error);
+  }
+}
+
+TEST_CASE(
+    "root matrix seat-aware extraction uses payoff then low action ties") {
+  RootMatrix<Ttt3State> matrix;
+  matrix.row_actions = {{9, 8}, {3, 7}, {3, 2}};
+  matrix.column_actions = {{8, 8}, {4, 7}, {4, 1}};
+  matrix.payoffs = {{0.0, -0.2, -0.2}, {0.4, 0.2, 0.2}, {0.4, 0.2, 0.2}};
+  RMPlusResult solution;
+  solution.row_strategy = {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0};
+  solution.column_strategy = {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0};
+
+  CHECK(select_root_action(matrix, solution, Seat::X) == 2);
+  CHECK(select_root_action(matrix, solution, Seat::O) == 2);
+}
+
+TEST_CASE("root matrix zero-total alternation is finite for both tie owners") {
+  const Ttt3State state = Ttt3State::from_board(".........", Tie::X);
+  for (Tie h : {Tie::X, Tie::O}) {
+    AltSolver<Ttt3Model> alternate;
+    PayoffFn<Ttt3State> payoff =
+        [&](Ttt3State child, Tie h2, int64_t bx2,
+            int64_t bo2) -> std::optional<PayoffResult> {
+      REQUIRE(bx2 == 0);
+      REQUIRE(bo2 == 0);
+      const AltResult result = alternate.solve(
+          child, h2, AltLimits{Ttt3Model::empties(child), 100'000, 1, {}});
+      if (!result.complete)
+        return std::nullopt;
+      return PayoffResult{result.value, result.quality == Quality::Exact};
+    };
+    const auto matrix = build_bid_matrix<Ttt3Model>(
+        state, h, 0, 0, Anchors{0, 0, 0}, std::move(payoff));
+    REQUIRE(matrix.complete);
+    CHECK(matrix.all_exact);
+    CHECK(alternate.unique_root_searches() == 4);
+    const RMPlusResult solution = solve_rmplus(matrix.payoffs, 10'000);
+    CHECK(std::isfinite(solution.value));
+    CHECK(std::isfinite(solution.exploitability));
+    const std::size_t selected =
+        select_root_action(matrix, solution, h == Tie::X ? Seat::X : Seat::O);
+    CHECK(selected < (h == Tie::X ? matrix.row_actions.size()
+                                  : matrix.column_actions.size()));
+  }
+}
+
+TEST_CASE("root matrix incomplete payoff stores no partial value for RM plus") {
+  const Ttt3State state = Ttt3State::from_board(".........", Tie::X);
+  int calls = 0;
+  PayoffFn<Ttt3State> payoff = [&](Ttt3State, Tie, int64_t,
+                                   int64_t) -> std::optional<PayoffResult> {
+    ++calls;
+    return std::nullopt;
+  };
+  const auto matrix = build_bid_matrix<Ttt3Model>(
+      state, Tie::X, 0, 0, Anchors{0, 0, 0}, std::move(payoff));
+  CHECK_FALSE(matrix.complete);
+  CHECK(matrix.entries_evaluated == 0);
+  CHECK(calls == 1);
 }
 
 TEST_CASE("root matrix UTTT production binding covers in-band and exact P2 "

@@ -53,6 +53,7 @@ struct SearchResult {
   bool complete = false;
   bool hull = false;
   CutCounters cuts{};
+  double t_est = 0.5;
 };
 
 template <GameModel M> struct Search {
@@ -113,6 +114,7 @@ template <GameModel M> struct Search {
       result.quality =
           combine_quality(conditional_x.quality, conditional_o.quality);
       result.hull = false;
+      result.guide = (conditional_x.guide + conditional_o.guide) / 2.0;
     } else {
       assert(h == Tie::X || h == Tie::O);
       result = dfs(state, h, horizon, window, false);
@@ -129,6 +131,7 @@ template <GameModel M> struct Search {
         true,
         result.hull,
         cuts_,
+        result.guide,
     };
   }
 
@@ -195,6 +198,7 @@ private:
         false,
         false,
         cuts_,
+        0.5,
     };
   }
 
@@ -374,7 +378,8 @@ private:
   std::optional<NodeResult>
   cutoff_result(const Aggregates &aggregates, Tie h, bool unvisited_x,
                 bool unvisited_o, Quality quality, uint8_t best_x,
-                uint8_t best_o, Window window, bool allow_cut) {
+                uint8_t best_o, double guide_a, double guide_b, Window window,
+                bool allow_cut) {
     if (!allow_cut || !aggregates.has_x || !aggregates.has_o)
       return std::nullopt;
 
@@ -410,19 +415,19 @@ private:
       ++cuts_.window_lo;
       return NodeResult{reachable, best_x, best_o,
                         unvisited_x || unvisited_o ? as_bound(quality) : quality,
-                        true, hull};
+                        true, hull, guide_backup(guide_a, guide_b, h)};
     }
     if (side == WindowSide::High) {
       ++cuts_.window_hi;
       return NodeResult{reachable, best_x, best_o,
                         unvisited_x || unvisited_o ? as_bound(quality) : quality,
-                        true, hull};
+                        true, hull, guide_backup(guide_a, guide_b, h)};
     }
     if ((unvisited_x || unvisited_o) && window.eps_node > 0.0 &&
         width(reachable) <= window.eps_node) {
       ++cuts_.precision;
       return NodeResult{reachable, best_x, best_o, as_bound(quality), true,
-                        hull};
+                        hull, guide_backup(guide_a, guide_b, h)};
     }
     return std::nullopt;
   }
@@ -526,12 +531,15 @@ private:
                 hit->move_o,
                 decode_quality(hit->flags),
                 true,
-                (hit->flags & kTTHull) != 0};
+                (hit->flags & kTTHull) != 0,
+                (hit->lo + hit->hi) / 2.0};
       }
     }
 
-    const NodeResult result =
+    NodeResult result =
         search_node(state, h, remaining_depth, window, allow_cut);
+    if (result.complete && result.quality != Quality::Estimate)
+      result.guide = (result.t.lo + result.t.hi) / 2.0;
     if (cacheable && result.complete) {
       TTEntry entry{};
       entry.lo = result.t.lo;
@@ -541,7 +549,7 @@ private:
       entry.depth = static_cast<uint8_t>(std::min(remaining_depth, 255));
       entry.gen = generation_;
       entry.flags = encode_quality(result.quality);
-      if (result.quality == Quality::Exact)
+      if (result.quality != Quality::Estimate)
         entry.flags |= kTTComplete;
       if (result.hull)
         entry.flags |= kTTHull;
@@ -565,7 +573,10 @@ private:
 
     if (remaining_depth == 0) {
       double guide = 0.5;
-      if constexpr (std::same_as<State, Position>) {
+      if constexpr (requires { M::estimate(state); }) {
+        ++evaluator_calls_;
+        guide = M::estimate(state);
+      } else if constexpr (std::same_as<State, Position>) {
         ++evaluator_calls_;
         guide = eval_estimate(state);
       }
@@ -587,6 +598,7 @@ private:
     double best_x_hi = std::numeric_limits<double>::infinity();
     bool unknown_x = widened_x;
     double guide_a = 1.0;
+    double guide_b = 0.0;
     std::vector<TInterval> x_bounds;
     if (cuts_enabled_ && !allow_cut)
       x_bounds.reserve(x_children.size());
@@ -622,14 +634,13 @@ private:
       const bool unvisited_x = unknown_x || index + 1 < x_children.size();
       if (const auto cut = cutoff_result(
               aggregates, h, unvisited_x, true, quality, best_x, no_move(),
-              window, allow_cut))
+              guide_a, guide_b, window, allow_cut))
         return *cut;
     }
 
     uint8_t best_o = no_move();
     double best_o_lo = -std::numeric_limits<double>::infinity();
     bool unknown_o = widened_o;
-    double guide_b = 0.0;
     std::vector<TInterval> o_bounds;
     if (cuts_enabled_ && !allow_cut)
       o_bounds.reserve(o_children.size());
@@ -666,7 +677,7 @@ private:
       const bool unvisited_o = unknown_o || index + 1 < o_children.size();
       if (const auto cut = cutoff_result(
               aggregates, h, unknown_x, unvisited_o, quality, best_x, best_o,
-              window, allow_cut))
+              guide_a, guide_b, window, allow_cut))
         return *cut;
     }
 

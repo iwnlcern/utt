@@ -45,14 +45,18 @@ inline void normalize(std::vector<double> &values) {
 
 } // namespace rmplus_detail
 
-inline RMPlusResult solve_rmplus(const std::vector<std::vector<int>> &matrix,
+inline RMPlusResult solve_rmplus(const std::vector<std::vector<double>> &matrix,
                                  int max_iterations = 10'000,
                                  std::function<bool()> stop = {}) {
   if (matrix.empty() || matrix.front().empty() || max_iterations < 0 ||
       std::any_of(
           matrix.begin(), matrix.end(),
           [&](const auto &row) {
-            return row.size() != matrix.front().size();
+            return row.size() != matrix.front().size() ||
+                   std::any_of(row.begin(), row.end(), [](double value) {
+                     return !std::isfinite(value) || value < -1.0 ||
+                            value > 1.0;
+                   });
           })) {
     throw std::invalid_argument("RM+ requires a nonempty rectangular matrix");
   }

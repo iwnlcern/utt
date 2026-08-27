@@ -2,15 +2,18 @@
 
 #include "eval/eval.hpp"
 #include "root/p2_gate.hpp"
+#include "root/rmplus.hpp"
 #include "search/game_model.hpp"
 #include "search/search.hpp"
 
 #include <algorithm>
 #include <bit>
+#include <cmath>
 #include <concepts>
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -25,7 +28,7 @@ struct Anchors {
 };
 
 struct PayoffResult {
-  int ordinal;
+  double value;
   bool exact;
   bool operator==(const PayoffResult &) const = default;
 };
@@ -37,12 +40,13 @@ struct RootAction {
 };
 
 template <class State>
-using PayoffFn = std::function<PayoffResult(State, Tie, int64_t, int64_t)>;
+using PayoffFn =
+    std::function<std::optional<PayoffResult>(State, Tie, int64_t, int64_t)>;
 
 template <class State> struct RootMatrix {
   std::vector<RootAction> row_actions;
   std::vector<RootAction> column_actions;
-  std::vector<std::vector<int>> payoffs;
+  std::vector<std::vector<double>> payoffs;
   bool all_exact = true;
   bool complete = true;
   uint64_t entries_evaluated = 0;
@@ -180,7 +184,7 @@ build_bid_matrix(typename M::State state, Tie h, int64_t bx, int64_t bo,
       result.column_actions.push_back({bid, move});
   result.payoffs.reserve(result.row_actions.size());
   for (RootAction row : result.row_actions) {
-    std::vector<int> values;
+    std::vector<double> values;
     values.reserve(result.column_actions.size());
     for (RootAction column : result.column_actions) {
       if (stop && stop()) {
@@ -188,7 +192,7 @@ build_bid_matrix(typename M::State state, Tie h, int64_t bx, int64_t bo,
         result.payoffs.push_back(std::move(values));
         return result;
       }
-      PayoffResult entry{};
+      std::optional<PayoffResult> entry;
       if (row.bid > column.bid || (row.bid == column.bid && h == Tie::X)) {
         entry = payoff(bid_matrix_detail::child_with_move<typename M::State>(
                            x_children, row.move),
@@ -198,11 +202,17 @@ build_bid_matrix(typename M::State state, Tie h, int64_t bx, int64_t bo,
                            o_children, column.move),
                        Tie::X, bx, bo - column.bid);
       }
-      if (entry.ordinal < -1 || entry.ordinal > 1)
-        throw std::logic_error("root payoff ordinal is outside {-1,0,+1}");
-      values.push_back(entry.ordinal);
+      if (!entry) {
+        result.complete = false;
+        result.payoffs.push_back(std::move(values));
+        return result;
+      }
+      if (!std::isfinite(entry->value) || entry->value < -1.0 ||
+          entry->value > 1.0)
+        throw std::logic_error("root payoff is not finite in [-1,+1]");
+      values.push_back(entry->value);
       ++result.entries_evaluated;
-      result.all_exact = result.all_exact && entry.exact;
+      result.all_exact = result.all_exact && entry->exact;
     }
     result.payoffs.push_back(std::move(values));
   }
@@ -222,20 +232,62 @@ PayoffResult production_payoff(const typename M::State &child, Tie h,
   case TerminalKind::MacroWinO:
     return {-1, true};
   case TerminalKind::AllClosed:
-    return {M::chip_sign(child, bx, bo), true};
+    return {static_cast<double>(M::chip_sign(child, bx, bo)), true};
   case TerminalKind::None:
     break;
   }
   const int64_t total = bx + bo;
+  if (total == 0)
+    throw std::invalid_argument(
+        "nonterminal zero-total payoff requires the alternation solver");
   const RootClass forced =
       p2_classify(searched.t, bx, total, M::empties(child));
   if (forced == XForced)
     return {1, true};
   if (forced == OForced)
     return {-1, true};
-  const double midpoint = (searched.t.lo + searched.t.hi) / 2.0;
-  return {bid_matrix_detail::compare_ratio_to_binary64(bx, total, midpoint),
-          false};
+  const double p = static_cast<double>(bx) / static_cast<double>(total);
+  return {std::clamp(8.0 * (p - searched.t_est), -1.0, 1.0), false};
+}
+
+template <class State>
+std::size_t select_root_action(const RootMatrix<State> &matrix,
+                               const RMPlusResult &solution, Seat seat) {
+  const bool x_seat = seat == Seat::X;
+  if ((!x_seat && seat != Seat::O) ||
+      solution.row_strategy.size() != matrix.row_actions.size() ||
+      solution.column_strategy.size() != matrix.column_actions.size() ||
+      matrix.payoffs.size() != matrix.row_actions.size() ||
+      std::any_of(matrix.payoffs.begin(), matrix.payoffs.end(),
+                  [&](const auto &row) {
+                    return row.size() != matrix.column_actions.size();
+                  }))
+    throw std::invalid_argument("root action extraction inputs do not align");
+
+  const auto &actions = x_seat ? matrix.row_actions : matrix.column_actions;
+  std::vector<double> values(actions.size(), 0.0);
+  if (x_seat) {
+    for (std::size_t i = 0; i < matrix.row_actions.size(); ++i)
+      for (std::size_t j = 0; j < matrix.column_actions.size(); ++j)
+        values[i] += matrix.payoffs[i][j] * solution.column_strategy[j];
+  } else {
+    for (std::size_t j = 0; j < matrix.column_actions.size(); ++j)
+      for (std::size_t i = 0; i < matrix.row_actions.size(); ++i)
+        values[j] += solution.row_strategy[i] * matrix.payoffs[i][j];
+  }
+  const auto better_action = [&](std::size_t candidate, std::size_t incumbent) {
+    if (values[candidate] != values[incumbent])
+      return x_seat ? values[candidate] > values[incumbent]
+                    : values[candidate] < values[incumbent];
+    if (actions[candidate].bid != actions[incumbent].bid)
+      return actions[candidate].bid < actions[incumbent].bid;
+    return actions[candidate].move < actions[incumbent].move;
+  };
+  std::size_t chosen = 0;
+  for (std::size_t index = 1; index < actions.size(); ++index)
+    if (better_action(index, chosen))
+      chosen = index;
+  return chosen;
 }
 
 inline Quality matrix_quality(Quality search_quality, bool all_exact) {

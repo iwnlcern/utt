@@ -94,6 +94,63 @@ struct TwoPlyModel {
   }
 };
 
+struct EstimateState {
+  uint8_t kind = 0;
+  TieState tie = TieState::X;
+};
+
+struct EstimateModel {
+  using State = EstimateState;
+
+  static std::vector<ModelChild<State>> children_x(const State &state) {
+    switch (state.kind) {
+    case 0: return {{{10, TieState::O}, 0}, {{11, TieState::O}, 1}};
+    case 1: return {{{13, TieState::O}, 0}, {{14, TieState::O}, 1}};
+    case 2: return {{{11, TieState::O}, 0}, {{12, TieState::O}, 1}};
+    case 3: return {{{20, TieState::O}, 0}, {{13, TieState::O}, 1}};
+    case 4: return {{{22, TieState::O}, 0}};
+    default: return {};
+    }
+  }
+  static std::vector<ModelChild<State>> children_o(const State &state) {
+    switch (state.kind) {
+    case 0: return {{{12, TieState::X}, 0}, {{13, TieState::X}, 1}};
+    case 1: return {{{10, TieState::X}, 0}, {{11, TieState::X}, 1}};
+    case 2: return {{{10, TieState::X}, 0}, {{11, TieState::X}, 1}};
+    case 3: return {{{21, TieState::X}, 0}};
+    case 4: return {{{3, TieState::X}, 0}};
+    default: return {};
+    }
+  }
+  static TerminalKind terminal(const State &state) {
+    if (state.kind == 20) return TerminalKind::AllClosed;
+    if (state.kind == 21) return TerminalKind::MacroWinO;
+    if (state.kind == 22) return TerminalKind::MacroWinX;
+    return TerminalKind::None;
+  }
+  static int empties(const State &) { return 1; }
+  static TTKey tt_key(const State &state) { return {state.kind, state.kind}; }
+  static PosId pos_id(const State &state) {
+    PosId id{};
+    id.x[0] = state.kind;
+    id.tie = state.tie;
+    return id;
+  }
+  static int chip_sign(const State &, int64_t bx, int64_t bo) {
+    return (bx > bo) - (bx < bo);
+  }
+  static double estimate(const State &state) {
+    switch (state.kind) {
+    case 10: return 0.2;
+    case 11: return 0.4;
+    case 12: return 0.6;
+    case 13: return 0.8;
+    case 14: return 0.9;
+    default: return 0.5;
+    }
+  }
+};
+
 std::string slurp(const std::filesystem::path &path) {
   std::ifstream input(path);
   return {std::istreambuf_iterator<char>(input),
@@ -213,6 +270,73 @@ TEST_CASE("eval quality A9 estimate taint propagates through two plies") {
   CHECK(result.quality == Quality::Estimate);
   CHECK(result.t.lo == 0.0);
   CHECK(result.t.hi == 1.0);
+}
+
+TEST_CASE("eval quality A9 t_est propagates X-min O-max and ordered F") {
+  Search<EstimateModel> search;
+  const SearchResult result =
+      search.solve({0, TieState::X}, Tie::X, {1, 1000});
+  REQUIRE(result.complete);
+  CHECK(result.quality == Quality::Estimate);
+  CHECK(result.t_est == doctest::Approx(0.5));
+}
+
+TEST_CASE("eval quality A9 t_est uses tie-owner zugzwang branches") {
+  Search<EstimateModel> x_search;
+  Search<EstimateModel> o_search;
+  const SearchResult x =
+      x_search.solve({1, TieState::X}, Tie::X, {1, 1000});
+  const SearchResult o =
+      o_search.solve({1, TieState::O}, Tie::O, {1, 1000});
+  REQUIRE(x.complete);
+  REQUIRE(o.complete);
+  CHECK(x.t_est == doctest::Approx(0.8));
+  CHECK(o.t_est == doctest::Approx(0.4));
+}
+
+TEST_CASE("eval quality A9 t_est equality seam is continuous") {
+  Search<EstimateModel> search;
+  const SearchResult result =
+      search.solve({2, TieState::X}, Tie::X, {1, 1000});
+  REQUIRE(result.complete);
+  CHECK(result.t_est == doctest::Approx(0.4));
+}
+
+TEST_CASE("eval quality A9 t_est survives an estimate-tainted cutoff") {
+  Search<EstimateModel> search;
+  const SearchResult result = search.solve(
+      {4, TieState::O}, Tie::O, {2, 1000}, Window{{0.0, 0.1}, 0.0});
+  REQUIRE(result.complete);
+  CHECK(result.cuts.window_hi > 0);
+  CHECK(result.quality == Quality::Estimate);
+  CHECK(result.t_est == doctest::Approx(0.4));
+}
+
+TEST_CASE("eval quality A9 bound and TT hits use the interval midpoint") {
+  Search<WideModel> search(8, TT::Mode::FullKey);
+  const Limits bounded_limits{1, 1000, true, true, 12};
+  const SearchResult first =
+      search.solve({0, TieState::X}, Tie::X, bounded_limits);
+  REQUIRE(first.complete);
+  REQUIRE(first.quality == Quality::Bound);
+  CHECK(first.t_est == doctest::Approx((first.t.lo + first.t.hi) / 2.0));
+  const uint64_t hits_before = search.tt_stats()->hits;
+  const SearchResult second =
+      search.solve({0, TieState::X}, Tie::X, bounded_limits);
+  CHECK(search.tt_stats()->hits > hits_before);
+  CHECK(second.t_est == doctest::Approx((second.t.lo + second.t.hi) / 2.0));
+}
+
+TEST_CASE("eval quality A9 estimate entries are never reusable pure TT hits") {
+  Search<EstimateModel> search(8, TT::Mode::FullKey);
+  const Limits limits{1, 1000, true, false, 12};
+  REQUIRE(search.solve({0, TieState::X}, Tie::X, limits).complete);
+  const SearchResult second =
+      search.solve({0, TieState::X}, Tie::X, limits);
+  REQUIRE(second.complete);
+  CHECK(second.quality == Quality::Estimate);
+  CHECK(search.evaluator_calls() == 4);
+  CHECK(second.t_est == doctest::Approx(0.5));
 }
 
 TEST_CASE("eval quality A9 production evaluator taints real UTTT through two plies") {

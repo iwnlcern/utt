@@ -36,6 +36,7 @@ add_library(uttt_core
 target_include_directories(uttt_core PUBLIC src)
 
 add_executable(uttt_tests
+  tests/test_alt_solver.cpp
   tests/test_smoke.cpp
   tests/test_backup.cpp
   tests/test_game_model.cpp

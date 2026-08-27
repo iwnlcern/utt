@@ -2,6 +2,7 @@
 
 #include "adapter/wire.hpp"
 #include "core/clock.hpp"
+#include "root/alt_solver.hpp"
 #include "root/bid_matrix.hpp"
 #include "root/rmplus.hpp"
 #include "search/backup.hpp"
@@ -141,8 +142,6 @@ struct EnginePolicy final : Policy {
             diagnostics_.child_search_cancelled =
                 diagnostics_.child_search_cancelled ||
                 child_search.was_cancelled();
-            if (!result.complete)
-              result = SearchResult{};
             return result;
           };
 
@@ -164,8 +163,25 @@ struct EnginePolicy final : Policy {
             SearchResult result;
           };
           std::vector<CachedChild> cache;
-          PayoffFn<Position> payoff = [&](Position child, Tie h2, int64_t bx2,
-                                          int64_t bo2) {
+          AltSolver<UtttModel> alternate;
+          PayoffFn<Position> payoff =
+              [&](Position child, Tie h2, int64_t bx2,
+                  int64_t bo2) -> std::optional<PayoffResult> {
+            if (UtttModel::terminal(child) != TerminalKind::None)
+              return production_payoff<UtttModel>(child, h2, bx2, bo2, {});
+            if (bx2 + bo2 == 0) {
+              const AltResult result = alternate.solve(
+                  child, h2, AltLimits{child_depth, 12'000, 64, [&] {
+                                         return clock.now_ms() >= hard;
+                                       }});
+              diagnostics_.child_search_cancelled =
+                  diagnostics_.child_search_cancelled ||
+                  alternate.was_cancelled();
+              if (!result.complete)
+                return std::nullopt;
+              return PayoffResult{result.value,
+                                  result.quality == Quality::Exact};
+            }
             auto found = std::find_if(
                 cache.begin(), cache.end(), [&](const CachedChild &entry) {
                   return entry.tie == h2 && entry.state.identity_equal(child);
@@ -174,6 +190,8 @@ struct EnginePolicy final : Policy {
               cache.push_back({child, h2, solve_child(child, h2)});
               found = std::prev(cache.end());
             }
+            if (!found->result.complete)
+              return std::nullopt;
             return production_payoff<UtttModel>(child, h2, bx2, bo2,
                                                 found->result);
           };
@@ -191,16 +209,13 @@ struct EnginePolicy final : Policy {
           if (solution.iterations == 0 || clock.now_ms() >= hard)
             return staged;
           diagnostics_.matrix_solved = true;
-          const bool x_seat = request.ctx.seat == Seat::X;
-          const auto &strategy =
-              x_seat ? solution.row_strategy : solution.column_strategy;
-          const auto &actions =
-              x_seat ? matrix.row_actions : matrix.column_actions;
-          const std::size_t chosen = static_cast<std::size_t>(std::distance(
-              strategy.begin(),
-              std::max_element(strategy.begin(), strategy.end())));
-          decision.bid = actions[chosen].bid;
-          decision.move = actions[chosen].move;
+          const std::size_t selected =
+              select_root_action(matrix, solution, request.ctx.seat);
+          const auto &actions = request.ctx.seat == Seat::X
+                                    ? matrix.row_actions
+                                    : matrix.column_actions;
+          decision.bid = actions[selected].bid;
+          decision.move = actions[selected].move;
           diagnostics_.matrix_action_published = true;
           staged.quality = matrix_quality(staged.quality, matrix.all_exact);
           decision.searched = staged;
