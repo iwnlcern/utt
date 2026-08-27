@@ -44,6 +44,8 @@ template <class State> struct RootMatrix {
   std::vector<RootAction> column_actions;
   std::vector<std::vector<int>> payoffs;
   bool all_exact = true;
+  bool complete = true;
+  uint64_t entries_evaluated = 0;
 };
 
 std::vector<int64_t> candidate_bids(int64_t stack, int64_t k_star);
@@ -150,7 +152,8 @@ inline int compare_ratio_to_binary64(int64_t numerator, int64_t denominator,
 template <GameModel M>
 RootMatrix<typename M::State>
 build_bid_matrix(typename M::State state, Tie h, int64_t bx, int64_t bo,
-                 Anchors anchors, PayoffFn<typename M::State> payoff) {
+                 Anchors anchors, PayoffFn<typename M::State> payoff,
+                 std::function<bool()> stop = {}) {
   if ((h != Tie::X && h != Tie::O) || bx < 0 || bo < 0 ||
       bx > std::numeric_limits<uint32_t>::max() ||
       bo > std::numeric_limits<uint32_t>::max() ||
@@ -180,6 +183,11 @@ build_bid_matrix(typename M::State state, Tie h, int64_t bx, int64_t bo,
     std::vector<int> values;
     values.reserve(result.column_actions.size());
     for (RootAction column : result.column_actions) {
+      if (stop && stop()) {
+        result.complete = false;
+        result.payoffs.push_back(std::move(values));
+        return result;
+      }
       PayoffResult entry{};
       if (row.bid > column.bid || (row.bid == column.bid && h == Tie::X)) {
         entry = payoff(bid_matrix_detail::child_with_move<typename M::State>(
@@ -193,6 +201,7 @@ build_bid_matrix(typename M::State state, Tie h, int64_t bx, int64_t bo,
       if (entry.ordinal < -1 || entry.ordinal > 1)
         throw std::logic_error("root payoff ordinal is outside {-1,0,+1}");
       values.push_back(entry.ordinal);
+      ++result.entries_evaluated;
       result.all_exact = result.all_exact && entry.exact;
     }
     result.payoffs.push_back(std::move(values));

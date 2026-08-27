@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <type_traits>
@@ -23,6 +24,10 @@ struct Limits {
   bool use_tt = false;
   bool widen_free_choice = true;
   std::size_t widening_k = 12;
+  // Cancellation is checked once before search and then before every Nth
+  // node. A zero cadence is normalized to one.
+  uint64_t stop_check_nodes = 256;
+  std::function<bool()> stop_requested{};
 };
 
 struct Window {
@@ -59,6 +64,7 @@ template <GameModel M> struct Search {
 
   const CollisionStats *tt_stats() const { return tt_ ? &tt_->stats : nullptr; }
   uint64_t evaluator_calls() const { return evaluator_calls_; }
+  bool was_cancelled() const { return cancelled_; }
 
   SearchResult solve(State state, Tie h, Limits limits,
                      Window window = {{0.0, 1.0}, 0.0}) {
@@ -75,6 +81,11 @@ template <GameModel M> struct Search {
     tt_enabled_ = limits.use_tt;
     widen_free_choice_ = limits.widen_free_choice;
     widening_k_ = std::max<std::size_t>(limits.widening_k, 6);
+    stop_check_nodes_ = std::max<uint64_t>(limits.stop_check_nodes, 1);
+    stop_requested_ = std::move(limits.stop_requested);
+    cancelled_ = false;
+    if (poll_stop())
+      return incomplete_result();
     if (tt_enabled_) {
       if (!tt_)
         tt_.emplace(tt_entries_log2_, tt_mode_);
@@ -144,8 +155,21 @@ private:
   bool tt_enabled_ = false;
   bool widen_free_choice_ = true;
   std::size_t widening_k_ = 12;
+  uint64_t stop_check_nodes_ = 256;
+  std::function<bool()> stop_requested_{};
+  bool cancelled_ = false;
 
   enum class WindowSide : uint8_t { None, Low, High };
+
+  bool poll_stop() {
+    if (cancelled_)
+      return true;
+    if (stop_requested_ && stop_requested_()) {
+      cancelled_ = true;
+      return true;
+    }
+    return false;
+  }
 
   struct IntervalIntersection {
     TInterval value{};
@@ -485,6 +509,9 @@ private:
 
   NodeResult dfs(const State &state, Tie h, int remaining_depth, Window window,
                  bool allow_cut) {
+    if (cancelled_ ||
+        (nodes_ != 0 && nodes_ % stop_check_nodes_ == 0 && poll_stop()))
+      return {};
     if (nodes_ >= node_cap_)
       return {};
     ++nodes_;

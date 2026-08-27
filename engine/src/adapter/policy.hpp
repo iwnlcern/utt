@@ -23,6 +23,20 @@ struct Policy {
   virtual ~Policy() = default;
 };
 
+struct PolicyDiagnostics {
+  bool p2_checked = false;
+  RootClass root_class = InBand;
+  bool root_search_cancelled = false;
+  bool child_search_cancelled = false;
+  bool matrix_bypassed = false;
+  bool matrix_constructed = false;
+  bool matrix_complete = false;
+  bool matrix_solved = false;
+  bool matrix_action_published = false;
+  uint64_t matrix_entries = 0;
+  int rm_iterations = 0;
+};
+
 namespace policy_detail {
 
 inline uint8_t flat(Move move) {
@@ -62,14 +76,18 @@ struct Decision {
 } // namespace policy_detail
 
 struct EnginePolicy final : Policy {
+  const PolicyDiagnostics &last_diagnostics() const { return diagnostics_; }
+
   wire::TurnReply choose(const wire::TurnRequest &request,
                          Clock &clock) override {
     assert(!request.legal.empty());
+    diagnostics_ = {};
     const int64_t start = clock.now_ms();
     const RequestDeadlines deadlines =
         request_deadlines(start, request.time_ms);
     const uint8_t first = policy_detail::flat(request.legal.front());
-    SearchResult fallback{{0.0, 1.0}, first, first, Quality::Estimate, 0, true};
+    SearchResult fallback{{0.0, 1.0},        first, first,
+                          Quality::Estimate, 0,     false};
     policy_detail::Decision decision{0, first, fallback};
     const Tie action_tie = request.pos.tie == Tie::NullFirstMove
                                ? (request.ctx.seat == Seat::X ? Tie::X : Tie::O)
@@ -79,9 +97,12 @@ struct EnginePolicy final : Policy {
     const SearchResult published = run_root_stages<SearchResult>(
         fallback, 1, 4, clock, deadlines,
         [&](int depth, int64_t hard) -> std::optional<SearchResult> {
-          const SearchResult result =
-              root_search.solve(request.pos, request.pos.tie,
-                                Limits{depth, 25'000, true, true, 12});
+          const SearchResult result = root_search.solve(
+              request.pos, request.pos.tie,
+              Limits{depth, 25'000, true, true, 12, 64,
+                     [&] { return clock.now_ms() >= deadlines.search_stop; }});
+          diagnostics_.root_search_cancelled =
+              diagnostics_.root_search_cancelled || root_search.was_cancelled();
           if (!result.complete || clock.now_ms() >= hard)
             return std::nullopt;
           return result;
@@ -92,7 +113,10 @@ struct EnginePolicy final : Policy {
           const int64_t bo = request.ctx.budget_o;
           const RootClass root_class = p2_classify(
               staged.t, bx, bx + bo, UtttModel::empties(request.pos));
+          diagnostics_.p2_checked = true;
+          diagnostics_.root_class = root_class;
           if (root_class != InBand || clock.now_ms() >= hard) {
+            diagnostics_.matrix_bypassed = root_class != InBand;
             const bool own_forced =
                 (root_class == XForced && request.ctx.seat == Seat::X) ||
                 (root_class == OForced && request.ctx.seat == Seat::O);
@@ -111,7 +135,12 @@ struct EnginePolicy final : Policy {
           Search<UtttModel> child_search(16);
           const auto solve_child = [&](const Position &child, Tie h2) {
             SearchResult result = child_search.solve(
-                child, h2, Limits{child_depth, 12'000, true, true, 12});
+                child, h2, Limits{child_depth, 12'000, true, true, 12, 64, [&] {
+                                    return clock.now_ms() >= hard;
+                                  }});
+            diagnostics_.child_search_cancelled =
+                diagnostics_.child_search_cancelled ||
+                child_search.was_cancelled();
             if (!result.complete)
               result = SearchResult{};
             return result;
@@ -148,10 +177,20 @@ struct EnginePolicy final : Policy {
             return production_payoff<UtttModel>(child, h2, bx2, bo2,
                                                 found->result);
           };
+          diagnostics_.matrix_constructed = true;
           const auto matrix = build_bid_matrix<UtttModel>(
-              request.pos, action_tie, bx, bo, anchors, std::move(payoff));
+              request.pos, action_tie, bx, bo, anchors, std::move(payoff),
+              [&] { return clock.now_ms() >= hard; });
+          diagnostics_.matrix_complete = matrix.complete;
+          diagnostics_.matrix_entries = matrix.entries_evaluated;
+          if (!matrix.complete)
+            return staged;
           const RMPlusResult solution = solve_rmplus(
               matrix.payoffs, 10'000, [&] { return clock.now_ms() >= hard; });
+          diagnostics_.rm_iterations = solution.iterations;
+          if (solution.iterations == 0 || clock.now_ms() >= hard)
+            return staged;
+          diagnostics_.matrix_solved = true;
           const bool x_seat = request.ctx.seat == Seat::X;
           const auto &strategy =
               x_seat ? solution.row_strategy : solution.column_strategy;
@@ -162,6 +201,7 @@ struct EnginePolicy final : Policy {
               std::max_element(strategy.begin(), strategy.end())));
           decision.bid = actions[chosen].bid;
           decision.move = actions[chosen].move;
+          diagnostics_.matrix_action_published = true;
           staged.quality = matrix_quality(staged.quality, matrix.all_exact);
           decision.searched = staged;
           return staged;
@@ -179,6 +219,9 @@ struct EnginePolicy final : Policy {
          decision.searched.depth, decision.searched.complete},
     };
   }
+
+private:
+  PolicyDiagnostics diagnostics_{};
 };
 
 using PlaceholderPolicy = EnginePolicy;

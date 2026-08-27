@@ -44,6 +44,20 @@ struct TickClock final : Clock {
   }
 };
 
+struct CountingClock final : Clock {
+  std::size_t polls = 0;
+  int64_t now_ms() override {
+    ++polls;
+    return 0;
+  }
+};
+
+struct GateClock final : Clock {
+  std::size_t free_polls = 0;
+  std::size_t polls = 0;
+  int64_t now_ms() override { return polls++ < free_polls ? 0 : 2'000; }
+};
+
 double rational_as_double(const std::string &text) {
   const std::size_t slash = text.find('/');
   if (slash == std::string::npos)
@@ -314,6 +328,28 @@ TEST_CASE("root matrix A11 hard abort publishes prior completed iteration and "
   CHECK(soft_published == 3);
 }
 
+TEST_CASE("root matrix production Search cancellation is checked inside DFS") {
+  int polls = 0;
+  Search<UtttModel> search(10);
+  const SearchResult cancelled =
+      search.solve(Position::initial(), Tie::NullFirstMove,
+                   Limits{6, std::numeric_limits<uint64_t>::max(), false, true,
+                          12, 1, [&] { return ++polls == 4; }});
+  CHECK_FALSE(cancelled.complete);
+  CHECK(cancelled.depth == 0);
+  CHECK(polls == 4);
+
+  int initial_polls = 0;
+  const SearchResult initially_cancelled = search.solve(
+      Position::initial(), Tie::X,
+      Limits{6, std::numeric_limits<uint64_t>::max(), false, true, 12, 0, [&] {
+               ++initial_polls;
+               return true;
+             }});
+  CHECK_FALSE(initially_cancelled.complete);
+  CHECK(initial_polls == 1);
+}
+
 TEST_CASE("root matrix policy seam emits a legal in-band UTTT reply") {
   wire::TurnRequest request;
   request.request_id = "root-policy";
@@ -326,7 +362,7 @@ TEST_CASE("root matrix policy seam emits a legal in-band UTTT reply") {
   request.legal.assign(legal.m.begin(), legal.m.begin() + legal.n);
 
   EnginePolicy policy;
-  TickClock clock;
+  FakeClock clock;
   const wire::TurnReply reply = policy.choose(request, clock);
   CHECK(reply.request_id == request.request_id);
   CHECK(reply.bid >= 0);
@@ -343,4 +379,120 @@ TEST_CASE("root matrix policy seam emits a legal in-band UTTT reply") {
                       Limits{reply.info.depth, 25'000, true, true, 12});
   CHECK(*reply.info.lo == null_report.t.lo);
   CHECK(*reply.info.hi == null_report.t.hi);
+  const PolicyDiagnostics in_band = policy.last_diagnostics();
+  CHECK(in_band.p2_checked);
+  CHECK(in_band.root_class == InBand);
+  CHECK(in_band.matrix_constructed);
+  CHECK(in_band.matrix_complete);
+  CHECK(in_band.matrix_solved);
+  CHECK(in_band.matrix_action_published);
+  CHECK(in_band.rm_iterations == 10'000);
+
+  request.request_id = "forced-policy";
+  request.ply = 1;
+  request.ctx = {Seat::X, 1'000, 0};
+  request.pos = uttt_all_terminal_root();
+  request.time_ms = 2'000;
+  request.legal.clear();
+  request.pos.legal_moves(legal);
+  request.legal.assign(legal.m.begin(), legal.m.begin() + legal.n);
+  const wire::TurnReply forced_reply = policy.choose(request, clock);
+  CHECK(std::find(request.legal.begin(), request.legal.end(),
+                  forced_reply.move) != request.legal.end());
+  const PolicyDiagnostics forced = policy.last_diagnostics();
+  CHECK(forced.p2_checked);
+  CHECK(forced.root_class == XForced);
+  CHECK(forced.matrix_bypassed);
+  CHECK_FALSE(forced.matrix_constructed);
+  CHECK_FALSE(forced.matrix_solved);
+  CHECK_FALSE(forced.matrix_action_published);
+}
+
+TEST_CASE("root matrix zero-time policy fallback is legal and incomplete") {
+  wire::TurnRequest request;
+  request.request_id = "zero-time";
+  request.ply = 0;
+  request.ctx = {Seat::O, 100, 100};
+  request.pos = Position::initial();
+  request.time_ms = 0;
+  MoveList legal;
+  request.pos.legal_moves(legal);
+  request.legal.assign(legal.m.begin(), legal.m.begin() + legal.n);
+
+  EnginePolicy policy;
+  FakeClock clock;
+  const wire::TurnReply reply = policy.choose(request, clock);
+  CHECK(reply.info.depth == 0);
+  CHECK_FALSE(reply.info.complete);
+  CHECK(std::find(request.legal.begin(), request.legal.end(), reply.move) !=
+        request.legal.end());
+}
+
+TEST_CASE("root matrix production cancellation preserves the reserved slice") {
+  wire::TurnRequest request;
+  request.request_id = "cancelled-root";
+  request.ply = 0;
+  request.ctx = {Seat::X, 100, 100};
+  request.pos = Position::initial();
+  request.time_ms = 2'000;
+  MoveList legal;
+  request.pos.legal_moves(legal);
+  request.legal.assign(legal.m.begin(), legal.m.begin() + legal.n);
+
+  EnginePolicy policy;
+  TickClock clock;
+  clock.step = 5;
+  const wire::TurnReply reply = policy.choose(request, clock);
+  CHECK(reply.info.complete);
+  CHECK(reply.info.depth > 0);
+  const PolicyDiagnostics diagnostics = policy.last_diagnostics();
+  CHECK(diagnostics.root_search_cancelled);
+  CHECK(diagnostics.child_search_cancelled);
+  CHECK(diagnostics.matrix_constructed);
+  CHECK(diagnostics.matrix_entries == 0);
+  CHECK_FALSE(diagnostics.matrix_complete);
+  CHECK_FALSE(diagnostics.matrix_solved);
+  CHECK_FALSE(diagnostics.matrix_action_published);
+}
+
+TEST_CASE("root matrix zero-iteration RM preserves the staged fallback") {
+  wire::TurnRequest request;
+  request.request_id = "rm-zero";
+  request.ply = 0;
+  request.ctx = {Seat::X, 100, 100};
+  request.pos = Position::initial();
+  request.time_ms = 2'000;
+  MoveList legal;
+  request.pos.legal_moves(legal);
+  request.legal.assign(legal.m.begin(), legal.m.begin() + legal.n);
+
+  EnginePolicy calibration_policy;
+  CountingClock calibration_clock;
+  static_cast<void>(calibration_policy.choose(request, calibration_clock));
+  REQUIRE(calibration_policy.last_diagnostics().rm_iterations == 10'000);
+  REQUIRE(calibration_clock.polls >= 10'001);
+
+  std::optional<wire::TurnReply> stopped_reply;
+  PolicyDiagnostics stopped_diagnostics;
+  for (const std::size_t trailing_polls :
+       {std::size_t{10'001}, std::size_t{10'000}}) {
+    EnginePolicy stopped_policy;
+    GateClock stopped_clock;
+    stopped_clock.free_polls = calibration_clock.polls - trailing_polls;
+    const wire::TurnReply reply = stopped_policy.choose(request, stopped_clock);
+    const PolicyDiagnostics diagnostics = stopped_policy.last_diagnostics();
+    if (diagnostics.matrix_complete && diagnostics.rm_iterations == 0) {
+      stopped_reply = reply;
+      stopped_diagnostics = diagnostics;
+      break;
+    }
+  }
+
+  REQUIRE(stopped_reply.has_value());
+  CHECK(stopped_diagnostics.matrix_constructed);
+  CHECK(stopped_diagnostics.matrix_complete);
+  CHECK_FALSE(stopped_diagnostics.matrix_solved);
+  CHECK_FALSE(stopped_diagnostics.matrix_action_published);
+  CHECK(stopped_reply->bid == 0);
+  CHECK(stopped_reply->move == request.legal.front());
 }
