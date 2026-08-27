@@ -94,6 +94,14 @@ TEST_CASE(
   }
 }
 
+TEST_CASE("exact continuous ttt3 retains the first move for tied extrema") {
+  const ContNode tied =
+      solve_continuous(Ttt3State::from_board("O..OXXXXO", Tie::X), Tie::X);
+
+  CHECK(tied.best_x == 1);
+  CHECK(tied.best_o == 1);
+}
+
 TEST_CASE("exact continuous ttt3 terminals are zero one and one half") {
   const ContNode x_win =
       solve_continuous(Ttt3State::from_board("XXX......", Tie::O), Tie::O);
