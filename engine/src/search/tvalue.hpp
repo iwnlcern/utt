@@ -55,6 +55,52 @@ inline TInterval f_backup(TInterval a, TInterval b) {
   };
 }
 
+inline double x_preimage_down(double t, double b) {
+  if (t == 0.0) return 0.0;
+  return std::clamp(
+      sub_down(1.0, div_up(mul_up(b, sub_up(1.0, t)), t)),
+      0.0,
+      1.0);
+}
+
+inline double x_preimage_up(double t, double b) {
+  if (t == 0.0) return 1.0;
+  return std::clamp(
+      sub_up(1.0, div_down(mul_down(b, sub_down(1.0, t)), t)),
+      0.0,
+      1.0);
+}
+
+inline TInterval x_preimage(TInterval t, TInterval b) {
+  return {
+      x_preimage_down(t.lo, b.hi),
+      x_preimage_up(t.hi, b.lo),
+  };
+}
+
+inline double o_preimage_down(double t, double a) {
+  if (t == 1.0) return 0.0;
+  return std::clamp(
+      div_down(mul_down(t, sub_down(1.0, a)), sub_up(1.0, t)),
+      0.0,
+      1.0);
+}
+
+inline double o_preimage_up(double t, double a) {
+  if (t == 1.0) return 1.0;
+  return std::clamp(
+      div_up(mul_up(t, sub_up(1.0, a)), sub_down(1.0, t)),
+      0.0,
+      1.0);
+}
+
+inline TInterval o_preimage(TInterval t, TInterval a) {
+  return {
+      o_preimage_down(t.lo, a.hi),
+      o_preimage_up(t.hi, a.lo),
+  };
+}
+
 inline bool contains(TInterval interval, double value) {
   return interval.lo <= value && value <= interval.hi;
 }
