@@ -20,6 +20,7 @@ add_library(uttt_core
   src/core/local_table.cpp
   src/core/position.cpp
   src/core/zobrist.cpp
+  src/root/p2_gate.hpp
   src/search/backup.hpp
   src/search/game_model.hpp
   src/search/search.cpp
@@ -35,6 +36,7 @@ add_executable(uttt_tests
   tests/test_game_model.cpp
   tests/test_cutoffs.cpp
   tests/test_search_core.cpp
+  tests/test_p2_gate.cpp
   tests/test_tt.cpp
   tests/test_ttt3_oracles.cpp
   tests/test_rational.cpp
