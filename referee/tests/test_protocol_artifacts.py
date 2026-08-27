@@ -17,6 +17,7 @@ SPEC = ROOT / "docs" / "protocol" / "poorman-uttt-protocol-v1.md"
 TRANSCRIPT = ROOT / "docs" / "protocol" / "transcript-v1.jsonl"
 FIXTURES = Path(__file__).parent / "fixtures"
 STREAM_FIXTURES = FIXTURES / "engine-stdin"
+FAULTED_STREAM_FIXTURES = FIXTURES / "engine-stdin-faulted"
 MATRIX = FIXTURES / "matrix.json"
 GENERATOR = Path(__file__).parent / "gen_fixtures.py"
 MESSAGE_SCHEMAS = (
@@ -178,9 +179,35 @@ def event_log_paths():
     return paths
 
 
-def expected_stream_path(log_path, seat):
+def expected_stream_identity(log_path, seat):
     relative = log_path.relative_to(FIXTURES).with_suffix("")
-    return STREAM_FIXTURES / relative.parent / f"{relative.name}.{seat}.jsonl"
+    return relative.parent / f"{relative.name}.{seat}.jsonl"
+
+
+def all_stream_paths():
+    return sorted(
+        [
+            *STREAM_FIXTURES.rglob("*.jsonl"),
+            *FAULTED_STREAM_FIXTURES.rglob("*.jsonl"),
+        ]
+    )
+
+
+def stream_identity(path):
+    for root in (STREAM_FIXTURES, FAULTED_STREAM_FIXTURES):
+        if path.is_relative_to(root):
+            return path.relative_to(root)
+    raise ValueError(f"stream path is outside both corpus roots: {path}")
+
+
+def is_engine_conforming_stream(path):
+    message_types = [message["type"] for message in read_log(path)]
+    return (
+        len(message_types) >= 2
+        and message_types[0] == "hello"
+        and message_types[-1] == "game_end"
+        and all(message_type == "turn" for message_type in message_types[1:-1])
+    )
 
 
 def fixture_tree_hashes():
@@ -211,18 +238,39 @@ def load_generator_module():
     return module
 
 
-def test_stream_mapping_is_bijective_over_all_logs():
+def test_engine_stream_glob_is_pure_normal_play():
+    streams = sorted(STREAM_FIXTURES.rglob("*.jsonl"))
+
+    assert len(streams) == 23
+    assert all(is_engine_conforming_stream(path) for path in streams)
+
+
+def test_faulted_sibling_is_complete_and_exact():
+    engine_streams = set(STREAM_FIXTURES.rglob("*.jsonl"))
+    faulted_streams = set(FAULTED_STREAM_FIXTURES.rglob("*.jsonl"))
+
+    assert len(faulted_streams) == 15
+    assert engine_streams.isdisjoint(faulted_streams)
+    assert all(not is_engine_conforming_stream(path) for path in faulted_streams)
+    assert {
+        path for path in engine_streams | faulted_streams if not is_engine_conforming_stream(path)
+    } == faulted_streams
+
+
+def test_union_bijection_over_all_logs():
     logs = event_log_paths()
     expected = {
-        expected_stream_path(log_path, seat)
+        expected_stream_identity(log_path, seat)
         for log_path in logs
         for seat in ("X", "O")
     }
+    streams = all_stream_paths()
+    observed = {stream_identity(path) for path in streams}
 
     assert len(logs) == 19
     assert len(expected) == 38
-    assert all(path.is_file() for path in expected)
-    assert set(STREAM_FIXTURES.rglob("*.jsonl")) == expected
+    assert len(streams) == len(observed) == 38
+    assert observed == expected
 
 
 def test_every_stream_file_round_trips_through_referee_reader():
@@ -231,7 +279,7 @@ def test_every_stream_file_round_trips_through_referee_reader():
         "turn": Draft202012Validator(schema("turn_request")),
         "game_end": Draft202012Validator(schema("game_end")),
     }
-    stream_paths = sorted(STREAM_FIXTURES.rglob("*.jsonl"))
+    stream_paths = all_stream_paths()
     assert len(stream_paths) == 38
     for path in stream_paths:
         objects = read_log(path)
@@ -245,12 +293,16 @@ def test_every_stream_file_round_trips_through_referee_reader():
 
 def test_log_corpus_globs_and_stream_glob_are_disjoint_and_exact():
     logs = event_log_paths()
-    streams = sorted(STREAM_FIXTURES.rglob("*.jsonl"))
+    engine_streams = sorted(STREAM_FIXTURES.rglob("*.jsonl"))
+    faulted_streams = sorted(FAULTED_STREAM_FIXTURES.rglob("*.jsonl"))
+    streams = engine_streams + faulted_streams
 
     assert len(logs) == 19
-    assert len(streams) == 38
+    assert (len(engine_streams), len(faulted_streams), len(streams)) == (23, 15, 38)
     assert set(logs).isdisjoint(streams)
+    assert set(engine_streams).isdisjoint(faulted_streams)
     assert all(STREAM_FIXTURES not in path.parents for path in logs)
+    assert all(FAULTED_STREAM_FIXTURES not in path.parents for path in logs)
 
 
 def test_generator_check_mode_passes_on_committed_artifacts():
@@ -313,14 +365,20 @@ def test_generator_runs_manifest_argv_unchanged_from_temp_root(tmp_path):
     }
 
 
-def test_protocol_pins_all_three_corpus_locations_and_stream_shape():
+def test_protocol_pins_partitioned_corpus():
     markdown = SPEC.read_text(encoding="utf-8")
 
     assert "`docs/protocol/transcript-v1.jsonl`" in markdown
     assert "`referee/tests/fixtures/*.jsonl`" in markdown
     assert "`referee/tests/fixtures/parity-*/*.jsonl`" in markdown
     assert "`referee/tests/fixtures/engine-stdin/**/*.jsonl`" in markdown
+    assert "`referee/tests/fixtures/engine-stdin-faulted/**/*.jsonl`" in markdown
     assert "`<log-relative-path minus .jsonl>.<seat>.jsonl`" in markdown
+    assert (
+        "A stream is engine-conforming iff its first line is the single `hello` line, "
+        "every middle line is a `turn` line, and its last line is the single "
+        "`game_end` line."
+    ) in markdown
     assert (
         "raw canonical JSONL bytes written to that seat's standard input, "
         "with no wrapper, envelope, or extra fields"

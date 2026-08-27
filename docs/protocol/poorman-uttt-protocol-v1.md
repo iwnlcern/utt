@@ -240,9 +240,11 @@ The event-log corpus is pinned by the two disjoint globs `referee/tests/fixtures
 
 Those logs cover success, every fault class, a fault-won terminal move with no recovery, both recovery-fault dispositions, both-seat recovery failure, and both pair-seed parities.
 
-The engine-input stream corpus is pinned at `referee/tests/fixtures/engine-stdin/**/*.jsonl`.
+The engine-conforming input stream corpus is pinned at `referee/tests/fixtures/engine-stdin/**/*.jsonl`, and the faulted input stream corpus is pinned at `referee/tests/fixtures/engine-stdin-faulted/**/*.jsonl`.
 
-Each stream path is a bijective mapping from an event log and canonical seat, relative to the stream-corpus root: `<log-relative-path minus .jsonl>.<seat>.jsonl`.
+A stream is engine-conforming iff its first line is the single `hello` line, every middle line is a `turn` line, and its last line is the single `game_end` line. Every other stream is faulted.
+
+Across the union of both roots, each stream path is a bijective mapping from an event log and canonical seat, relative to its selected stream-corpus root: `<log-relative-path minus .jsonl>.<seat>.jsonl`. The message-shape predicate selects the root without changing the stream bytes.
 
 Each stream file contains the raw canonical JSONL bytes written to that seat's standard input, with no wrapper, envelope, or extra fields.
 
