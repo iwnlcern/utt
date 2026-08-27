@@ -15,6 +15,14 @@ namespace uttt {
 inline constexpr std::size_t kEvalFeatureCount = kEvalWeights.size();
 using EvalFeatures = std::array<double, kEvalFeatureCount>;
 
+inline double tactical_richness(const LocalTable &table, uint32_t code,
+                                Seat side) {
+  return 4.0 * std::popcount(table.win(code, side)) +
+         2.0 * std::popcount(table.fork(code, side)) +
+         std::popcount(table.win(code, opponent(side))) +
+         std::popcount(table.fork(code, opponent(side)));
+}
+
 inline EvalFeatures eval_features(const Position &position) {
   EvalFeatures result{};
   result[0] = 1.0;
@@ -37,18 +45,35 @@ inline EvalFeatures eval_features(const Position &position) {
     result[9] += std::popcount(table.fork(position.tern[board], Seat::X));
     result[10] += std::popcount(table.fork(position.tern[board], Seat::O));
   }
+  const uint16_t blocks_x =
+      static_cast<uint16_t>(position.closed & ~position.macro_x);
+  const uint16_t blocks_o =
+      static_cast<uint16_t>(position.closed & ~position.macro_o);
   for (uint16_t line : kWinLines) {
-    if ((line & position.macro_o) == 0)
+    if ((line & blocks_x) == 0)
       result[11] += std::popcount(static_cast<uint16_t>(line & position.macro_x));
-    if ((line & position.macro_x) == 0)
+    if ((line & blocks_o) == 0)
       result[12] += std::popcount(static_cast<uint16_t>(line & position.macro_o));
   }
   if (position.forced != kForcedAny) {
-    const uint32_t code = position.tern[position.forced];
-    result[13] = std::popcount(table.win(code, Seat::X)) +
-                 2.0 * std::popcount(table.fork(code, Seat::X));
-    result[14] = std::popcount(table.win(code, Seat::O)) +
-                 2.0 * std::popcount(table.fork(code, Seat::O));
+    const uint16_t legal = table.empties(position.tern[position.forced]);
+    for (int cell = 0; cell < 9; ++cell) {
+      if (((legal >> cell) & 1u) == 0) continue;
+      if (((position.closed >> cell) & 1u) == 0) {
+        result[13] += tactical_richness(table, position.tern[cell], Seat::X);
+        result[14] += tactical_richness(table, position.tern[cell], Seat::O);
+        continue;
+      }
+      // A closed destination releases the next player to ANY board, so this
+      // edge reaches every still-open board in the forced-board graph.
+      for (int destination = 0; destination < 9; ++destination) {
+        if (((position.closed >> destination) & 1u) != 0) continue;
+        result[13] +=
+            tactical_richness(table, position.tern[destination], Seat::X);
+        result[14] +=
+            tactical_richness(table, position.tern[destination], Seat::O);
+      }
+    }
   }
   return result;
 }

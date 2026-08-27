@@ -6,11 +6,17 @@
 #include "support/ttt3_continuous.hpp"
 
 #include <array>
-#include <cstdlib>
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
+#include <spawn.h>
+#include <stdexcept>
 #include <string>
+#include <sys/wait.h>
 #include <unistd.h>
+#include <vector>
+
+extern char **environ;
 
 using namespace uttt;
 
@@ -94,6 +100,89 @@ std::string slurp(const std::filesystem::path &path) {
           std::istreambuf_iterator<char>()};
 }
 
+class TempFile {
+public:
+  explicit TempFile(std::string_view label) {
+    std::string pattern =
+        (std::filesystem::temp_directory_path() /
+         ("uttt-" + std::string(label) + "-XXXXXX")).string();
+    std::vector<char> writable(pattern.begin(), pattern.end());
+    writable.push_back('\0');
+    const int descriptor = mkstemp(writable.data());
+    if (descriptor < 0) throw std::runtime_error("mkstemp failed");
+    close(descriptor);
+    path_ = writable.data();
+  }
+  TempFile(const TempFile &) = delete;
+  TempFile &operator=(const TempFile &) = delete;
+  ~TempFile() {
+    std::error_code ignored;
+    std::filesystem::remove(path_, ignored);
+  }
+  const std::filesystem::path &path() const { return path_; }
+  void write(std::string_view contents) const {
+    std::ofstream output(path_, std::ios::trunc);
+    if (!output) throw std::runtime_error("temporary file open failed");
+    output << contents;
+  }
+
+private:
+  std::filesystem::path path_;
+};
+
+int run_process(const std::vector<std::string> &arguments,
+                const TempFile *input = nullptr,
+                const TempFile *output = nullptr,
+                const TempFile *error = nullptr) {
+  posix_spawn_file_actions_t actions;
+  if (posix_spawn_file_actions_init(&actions) != 0)
+    throw std::runtime_error("posix_spawn_file_actions_init failed");
+  auto destroy_actions = [&] { posix_spawn_file_actions_destroy(&actions); };
+  if (input && posix_spawn_file_actions_addopen(
+                   &actions, STDIN_FILENO, input->path().c_str(), O_RDONLY, 0) != 0) {
+    destroy_actions();
+    throw std::runtime_error("posix_spawn stdin action failed");
+  }
+  if (output && posix_spawn_file_actions_addopen(
+                    &actions, STDOUT_FILENO, output->path().c_str(),
+                    O_WRONLY | O_CREAT | O_TRUNC, 0600) != 0) {
+    destroy_actions();
+    throw std::runtime_error("posix_spawn stdout action failed");
+  }
+  if (error && posix_spawn_file_actions_addopen(
+                   &actions, STDERR_FILENO, error->path().c_str(),
+                   O_WRONLY | O_CREAT | O_TRUNC, 0600) != 0) {
+    destroy_actions();
+    throw std::runtime_error("posix_spawn stderr action failed");
+  }
+  std::vector<char *> argv;
+  argv.reserve(arguments.size() + 1);
+  for (const std::string &argument : arguments)
+    argv.push_back(const_cast<char *>(argument.c_str()));
+  argv.push_back(nullptr);
+  pid_t pid = 0;
+  const int spawn_error = posix_spawnp(&pid, arguments.front().c_str(),
+                                       &actions, nullptr, argv.data(), environ);
+  destroy_actions();
+  if (spawn_error != 0) return 127;
+  int status = 0;
+  if (waitpid(pid, &status, 0) != pid) return 127;
+  return WIFEXITED(status) ? WEXITSTATUS(status) : 128;
+}
+
+void check_analyze_schema(const nlohmann::json &value) {
+  CHECK(value.is_object());
+  CHECK(value.size() == 7);
+  CHECK(value.at("t_lo").is_number());
+  CHECK(value.at("t_hi").is_number());
+  CHECK(value.at("quality").is_string());
+  CHECK(value.at("depth").is_number_integer());
+  CHECK(value.at("complete").is_boolean());
+  CHECK(value.contains("equality_label"));
+  CHECK(value.at("features").is_array());
+  CHECK(value.at("features").size() == kEvalFeatureCount);
+}
+
 } // namespace
 
 TEST_CASE("eval quality A9 widening is bound and force-exhaust flips exact") {
@@ -126,6 +215,17 @@ TEST_CASE("eval quality A9 estimate taint propagates through two plies") {
   CHECK(result.t.hi == 1.0);
 }
 
+TEST_CASE("eval quality A9 production evaluator taints real UTTT through two plies") {
+  Search<UtttModel> search;
+  const SearchResult result =
+      search.solve(Position::initial(), Tie::X, {2, 100000});
+  REQUIRE(result.complete);
+  CHECK(search.evaluator_calls() > 0);
+  CHECK(result.quality == Quality::Estimate);
+  CHECK(result.t.lo == 0.0);
+  CHECK(result.t.hi == 1.0);
+}
+
 TEST_CASE("eval quality A9 full-width cutoff keeps its sound side tight") {
   const Ttt3State state = Ttt3State::from_board("XXO.X.X..", Tie::X);
   const TestRational truth = solve_continuous(state, Tie::X).T;
@@ -148,67 +248,99 @@ TEST_CASE("eval feature extractor is the budget-independent production input") {
   CHECK(estimate < 1.0);
 }
 
+TEST_CASE("eval features exclude macro lines blocked by a drawn board") {
+  std::array<uint16_t, 9> x{};
+  std::array<uint16_t, 9> o{};
+  x[0] = 0b000000111;
+  x[1] = 0b011100011;
+  o[1] = 0b100011100;
+  const auto position = Position::from_parts(x, o, 2, TieState::X);
+  REQUIRE(position.has_value());
+  const EvalFeatures features = eval_features(*position);
+  CHECK(features[11] == 2.0);
+  CHECK(features[12] == 0.0);
+}
+
+TEST_CASE("eval features traverse forced-board legal cells to destination richness") {
+  std::array<uint16_t, 9> x{};
+  std::array<uint16_t, 9> o{};
+  x[0] = 0b000000011;
+  o[1] = 0b000000011;
+  x[4] = 0b011100000;
+  o[4] = 0b100011100;
+  const auto position = Position::from_parts(x, o, 4, TieState::X);
+  REQUIRE(position.has_value());
+  const EvalFeatures features = eval_features(*position);
+  CHECK(features[13] == 20.0);
+  CHECK(features[14] == 20.0);
+}
+
 TEST_CASE("eval fitter candidates are parameterized for the production sigmoid") {
-  std::filesystem::path script =
-      std::filesystem::current_path() / ".." / "tools" / "fit_eval.py";
-  if (!std::filesystem::exists(script))
-    script = std::filesystem::current_path() / "tools" / "fit_eval.py";
-  const std::string command = "python3 \"" + script.string() + "\" --self-test";
-  CHECK(std::system(command.c_str()) == 0);
+  CHECK(std::filesystem::path(UTTT_TEST_FIT_SCRIPT).is_absolute());
+  CHECK(run_process({"python3", UTTT_TEST_FIT_SCRIPT, "--self-test"}) == 0);
 }
 
 TEST_CASE("eval quality A9 analyze emits convention and null through real executable") {
   using json = nlohmann::json;
-  const std::filesystem::path stem =
-      std::filesystem::temp_directory_path() /
-      ("uttt-analyze-a9-" + std::to_string(getpid()));
-  const auto input_path = stem.string() + ".in";
-  const auto output_path = stem.string() + ".out";
-  const auto error_path = stem.string() + ".err";
+  TempFile input("analyze-in");
+  TempFile output("analyze-out");
+  TempFile error("analyze-err");
 
   const std::array<uint16_t, 9> xs = {227, 227, 227, 227, 227, 227, 227, 227, 227};
   const std::array<uint16_t, 9> os = {284, 284, 284, 284, 284, 284, 284, 284, 284};
-  auto request = [&](int64_t bx, int64_t bo) {
-    return json{{"parts", {{"x", xs}, {"o", os}, {"forced", nullptr}, {"tie", "X"}}},
-                {"h", "X"}, {"bx", bx}, {"bo", bo}, {"depth", 6}};
+  auto request = [&](const auto &px, const auto &po, json forced, json state_tie,
+                     int64_t bx, int64_t bo, int depth) {
+    return json{{"parts", {{"x", px}, {"o", po}, {"forced", std::move(forced)},
+                            {"tie", std::move(state_tie)}}},
+                {"h", "X"}, {"bx", bx}, {"bo", bo}, {"depth", depth}};
   };
-  {
-    std::ofstream input(input_path);
-    input << request(500000000, 500000000).dump() << '\n';
-    input << request(400000000, 600000000).dump() << '\n';
-  }
-  std::filesystem::path engine = std::filesystem::current_path() / "uttt_engine";
-  if (!std::filesystem::exists(engine))
-    engine = std::filesystem::current_path() / "build" / "uttt_engine";
-  const std::string command = "\"" + engine.string() + "\" analyze < \"" +
-                              input_path + "\" > \"" + output_path +
-                              "\" 2> \"" + error_path + "\"";
-  REQUIRE(std::system(command.c_str()) == 0);
+  std::array<uint16_t, 9> empty{};
+  std::array<uint16_t, 9> macro_x{};
+  std::array<uint16_t, 9> macro_o{};
+  macro_x[0] = macro_x[1] = macro_x[2] = 0b000000111;
+  macro_o[0] = macro_o[1] = macro_o[2] = 0b000000111;
+  constexpr int64_t max_total = 4294967295LL;
 
-  std::ifstream output(output_path);
-  std::string first_line;
-  std::string second_line;
-  REQUIRE(static_cast<bool>(std::getline(output, first_line)));
-  REQUIRE(static_cast<bool>(std::getline(output, second_line)));
-  const json positive = json::parse(first_line);
-  const json negative = json::parse(second_line);
-  CHECK(positive.at("equality_label") == "convention");
-  CHECK(negative.at("equality_label").is_null());
-  CHECK(positive.at("features").size() == kEvalFeatureCount);
-  CHECK(positive.at("t_lo") == 0.5);
-  CHECK(positive.at("t_hi") == 0.5);
-  CHECK(slurp(error_path).empty());
+  std::vector<json> requests;
+  requests.push_back(request(xs, os, nullptr, "X", 500000000, 500000000, 6));
+  requests.push_back(request(xs, os, nullptr, "X", 400000000, 600000000, 6));
+  requests.push_back(request(empty, empty, 4, nullptr, 0, max_total, 0));
+  requests.push_back(request(macro_x, empty, 3, "X", 0, max_total, 6));
+  requests.push_back(request(empty, macro_o, 3, "X", max_total, 0, 6));
+  requests.push_back(request(xs, os, nullptr, "X", 0, 0, 6));
+  std::string input_text;
+  for (const json &value : requests) input_text += value.dump() + "\n";
+  input.write(input_text);
 
-  {
-    std::ofstream input(input_path);
-    json missing_budget = request(500000000, 500000000);
-    missing_budget.erase("bo");
-    input << missing_budget.dump() << '\n';
-  }
-  CHECK(std::system(command.c_str()) != 0);
-  CHECK(slurp(error_path).find("missing required field") != std::string::npos);
+  CHECK(std::filesystem::path(UTTT_TEST_ENGINE_PATH).is_absolute());
+  REQUIRE(run_process({UTTT_TEST_ENGINE_PATH, "analyze"}, &input, &output,
+                      &error) == 0);
+  CHECK(slurp(error.path()).empty());
+  std::ifstream result_stream(output.path());
+  std::vector<json> replies;
+  std::string line;
+  while (std::getline(result_stream, line)) replies.push_back(json::parse(line));
+  REQUIRE(replies.size() == requests.size());
+  for (const json &reply : replies) check_analyze_schema(reply);
+  CHECK(replies[0].at("equality_label") == "convention");
+  CHECK(replies[0].at("t_lo") == 0.5);
+  CHECK(replies[0].at("t_hi") == 0.5);
+  CHECK(replies[1].at("equality_label").is_null());
+  CHECK(replies[2].at("t_lo") == 0.0);
+  CHECK(replies[2].at("t_hi") == 1.0);
+  CHECK(replies[2].at("equality_label").is_null());
+  CHECK(replies[3].at("t_lo") == 0.0);
+  CHECK(replies[3].at("t_hi") == 0.0);
+  CHECK(replies[3].at("equality_label") == "convention");
+  CHECK(replies[4].at("t_lo") == 1.0);
+  CHECK(replies[4].at("t_hi") == 1.0);
+  CHECK(replies[4].at("equality_label") == "convention");
+  CHECK(replies[5].at("equality_label").is_null());
 
-  std::filesystem::remove(input_path);
-  std::filesystem::remove(output_path);
-  std::filesystem::remove(error_path);
+  json missing_budget = requests[0];
+  missing_budget.erase("bo");
+  input.write(missing_budget.dump() + "\n");
+  CHECK(run_process({UTTT_TEST_ENGINE_PATH, "analyze"}, &input, &output,
+                    &error) != 0);
+  CHECK(slurp(error.path()).find("missing required field") != std::string::npos);
 }

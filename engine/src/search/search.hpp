@@ -58,6 +58,7 @@ template <GameModel M> struct Search {
       : tt_entries_log2_(tt_entries_log2), tt_mode_(tt_mode) {}
 
   const CollisionStats *tt_stats() const { return tt_ ? &tt_->stats : nullptr; }
+  uint64_t evaluator_calls() const { return evaluator_calls_; }
 
   SearchResult solve(State state, Tie h, Limits limits,
                      Window window = {{0.0, 1.0}, 0.0}) {
@@ -65,6 +66,7 @@ template <GameModel M> struct Search {
            window.w.hi <= 1.0);
     assert(window.eps_node >= 0.0);
     nodes_ = 0;
+    evaluator_calls_ = 0;
     cuts_ = {};
     const int horizon = std::max(limits.max_depth, 0);
     node_cap_ = limits.node_cap;
@@ -131,6 +133,7 @@ private:
   };
 
   uint64_t nodes_ = 0;
+  uint64_t evaluator_calls_ = 0;
   uint64_t node_cap_ = 0;
   CutCounters cuts_{};
   bool cuts_enabled_ = false;
@@ -453,7 +456,7 @@ private:
 
   template <class Children>
   Children scheduled_children(Children children, const State &state,
-                              Seat mover) const {
+                              Seat mover) {
     if (!widen_free_choice_ || !is_free_choice(state)) return children;
     if constexpr (std::same_as<State, Position>) {
       std::stable_sort(children.begin(), children.end(),
@@ -461,7 +464,9 @@ private:
         const auto left = tactical_order_key(state, mover, lhs.move);
         const auto right = tactical_order_key(state, mover, rhs.move);
         if (left != right) return left > right;
+        ++evaluator_calls_;
         const double left_eval = eval_estimate(lhs.state);
+        ++evaluator_calls_;
         const double right_eval = eval_estimate(rhs.state);
         if (left_eval != right_eval)
           return mover == Seat::X ? left_eval < right_eval
@@ -533,7 +538,10 @@ private:
 
     if (remaining_depth == 0) {
       double guide = 0.5;
-      if constexpr (std::same_as<State, Position>) guide = eval_estimate(state);
+      if constexpr (std::same_as<State, Position>) {
+        ++evaluator_calls_;
+        guide = eval_estimate(state);
+      }
       return {{0.0, 1.0}, no_move(), no_move(), Quality::Estimate, true,
               false, guide};
     }

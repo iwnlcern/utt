@@ -63,6 +63,9 @@ add_executable(uttt_engine
 target_link_libraries(uttt_engine PRIVATE uttt_core)
 target_include_directories(uttt_engine PRIVATE third_party)
 add_dependencies(uttt_tests uttt_engine)
+target_compile_definitions(uttt_tests PRIVATE
+  UTTT_TEST_ENGINE_PATH="$<TARGET_FILE:uttt_engine>"
+  UTTT_TEST_FIT_SCRIPT="${CMAKE_CURRENT_SOURCE_DIR}/tools/fit_eval.py")
 
 add_executable(uttt_bench bench/bench_playout.cpp)
 target_link_libraries(uttt_bench PRIVATE uttt_core)
