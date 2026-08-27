@@ -2,6 +2,7 @@
 
 #include "search/backup.hpp"
 #include "search/game_model.hpp"
+#include "search/tt.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -17,6 +18,7 @@ enum class Quality : uint8_t { Exact, Bound, Estimate };
 struct Limits {
   int max_depth = 0;
   uint64_t node_cap = std::numeric_limits<uint64_t>::max();
+  bool use_tt = false;
 };
 
 struct Window {
@@ -46,6 +48,12 @@ struct SearchResult {
 template <GameModel M> struct Search {
   using State = typename M::State;
 
+  explicit Search(uint8_t tt_entries_log2 = TT::kDefaultEntriesLog2,
+                  TT::Mode tt_mode = TT::Mode::Play)
+      : tt_entries_log2_(tt_entries_log2), tt_mode_(tt_mode) {}
+
+  const CollisionStats *tt_stats() const { return tt_ ? &tt_->stats : nullptr; }
+
   SearchResult solve(State state, Tie h, Limits limits,
                      Window window = {{0.0, 1.0}, 0.0}) {
     assert(0.0 <= window.w.lo && window.w.lo <= window.w.hi &&
@@ -57,6 +65,12 @@ template <GameModel M> struct Search {
     node_cap_ = limits.node_cap;
     cuts_enabled_ = window.eps_node > 0.0 || window.w.lo > 0.0 ||
                     window.w.hi < 1.0;
+    tt_enabled_ = limits.use_tt;
+    if (tt_enabled_) {
+      if (!tt_)
+        tt_.emplace(tt_entries_log2_, tt_mode_);
+      ++generation_;
+    }
 
     NodeResult result;
     // TieState::NullFirstMove is the repository's existing representation of
@@ -109,6 +123,11 @@ private:
   uint64_t node_cap_ = 0;
   CutCounters cuts_{};
   bool cuts_enabled_ = false;
+  uint8_t tt_entries_log2_;
+  TT::Mode tt_mode_;
+  std::optional<TT> tt_;
+  uint8_t generation_ = 0;
+  bool tt_enabled_ = false;
 
   enum class WindowSide : uint8_t { None, Low, High };
 
@@ -358,12 +377,86 @@ private:
     return std::nullopt;
   }
 
+  static uint8_t encode_quality(Quality quality) {
+    switch (quality) {
+    case Quality::Exact:
+      return kTTQualityExact;
+    case Quality::Bound:
+      return kTTQualityBound;
+    case Quality::Estimate:
+      return kTTQualityEstimate;
+    }
+    return kTTQualityEstimate;
+  }
+
+  static Quality decode_quality(uint8_t flags) {
+    switch (flags & kTTQualityMask) {
+    case kTTQualityExact:
+      return Quality::Exact;
+    case kTTQualityBound:
+      return Quality::Bound;
+    default:
+      return Quality::Estimate;
+    }
+  }
+
+  static bool interval_satisfies(TInterval interval, Window window) {
+    if (window.eps_node > 0.0 && width(interval) <= window.eps_node)
+      return true;
+    return side_of(interval, window.w) != WindowSide::None;
+  }
+
+  static bool identity_carries_tie(const PosId &id, Tie h) {
+    return id.tie == h;
+  }
+
+  bool usable(const TTEntry &entry, int remaining_depth, Window window) const {
+    const Quality quality = decode_quality(entry.flags);
+    if (quality == Quality::Estimate || (entry.flags & kTTComplete) == 0)
+      return false;
+    return entry.depth >= remaining_depth ||
+           interval_satisfies({entry.lo, entry.hi}, window);
+  }
+
   NodeResult dfs(const State &state, Tie h, int remaining_depth, Window window,
                  bool allow_cut) {
     if (nodes_ >= node_cap_)
       return {};
     ++nodes_;
 
+    const PosId id = M::pos_id(state);
+    const bool cacheable = tt_enabled_ && identity_carries_tie(id, h);
+    if (cacheable) {
+      const auto hit = tt_->probe(M::tt_key(state), id);
+      if (hit && usable(*hit, remaining_depth, window)) {
+        return {{hit->lo, hit->hi},
+                hit->move_x,
+                hit->move_o,
+                decode_quality(hit->flags),
+                true};
+      }
+    }
+
+    const NodeResult result =
+        search_node(state, h, remaining_depth, window, allow_cut);
+    if (cacheable && result.complete) {
+      TTEntry entry{};
+      entry.lo = result.t.lo;
+      entry.hi = result.t.hi;
+      entry.move_x = result.best_x;
+      entry.move_o = result.best_o;
+      entry.depth = static_cast<uint8_t>(std::min(remaining_depth, 255));
+      entry.gen = generation_;
+      entry.flags = encode_quality(result.quality);
+      if (result.quality == Quality::Exact)
+        entry.flags |= kTTComplete;
+      tt_->store(M::tt_key(state), id, entry);
+    }
+    return result;
+  }
+
+  NodeResult search_node(const State &state, Tie h, int remaining_depth,
+                         Window window, bool allow_cut) {
     switch (M::terminal(state)) {
     case TerminalKind::MacroWinX:
       return {{0.0, 0.0}, no_move(), no_move(), Quality::Exact, true};
