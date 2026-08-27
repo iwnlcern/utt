@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <vector>
 
 namespace uttt {
 
@@ -218,6 +219,92 @@ private:
     return quality == Quality::Estimate ? Quality::Estimate : Quality::Bound;
   }
 
+  template <class Child>
+  NodeResult refine_child(const Child &child, Tie tie, int remaining_depth,
+                          TInterval bound) {
+    const bool restore_cuts = cuts_enabled_;
+    cuts_enabled_ = false;
+    const NodeResult refined = dfs(child.state, tie, remaining_depth - 1,
+                                   Window{{0.0, 1.0}, 0.0}, true);
+    cuts_enabled_ = restore_cuts;
+    if (!refined.complete || refined.t.lo < bound.lo ||
+        refined.t.hi > bound.hi)
+      return {};
+    return refined;
+  }
+
+  template <class Children>
+  std::optional<uint8_t> refine_best_x(const Children &children,
+                                       const std::vector<TInterval> &bounds,
+                                       int remaining_depth) {
+    assert(!children.empty() && children.size() == bounds.size());
+    std::size_t seed = 0;
+    for (std::size_t index = 1; index < children.size(); ++index) {
+      if (bounds[index].hi < bounds[seed].hi ||
+          (bounds[index].hi == bounds[seed].hi &&
+           children[index].move < children[seed].move))
+        seed = index;
+    }
+
+    const NodeResult first =
+        refine_child(children[seed], Tie::O, remaining_depth, bounds[seed]);
+    if (!first.complete)
+      return std::nullopt;
+    double best_hi = first.t.hi;
+    uint8_t best_move = children[seed].move;
+
+    for (std::size_t index = 0; index < children.size(); ++index) {
+      if (index == seed || bounds[index].lo > best_hi)
+        continue;
+      const NodeResult refined = refine_child(children[index], Tie::O,
+                                              remaining_depth, bounds[index]);
+      if (!refined.complete)
+        return std::nullopt;
+      if (refined.t.hi < best_hi ||
+          (refined.t.hi == best_hi && children[index].move < best_move)) {
+        best_hi = refined.t.hi;
+        best_move = children[index].move;
+      }
+    }
+    return best_move;
+  }
+
+  template <class Children>
+  std::optional<uint8_t> refine_best_o(const Children &children,
+                                       const std::vector<TInterval> &bounds,
+                                       int remaining_depth) {
+    assert(!children.empty() && children.size() == bounds.size());
+    std::size_t seed = 0;
+    for (std::size_t index = 1; index < children.size(); ++index) {
+      if (bounds[index].lo > bounds[seed].lo ||
+          (bounds[index].lo == bounds[seed].lo &&
+           children[index].move > children[seed].move))
+        seed = index;
+    }
+
+    const NodeResult first =
+        refine_child(children[seed], Tie::X, remaining_depth, bounds[seed]);
+    if (!first.complete)
+      return std::nullopt;
+    double best_lo = first.t.lo;
+    uint8_t best_move = children[seed].move;
+
+    for (std::size_t index = 0; index < children.size(); ++index) {
+      if (index == seed || bounds[index].hi < best_lo)
+        continue;
+      const NodeResult refined = refine_child(children[index], Tie::X,
+                                              remaining_depth, bounds[index]);
+      if (!refined.complete)
+        return std::nullopt;
+      if (refined.t.lo > best_lo ||
+          (refined.t.lo == best_lo && children[index].move > best_move)) {
+        best_lo = refined.t.lo;
+        best_move = children[index].move;
+      }
+    }
+    return best_move;
+  }
+
   std::optional<NodeResult>
   cutoff_result(const Aggregates &aggregates, Tie h, bool unvisited_x,
                 bool unvisited_o, Quality quality, uint8_t best_x,
@@ -301,6 +388,9 @@ private:
     uint8_t best_x = no_move();
     double best_x_hi = std::numeric_limits<double>::infinity();
     bool unknown_x = false;
+    std::vector<TInterval> x_bounds;
+    if (cuts_enabled_ && !allow_cut)
+      x_bounds.reserve(x_children.size());
     for (std::size_t index = 0; index < x_children.size(); ++index) {
       const auto &child = x_children[index];
       const auto child_window = cuts_enabled_
@@ -315,6 +405,8 @@ private:
           child_window.value_or(Window{{0.0, 1.0}, window.eps_node}), true);
       if (!searched.complete)
         return {};
+      if (cuts_enabled_ && !allow_cut)
+        x_bounds.push_back(searched.t);
       quality = combine_quality(quality, searched.quality);
       if (searched.t.hi < best_x_hi ||
           (searched.t.hi == best_x_hi && child.move < best_x)) {
@@ -337,6 +429,9 @@ private:
     uint8_t best_o = no_move();
     double best_o_lo = -std::numeric_limits<double>::infinity();
     bool unknown_o = false;
+    std::vector<TInterval> o_bounds;
+    if (cuts_enabled_ && !allow_cut)
+      o_bounds.reserve(o_children.size());
     for (std::size_t index = 0; index < o_children.size(); ++index) {
       const auto &child = o_children[index];
       const auto child_window = cuts_enabled_
@@ -352,6 +447,8 @@ private:
           child_window.value_or(Window{{0.0, 1.0}, window.eps_node}), true);
       if (!searched.complete)
         return {};
+      if (cuts_enabled_ && !allow_cut)
+        o_bounds.push_back(searched.t);
       quality = combine_quality(quality, searched.quality);
       if (searched.t.lo > best_o_lo ||
           (searched.t.lo == best_o_lo && child.move > best_o)) {
@@ -369,6 +466,19 @@ private:
               aggregates, h, unknown_x, unvisited_o, quality, best_x, best_o,
               window, allow_cut))
         return *cut;
+    }
+
+    if (cuts_enabled_ && !allow_cut) {
+      const auto refined_x =
+          refine_best_x(x_children, x_bounds, remaining_depth);
+      if (!refined_x)
+        return {};
+      const auto refined_o =
+          refine_best_o(o_children, o_bounds, remaining_depth);
+      if (!refined_o)
+        return {};
+      best_x = *refined_x;
+      best_o = *refined_o;
     }
 
     if (unknown_x || unknown_o) {

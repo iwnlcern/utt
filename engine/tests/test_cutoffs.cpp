@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace uttt;
@@ -138,6 +139,19 @@ std::vector<Ttt3State> three_marks_remaining_family() {
   for (uint32_t code = 0; code < 19683; ++code) {
     const std::string board = board_from_dense(code);
     if (std::count(board.begin(), board.end(), '.') == 3)
+      result.push_back(Ttt3State::from_board(board, Tie::X));
+  }
+  return result;
+}
+
+std::vector<Ttt3State> four_empty_sample() {
+  std::vector<Ttt3State> result;
+  std::size_t eligible = 0;
+  for (uint32_t code = 0; code < 19683; ++code) {
+    const std::string board = board_from_dense(code);
+    if (std::count(board.begin(), board.end(), '.') != 4)
+      continue;
+    if ((eligible++ % 31) == 0)
       result.push_back(Ttt3State::from_board(board, Tie::X));
   }
   return result;
@@ -308,19 +322,59 @@ TEST_CASE("A4 bounded windows return sound same-side bounds") {
 }
 
 TEST_CASE("A4 bounded children preserve the parent interval and both moves") {
-  for (const char *board : {"XXO.X.X..", "XOOO....O"}) {
+  struct Case {
+    const char *board;
+    Tie tie;
+    Window window;
+    bool parent_interval_neutral;
+  };
+  const Case cases[] = {
+      {"XXO.X.X..", Tie::X, {{0.4, 0.6}, 0.0}, true},
+      {"XOOO....O", Tie::X, {{0.4, 0.6}, 0.0}, true},
+      {"OXXXX....", Tie::O, {{0.7, 0.9}, 0.0}, false},
+  };
+  for (const Case &test : cases) {
+    const char *board = test.board;
     const Ttt3State state = Ttt3State::from_board(board, Tie::X);
-    const ReferenceResult unpruned = unpruned_solve<Ttt3Model>(state, Tie::X, 4);
+    const ReferenceResult unpruned =
+        unpruned_solve<Ttt3Model>(state, test.tie, 4);
     Search<Ttt3Model> search;
     const SearchResult bounded = search.solve(
-        state, Tie::X, {4, 100000}, Window{{0.4, 0.6}, 0.0});
+        state, test.tie, {4, 100000}, test.window);
 
     CAPTURE(board);
-    CHECK(same_bits(bounded.t.lo, unpruned.t.lo));
-    CHECK(same_bits(bounded.t.hi, unpruned.t.hi));
+    if (std::string_view(board) == "OXXXX....") {
+      CHECK(unpruned.best_x == 5);
+      CHECK(unpruned.best_o == 8);
+    }
+    if (test.parent_interval_neutral) {
+      CHECK(same_bits(bounded.t.lo, unpruned.t.lo));
+      CHECK(same_bits(bounded.t.hi, unpruned.t.hi));
+    }
     CHECK(bounded.best_x == unpruned.best_x);
     CHECK(bounded.best_o == unpruned.best_o);
     CHECK(bounded.complete);
+  }
+}
+
+TEST_CASE("A4 bounded root moves match Task 8 on deterministic sample") {
+  const auto sample = four_empty_sample();
+  REQUIRE(sample.size() == 131);
+  for (Ttt3State state : sample) {
+    for (Tie tie : {Tie::X, Tie::O}) {
+      state.tie = tie;
+      const ReferenceResult unpruned =
+          unpruned_solve<Ttt3Model>(state, tie, 4);
+      Search<Ttt3Model> search;
+      const SearchResult bounded = search.solve(
+          state, tie, {4, 100000}, Window{{0.7, 0.9}, 0.0});
+
+      CAPTURE(state.dense_code());
+      CAPTURE(tie);
+      CHECK(bounded.best_x == unpruned.best_x);
+      CHECK(bounded.best_o == unpruned.best_o);
+      CHECK(bounded.complete);
+    }
   }
 }
 
@@ -389,15 +443,24 @@ TEST_CASE("A4 hull straddle refuses a one-branch window cut") {
 }
 
 TEST_CASE("A4 crossed preimage intersection cuts an empty child outright") {
+  const ReferenceResult unpruned =
+      unpruned_solve<PreimageWitnessModel>(PreimageState{}, Tie::O, 2);
   Search<PreimageWitnessModel> search;
   const SearchResult result = search.solve(
-      PreimageState{}, Tie::O, {2, 5}, Window{{0.8, 0.9}, 0.0});
+      PreimageState{}, Tie::O, {2, 10}, Window{{0.8, 0.9}, 0.0});
 
   CHECK(result.complete);
   CHECK(result.cuts.window_lo > 0);
-  CHECK(0.0 <= result.t.lo);
-  CHECK(result.t.lo <= result.t.hi);
-  CHECK(result.t.hi <= 1.0);
+  CHECK(result.t.lo <= unpruned.t.lo);
+  CHECK(unpruned.t.hi <= result.t.hi);
+  CHECK(result.t.hi < 0.8);
+  CHECK(result.best_x == unpruned.best_x);
+  CHECK(result.best_o == unpruned.best_o);
+
+  Search<PreimageWitnessModel> mutation_search;
+  const SearchResult nonempty = mutation_search.solve(
+      PreimageState{}, Tie::O, {2, 10}, Window{{0.4, 0.9}, 0.0});
+  CHECK_FALSE(nonempty.complete);
 }
 
 TEST_CASE("cutoff search preserves node-cap incomplete publication") {
