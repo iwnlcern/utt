@@ -16,6 +16,7 @@ from auction_ttt.crosscheck import (
 )
 from auction_ttt.discrete import solve as solve_discrete
 from auction_ttt.fixtures_gen import write_or_check
+from auction_ttt.knife_edge import report as knife_edge_report
 
 
 def _print_report(report: dict[str, object]) -> None:
@@ -98,8 +99,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     sweep_parser.add_argument(
         "--output-dir", type=Path, default=_default_results_dir()
     )
+    knife_edge_parser = commands.add_parser(
+        "knife-edge", help="write the exact p = T comparison artifact"
+    )
+    knife_edge_parser.add_argument(
+        "--max-scale", type=_exhaustive_scale, required=True
+    )
+    knife_edge_parser.add_argument(
+        "--spots", nargs="*", type=_positive_int, default=[]
+    )
+    knife_edge_parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "sweep" and args.spots is not None:
+        if sorted(args.spots) != [64, 128]:
+            parser.error("--spots requires exactly 64 and 128")
+        args.spots = [64, 128]
+    if args.command == "knife-edge" and args.spots:
         if sorted(args.spots) != [64, 128]:
             parser.error("--spots requires exactly 64 and 128")
         args.spots = [64, 128]
@@ -107,6 +122,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "fixtures":
         mismatches = write_or_check(args.output_dir, check=args.check)
         return 1 if mismatches else 0
+    if args.command == "knife-edge":
+        payload = knife_edge_report(
+            scales=list(range(1, args.max_scale + 1)),
+            spot_scales=args.spots,
+        )
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return 0
 
     solved = solve_continuous()
     if args.command == "solve":
