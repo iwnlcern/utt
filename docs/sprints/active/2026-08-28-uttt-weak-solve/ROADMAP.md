@@ -37,7 +37,7 @@ Transferable ideas the pairs must evaluate rather than assume:
 
 | Pair | Domain | Surfaces |
 |------|--------|----------|
-| theory | Prior art (Bertholon/Gehanne/Grimaud 2020 UTTT solve and rule-variant delta; Allis-style knowledge methods), value conjecture, UTTT strategy-rule language + soundness proofs, **certificate schema (owner)**, independent certificate checker (Python or other non-C++) | `theory/` (s2 additions), certificate schema doc |
+| theory | Prior art (Bertholon, Géraud-Stewart, Kugelmann, Lenoir, Naccache 2020 (arXiv:2006.02353) and its rule-variant delta; Allis-style knowledge methods), value conjecture, UTTT strategy-rule language + soundness proofs, **certificate schema (owner)**, independent certificate checker (Python or other non-C++) | `theory/` (s2 additions), certificate schema doc |
 | solver | C++26 solving engine: search architecture (DFPN/PN/retrograde — design phase decides), symmetry reduction, at-scale transposition/memo storage, proof-DAG emission, checkpoint/resume, long-run + cloud execution | `solver/` (or engine/ extension — audit decides), reuse of engine/src/core rules kernels |
 
 Orchestrator Reviewer seat: `s2.orchestrator-reviewer`.
