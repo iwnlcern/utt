@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+import auction_ttt.knife_edge as knife_edge
 from auction_ttt.__main__ import main
 from auction_ttt.discrete import DRAW, OWIN, XWIN
 from auction_ttt.knife_edge import report, spot_sweep, sweep
@@ -215,6 +216,54 @@ def test_spot_streaming_releases_boards(monkeypatch):
 
     assert calls == ["O........", "X........"]
     assert folded == [("O........", "X", 2, 2), ("X........", "O", 2, 2)]
+
+
+def test_report_spot_path_releases_points_before_return(monkeypatch):
+    # Materializing pts=[] inside report would keep these points alive at finish.
+    board = "X........"
+    key = (board, "O")
+    solved = {key: SimpleNamespace(T=F(1, 2), a=F(0), b=F(1))}
+    values = np.full((3, 3), DRAW, dtype=np.int8)
+    mask = np.zeros((3, 3), dtype=bool)
+    mask[2, 2] = True
+    point_refs = []
+
+    monkeypatch.setattr("auction_ttt.knife_edge.solve_continuous", lambda: solved)
+    monkeypatch.setattr(
+        "auction_ttt.knife_edge.solve_discrete", lambda _scale: ({}, object())
+    )
+    monkeypatch.setattr(
+        "auction_ttt.knife_edge.select_spot_targets",
+        lambda _solved, _masks, _scale: [key],
+    )
+    monkeypatch.setattr(
+        "auction_ttt.knife_edge.solve_targeted",
+        lambda _board, _scale: SimpleNamespace(
+            values={key: values}, mask={key: mask}, diagnostics=[]
+        ),
+    )
+
+    original_call = knife_edge._ScaleFold.__call__
+    original_finish = knife_edge._ScaleFold.finish
+
+    def track_point(accumulator, point):
+        point_refs.append(weakref.ref(point))
+        original_call(accumulator, point)
+
+    def assert_points_released(accumulator):
+        gc.collect()
+        assert point_refs
+        assert not any(ref() is not None for ref in point_refs), (
+            "report must not retain KnifePoint instances through scale finish"
+        )
+        return original_finish(accumulator)
+
+    monkeypatch.setattr(knife_edge._ScaleFold, "__call__", track_point)
+    monkeypatch.setattr(knife_edge._ScaleFold, "finish", assert_points_released)
+
+    payload = report(scales=[], spot_scales=[2])
+
+    assert payload["per_scale"][0]["equality_points"] == 1
 
 
 def test_report_deterministic_bytes():
