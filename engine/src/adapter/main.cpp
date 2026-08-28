@@ -17,31 +17,36 @@ namespace {
 
 enum class ReadResult { Line, Oversize, Eof };
 
-ReadResult read_bounded_line(std::istream& input, std::string& line) {
+ReadResult read_bounded_line(std::istream &input, std::string &line) {
   line.clear();
   bool saw_byte = false;
   bool oversize = false;
   char ch = 0;
   while (input.get(ch)) {
     saw_byte = true;
-    if (ch == '\n') return oversize ? ReadResult::Oversize : ReadResult::Line;
+    if (ch == '\n')
+      return oversize ? ReadResult::Oversize : ReadResult::Line;
     if (line.size() < uttt::wire::kMaxLineBytes) {
       line.push_back(ch);
     } else {
       oversize = true;
     }
   }
-  if (!saw_byte) return ReadResult::Eof;
+  if (!saw_byte)
+    return ReadResult::Eof;
   return oversize ? ReadResult::Oversize : ReadResult::Line;
 }
 
 using json = nlohmann::json;
 
 std::expected<uttt::Tie, std::string> parse_tie(const json &value) {
-  if (!value.is_string()) return std::unexpected("tie must be X or O");
+  if (!value.is_string())
+    return std::unexpected("tie must be X or O");
   const std::string tie = value.get<std::string>();
-  if (tie == "X") return uttt::Tie::X;
-  if (tie == "O") return uttt::Tie::O;
+  if (tie == "X")
+    return uttt::Tie::X;
+  if (tie == "O")
+    return uttt::Tie::O;
   return std::unexpected("tie must be X or O");
 }
 
@@ -77,43 +82,59 @@ std::expected<uttt::Position, std::string> parse_parts(const json &parts) {
   uttt::TieState tie = uttt::TieState::NullFirstMove;
   if (!parts.at("tie").is_null()) {
     const auto parsed = parse_tie(parts.at("tie"));
-    if (!parsed) return std::unexpected(parsed.error());
+    if (!parsed)
+      return std::unexpected(parsed.error());
     tie = *parsed == uttt::Tie::X ? uttt::TieState::X : uttt::TieState::O;
   }
   const auto position = uttt::Position::from_parts(x, o, forced, tie);
-  if (!position) return std::unexpected("Position::from_parts rejected parts");
+  if (!position)
+    return std::unexpected("Position::from_parts rejected parts");
   return *position;
 }
 
 bool endpoint_equals_share(double endpoint, uint64_t numerator,
                            uint64_t total) {
-  if (total == 0) return false;
-  if (endpoint == 0.0) return numerator == 0;
-  if (endpoint == 1.0) return numerator == total;
+  if (total == 0)
+    return false;
+  if (endpoint == 0.0)
+    return numerator == 0;
+  if (endpoint == 1.0)
+    return numerator == total;
   const auto binary = uttt::p2_detail::decompose_unit_endpoint(endpoint);
   const unsigned shift = static_cast<unsigned>(-binary.exponent);
-  if (uttt::p2_detail::shift_overflows_wide(numerator, shift)) return false;
+  if (uttt::p2_detail::shift_overflows_wide(numerator, shift))
+    return false;
   return uttt::p2_detail::shifted_wide(numerator, shift) ==
          uttt::p2_detail::scaled_mantissa(binary, total);
 }
 
 const char *quality_name(uttt::Quality quality) {
   switch (quality) {
-  case uttt::Quality::Exact: return "exact";
-  case uttt::Quality::Bound: return "bound";
-  case uttt::Quality::Estimate: return "estimate";
+  case uttt::Quality::Exact:
+    return "exact";
+  case uttt::Quality::Bound:
+    return "bound";
+  case uttt::Quality::Estimate:
+    return "estimate";
   }
   return "estimate";
 }
 
 int run_analyze() {
   std::string line;
+  std::size_t line_number = 0;
   while (true) {
     const ReadResult read = read_bounded_line(std::cin, line);
-    if (read == ReadResult::Eof) return 0;
+    if (read == ReadResult::Eof)
+      return 0;
+    ++line_number;
     if (read == ReadResult::Oversize) {
-      std::cerr << "oversize analyze line\n";
-      return 2;
+      std::cout << json{{"error", "analyze line exceeds 32768 bytes"},
+                        {"line", line_number}}
+                       .dump()
+                << '\n'
+                << std::flush;
+      continue;
     }
     try {
       const json request = json::parse(line);
@@ -123,8 +144,8 @@ int run_analyze() {
         throw std::invalid_argument("analyze request missing required field");
       const auto position = parse_parts(request.at("parts"));
       const auto tie = parse_tie(request.at("h"));
-      if (!position || !tie) throw std::invalid_argument(
-          position ? tie.error() : position.error());
+      if (!position || !tie)
+        throw std::invalid_argument(position ? tie.error() : position.error());
       if (!request.at("bx").is_number_integer() ||
           !request.at("bo").is_number_integer() ||
           !request.at("depth").is_number_integer())
@@ -132,33 +153,54 @@ int run_analyze() {
       const int64_t bx = request.at("bx").get<int64_t>();
       const int64_t bo = request.at("bo").get<int64_t>();
       const int64_t depth = request.at("depth").get<int64_t>();
-      if (bx < 0 || bo < 0 || depth < 0 || depth > 255 ||
+      if (depth > 12)
+        throw std::invalid_argument("analyze depth exceeds 12");
+      if (bx < 0 || bo < 0 || depth < 0 ||
           static_cast<uint64_t>(bx) + static_cast<uint64_t>(bo) >
               std::numeric_limits<uint32_t>::max())
         throw std::invalid_argument("analyze budgets/depth outside domain");
 
       uttt::Search<uttt::UtttModel> search;
-      const uttt::SearchResult result = search.solve(
-          *position, *tie, {static_cast<int>(depth),
-                            std::numeric_limits<uint64_t>::max(), false});
-      const uint64_t total = static_cast<uint64_t>(bx) +
-                             static_cast<uint64_t>(bo);
+      constexpr uint64_t kAnalyzeNodeCap = 5'000'000;
+      uint64_t used_nodes = 0;
+      uttt::SearchResult result{};
+      bool have_completed = false;
+      for (int iteration = 0; iteration <= depth; ++iteration) {
+        const uint64_t remaining = kAnalyzeNodeCap - used_nodes;
+        const uttt::SearchResult attempted = search.solve(
+            *position, *tie, {iteration, remaining, false, true, 12, 256, {}});
+        used_nodes += search.nodes_searched();
+        if (!attempted.complete) {
+          if (!have_completed)
+            result = attempted;
+          result.complete = false;
+          break;
+        }
+        result = attempted;
+        have_completed = true;
+      }
+      const uint64_t total =
+          static_cast<uint64_t>(bx) + static_cast<uint64_t>(bo);
       const bool equality = endpoint_equals_share(result.t.lo, bx, total) &&
                             endpoint_equals_share(result.t.hi, bx, total);
-      json output{{"t_lo", result.t.lo}, {"t_hi", result.t.hi},
-                  {"quality", quality_name(result.quality)},
-                  {"depth", result.depth}, {"complete", result.complete},
-                  {"equality_label", equality ? json("convention") : json(nullptr)},
-                  {"features", uttt::eval_features(*position)}};
+      json output{
+          {"t_lo", result.t.lo},
+          {"t_hi", result.t.hi},
+          {"quality", quality_name(result.quality)},
+          {"depth", result.depth},
+          {"complete", result.complete},
+          {"equality_label", equality ? json("convention") : json(nullptr)},
+          {"features", uttt::eval_features(*position)}};
       std::cout << output.dump() << '\n' << std::flush;
     } catch (const std::exception &error) {
-      std::cerr << "analyze request rejected: " << error.what() << '\n';
-      return 2;
+      std::cout << json{{"error", error.what()}, {"line", line_number}}.dump()
+                << '\n'
+                << std::flush;
     }
   }
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char **argv) {
   if (argc == 2 && std::string_view(argv[1]) == "analyze")
@@ -172,7 +214,8 @@ int main(int argc, char **argv) {
   std::string line;
   while (true) {
     const ReadResult read = read_bounded_line(std::cin, line);
-    if (read == ReadResult::Eof) break;
+    if (read == ReadResult::Eof)
+      break;
     if (read == ReadResult::Oversize) {
       std::cerr << "oversize line rejected before JSON parsing\n";
       continue;
@@ -195,11 +238,13 @@ int main(int argc, char **argv) {
       if (*type == uttt::wire::MsgType::Turn) {
         auto request = uttt::wire::parse_turn(line);
         if (!request || request->legal.empty()) {
-          std::cerr << (request ? "turn has no legal move" : request.error()) << '\n';
+          std::cerr << (request ? "turn has no legal move" : request.error())
+                    << '\n';
           continue;
         }
         std::cout << uttt::wire::serialize_reply(policy.choose(*request, clock))
-                  << '\n' << std::flush;
+                  << '\n'
+                  << std::flush;
         continue;
       }
       auto valid = uttt::wire::validate_game_end(line);
@@ -208,7 +253,7 @@ int main(int argc, char **argv) {
         continue;
       }
       return 0;
-    } catch (const std::exception& error) {
+    } catch (const std::exception &error) {
       std::cerr << "message rejected: " << error.what() << '\n';
     } catch (...) {
       std::cerr << "message rejected: unknown exception\n";

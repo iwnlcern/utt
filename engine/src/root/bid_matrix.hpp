@@ -64,6 +64,25 @@ inline Anchors production_anchors(TInterval a, TInterval b, int64_t total,
   return {exact_half_up_product(r_root, total), best_x, best_o};
 }
 
+inline TInterval critical_r_enclosure(TInterval a, TInterval b) {
+  if (!std::isfinite(a.lo) || !std::isfinite(a.hi) || !std::isfinite(b.lo) ||
+      !std::isfinite(b.hi) || a.lo < 0.0 || a.lo > a.hi || b.lo < 0.0 ||
+      b.lo > b.hi || a.hi > 1.0 || b.hi > 1.0)
+    throw std::invalid_argument("critical-r intervals are outside [0,1]");
+  const double lo_numerator = sub_down(b.lo, a.hi);
+  const double lo_denominator = add_up(sub_up(1.0, a.hi), b.lo);
+  const double hi_numerator = sub_up(b.hi, a.lo);
+  const double hi_denominator = add_down(sub_down(1.0, a.lo), b.hi);
+  return {
+      lo_numerator <= 0.0
+          ? 0.0
+          : std::clamp(div_down(lo_numerator, lo_denominator), 0.0, 1.0),
+      hi_denominator <= 0.0
+          ? 1.0
+          : std::clamp(div_up(hi_numerator, hi_denominator), 0.0, 1.0),
+  };
+}
+
 namespace bid_matrix_detail {
 
 template <class State> inline bool is_ttt3_opening(const State &state) {
@@ -158,8 +177,8 @@ RootMatrix<typename M::State>
 build_bid_matrix(typename M::State state, Tie h, int64_t bx, int64_t bo,
                  Anchors anchors, PayoffFn<typename M::State> payoff,
                  std::function<bool()> stop = {}) {
-  if ((h != Tie::X && h != Tie::O) || bx < 0 || bo < 0 ||
-      bx > std::numeric_limits<uint32_t>::max() ||
+  if ((h != Tie::X && h != Tie::O && h != Tie::NullFirstMove) || bx < 0 ||
+      bo < 0 || bx > std::numeric_limits<uint32_t>::max() ||
       bo > std::numeric_limits<uint32_t>::max() ||
       bx + bo > std::numeric_limits<uint32_t>::max()) {
     throw std::invalid_argument("root matrix inputs are out of range");
@@ -193,7 +212,40 @@ build_bid_matrix(typename M::State state, Tie h, int64_t bx, int64_t bo,
         return result;
       }
       std::optional<PayoffResult> entry;
-      if (row.bid > column.bid || (row.bid == column.bid && h == Tie::X)) {
+      if (row.bid == column.bid && h == Tie::NullFirstMove) {
+        const auto x_entry =
+            payoff(bid_matrix_detail::child_with_move<typename M::State>(
+                       x_children, row.move),
+                   Tie::O, bx - row.bid, bo);
+        if (!x_entry) {
+          result.complete = false;
+          result.payoffs.push_back(std::move(values));
+          return result;
+        }
+        if (!std::isfinite(x_entry->value) || x_entry->value < -1.0 ||
+            x_entry->value > 1.0)
+          throw std::logic_error("root coin-branch payoff is not finite in [-1,+1]");
+        if (stop && stop()) {
+          result.complete = false;
+          result.payoffs.push_back(std::move(values));
+          return result;
+        }
+        const auto o_entry =
+            payoff(bid_matrix_detail::child_with_move<typename M::State>(
+                       o_children, column.move),
+                   Tie::X, bx, bo - column.bid);
+        if (!o_entry) {
+          result.complete = false;
+          result.payoffs.push_back(std::move(values));
+          return result;
+        }
+        if (!std::isfinite(o_entry->value) || o_entry->value < -1.0 ||
+            o_entry->value > 1.0)
+          throw std::logic_error("root coin-branch payoff is not finite in [-1,+1]");
+        entry = PayoffResult{0.5 * x_entry->value + 0.5 * o_entry->value,
+                             x_entry->exact && o_entry->exact};
+      } else if (row.bid > column.bid ||
+                 (row.bid == column.bid && h == Tie::X)) {
         entry = payoff(bid_matrix_detail::child_with_move<typename M::State>(
                            x_children, row.move),
                        Tie::O, bx - row.bid, bo);
@@ -265,6 +317,10 @@ std::size_t select_root_action(const RootMatrix<State> &matrix,
     throw std::invalid_argument("root action extraction inputs do not align");
 
   const auto &actions = x_seat ? matrix.row_actions : matrix.column_actions;
+  const auto &probabilities =
+      x_seat ? solution.row_strategy : solution.column_strategy;
+  const double maximum_probability =
+      *std::max_element(probabilities.begin(), probabilities.end());
   std::vector<double> values(actions.size(), 0.0);
   if (x_seat) {
     for (std::size_t i = 0; i < matrix.row_actions.size(); ++i)
@@ -283,9 +339,17 @@ std::size_t select_root_action(const RootMatrix<State> &matrix,
       return actions[candidate].bid < actions[incumbent].bid;
     return actions[candidate].move < actions[incumbent].move;
   };
-  std::size_t chosen = 0;
-  for (std::size_t index = 1; index < actions.size(); ++index)
-    if (better_action(index, chosen))
+  std::size_t chosen = static_cast<std::size_t>(std::find(probabilities.begin(),
+                                                          probabilities.end(),
+                                                          maximum_probability) -
+                                                probabilities.begin());
+  for (std::size_t index = chosen + 1; index < actions.size(); ++index)
+    if (probabilities[index] == maximum_probability &&
+        better_action(index, chosen))
+      chosen = index;
+  for (std::size_t index = 0; index < chosen; ++index)
+    if (probabilities[index] == maximum_probability &&
+        better_action(index, chosen))
       chosen = index;
   return chosen;
 }

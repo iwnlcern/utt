@@ -26,7 +26,7 @@ RootClass exact_p2_classify(TInterval t, int64_t bx, int64_t total,
   return InBand;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("A7 P2 exact margins are strict at M 1e9") {
   constexpr int64_t kM = 1'000'000'000;
@@ -43,11 +43,20 @@ TEST_CASE("A7 P2 binary64 1e-9 cliff does not understate the upper endpoint") {
   CHECK(p2_classify({0.0, 1e-9}, 1, 1'000'000'000, 0) == InBand);
 }
 
+TEST_CASE("certified bid ceiling reads the exact binary64 endpoint") {
+  CHECK(ceil_exact(0.0, 1'000'000'000) == 0);
+  CHECK(ceil_exact(1.0, 1'000'000'000) == 1'000'000'000);
+  CHECK(ceil_exact(1e-9, 1'000'000'000) == 2);
+  CHECK(ceil_exact(std::nextafter(0.25, 0.0), 4) == 1);
+  CHECK(ceil_exact(0.25, 4) == 1);
+  CHECK(ceil_exact(std::nextafter(0.25, 1.0), 4) == 2);
+  CHECK(ceil_exact(std::numeric_limits<double>::denorm_min(), 1'000'000'000) ==
+        1);
+}
+
 TEST_CASE("A7 P2 uses the adverse endpoint independently on each side") {
-  CHECK(p2_classify({0.4, 0.5}, 450'000'081, 1'000'000'000, 81) ==
-        InBand);
-  CHECK(p2_classify({0.5, 0.6}, 549'999'919, 1'000'000'000, 81) ==
-        InBand);
+  CHECK(p2_classify({0.4, 0.5}, 450'000'081, 1'000'000'000, 81) == InBand);
+  CHECK(p2_classify({0.5, 0.6}, 549'999'919, 1'000'000'000, 81) == InBand);
 }
 
 TEST_CASE("A7 P2 literal zero endpoint branches preserve their asymmetry") {
@@ -56,15 +65,13 @@ TEST_CASE("A7 P2 literal zero endpoint branches preserve their asymmetry") {
 }
 
 TEST_CASE("A7 P2 literal one endpoint branches preserve their asymmetry") {
-  CHECK(p2_classify({0.0, 1.0}, 1'000'000'000, 1'000'000'000, 0) ==
-        InBand);
+  CHECK(p2_classify({0.0, 1.0}, 1'000'000'000, 1'000'000'000, 0) == InBand);
   CHECK(p2_classify({1.0, 1.0}, 0, 1'000'000'000, 0) == OForced);
 }
 
 TEST_CASE("A7 P2 X shift overflow is decided by positive magnitude") {
   const double subnormal = std::numeric_limits<double>::denorm_min();
-  CHECK(p2_classify({subnormal, subnormal}, 1, 1'000'000'000, 0) ==
-        XForced);
+  CHECK(p2_classify({subnormal, subnormal}, 1, 1'000'000'000, 0) == XForced);
 }
 
 TEST_CASE("A7 P2 O shift overflow cannot force classification") {
@@ -73,8 +80,7 @@ TEST_CASE("A7 P2 O shift overflow cannot force classification") {
 }
 
 TEST_CASE("A7 P2 unresolved interval takes the in-band fallback") {
-  CHECK(p2_classify({0.4, 0.6}, 500'000'000, 1'000'000'000, 81) ==
-        InBand);
+  CHECK(p2_classify({0.4, 0.6}, 500'000'000, 1'000'000'000, 81) == InBand);
 }
 
 TEST_CASE("A7 P2 matches exact TestRational arithmetic on 200 seeded cases") {
@@ -86,8 +92,7 @@ TEST_CASE("A7 P2 matches exact TestRational arithmetic on 200 seeded cases") {
     const auto unit = [&]() {
       return static_cast<double>(rng() >> 11) * 0x1.0p-53;
     };
-    const int64_t total =
-        1'000 + static_cast<int64_t>(rng() % 999'999'001);
+    const int64_t total = 1'000 + static_cast<int64_t>(rng() % 999'999'001);
     const int empties = static_cast<int>(rng() % 82);
     double lo = 0.0;
     double hi = 0.0;
@@ -95,12 +100,14 @@ TEST_CASE("A7 P2 matches exact TestRational arithmetic on 200 seeded cases") {
     if (index % 3 == 0) {
       lo = unit() * 0.25;
       hi = unit() * 0.25;
-      if (hi < lo) std::swap(lo, hi);
+      if (hi < lo)
+        std::swap(lo, hi);
       bx = total;
     } else if (index % 3 == 1) {
       lo = 0.75 + unit() * 0.25;
       hi = 0.75 + unit() * 0.25;
-      if (hi < lo) std::swap(lo, hi);
+      if (hi < lo)
+        std::swap(lo, hi);
       bx = 0;
     } else {
       lo = unit() * 0.25;
@@ -117,9 +124,12 @@ TEST_CASE("A7 P2 matches exact TestRational arithmetic on 200 seeded cases") {
     CAPTURE(empties);
     const RootClass expected = exact_p2_classify(interval, bx, total, empties);
     CHECK(p2_classify(interval, bx, total, empties) == expected);
-    if (expected == XForced) ++x_forced_count;
-    if (expected == OForced) ++o_forced_count;
-    if (expected == InBand) ++in_band_count;
+    if (expected == XForced)
+      ++x_forced_count;
+    if (expected == OForced)
+      ++o_forced_count;
+    if (expected == InBand)
+      ++in_band_count;
   }
   CHECK(x_forced_count == 67);
   CHECK(o_forced_count == 67);
@@ -131,28 +141,18 @@ TEST_CASE("P2 gate rejects inputs outside the locked UTTT domain") {
   const double nan = std::numeric_limits<double>::quiet_NaN();
   const double inf = std::numeric_limits<double>::infinity();
 
-  CHECK_THROWS_AS(p2_classify({0.6, 0.4}, 1, 2, 0),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(p2_classify({-0.1, 0.4}, 1, 2, 0),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(p2_classify({0.4, 1.1}, 1, 2, 0),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(p2_classify({nan, 0.4}, 1, 2, 0),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(p2_classify({0.4, inf}, 1, 2, 0),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 0, -1, 0),
-                  std::invalid_argument);
+  CHECK_THROWS_AS(p2_classify({0.6, 0.4}, 1, 2, 0), std::invalid_argument);
+  CHECK_THROWS_AS(p2_classify({-0.1, 0.4}, 1, 2, 0), std::invalid_argument);
+  CHECK_THROWS_AS(p2_classify({0.4, 1.1}, 1, 2, 0), std::invalid_argument);
+  CHECK_THROWS_AS(p2_classify({nan, 0.4}, 1, 2, 0), std::invalid_argument);
+  CHECK_THROWS_AS(p2_classify({0.4, inf}, 1, 2, 0), std::invalid_argument);
+  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 0, -1, 0), std::invalid_argument);
   CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 0, kTooLarge, 0),
                   std::invalid_argument);
-  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, -1, 10, 0),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 11, 10, 0),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 1, 10, -1),
-                  std::invalid_argument);
-  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 1, 10, 82),
-                  std::invalid_argument);
+  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, -1, 10, 0), std::invalid_argument);
+  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 11, 10, 0), std::invalid_argument);
+  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 1, 10, -1), std::invalid_argument);
+  CHECK_THROWS_AS(p2_classify({0.4, 0.6}, 1, 10, 82), std::invalid_argument);
 }
 
 TEST_CASE("P2 gate keeps canonical zero-total play in band") {

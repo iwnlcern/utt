@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include "root/p2_gate.hpp"
 #include "search/search.hpp"
 #include "support/test_rational.hpp"
 #include "support/ttt3_continuous.hpp"
@@ -289,6 +290,55 @@ TEST_CASE("A4 full window and zero precision are exact-neutral to Task 8") {
   }
 }
 
+TEST_CASE("play window is a two-ulp outward enclosure of the exact P2 band") {
+  const Window full = make_play_window(0, 0, 81);
+  CHECK(same_bits(full.w.lo, 0.0));
+  CHECK(same_bits(full.w.hi, 1.0));
+
+  const Window middle = make_play_window(50, 100, 10);
+  CHECK(same_bits(middle.w.lo, std::nextafter(div_down(40.0, 100.0), 0.0)));
+  CHECK(same_bits(middle.w.hi, std::nextafter(div_up(60.0, 100.0), 1.0)));
+  CHECK(middle.w.lo < 0.4);
+  CHECK(middle.w.hi > 0.6);
+
+  const Window clipped_lo = make_play_window(10, 100, 10);
+  const Window clipped_hi = make_play_window(90, 100, 10);
+  CHECK(same_bits(clipped_lo.w.lo, 0.0));
+  CHECK(same_bits(clipped_hi.w.hi, 1.0));
+}
+
+TEST_CASE("sound nonnested refinement intersects instead of failing") {
+  const auto nested = intersect_sound_refinement({0.2, 0.8}, {0.1, 0.7});
+  REQUIRE(nested.has_value());
+  CHECK(same_bits(nested->lo, 0.2));
+  CHECK(same_bits(nested->hi, 0.7));
+  CHECK_FALSE(intersect_sound_refinement({0.0, 0.2}, {0.3, 0.4}));
+}
+
+TEST_CASE("play-window and full-window searches preserve P2 verdicts") {
+  for (const Position &state : seeded_uttt_positions()) {
+    const int empties = UtttModel::empties(state);
+    for (const std::pair<int64_t, int64_t> budgets :
+         {std::pair<int64_t, int64_t>{100, 100}, {1'000, 0}, {0, 1'000}}) {
+      const int64_t total = budgets.first + budgets.second;
+      Search<UtttModel> full_search;
+      Search<UtttModel> window_search;
+      const SearchResult full =
+          full_search.solve(state, state.tie, {2, 100'000, false, true, 12});
+      const SearchResult windowed =
+          window_search.solve(state, state.tie, {2, 100'000, false, true, 12},
+                              make_play_window(budgets.first, total, empties));
+      CAPTURE(state.key);
+      CAPTURE(budgets.first);
+      CAPTURE(budgets.second);
+      REQUIRE(full.complete);
+      REQUIRE(windowed.complete);
+      CHECK(p2_classify(full.t, budgets.first, total, empties) ==
+            p2_classify(windowed.t, budgets.first, total, empties));
+    }
+  }
+}
+
 TEST_CASE("A4 bounded windows return sound same-side bounds") {
   struct Case {
     const char *name;
@@ -304,7 +354,8 @@ TEST_CASE("A4 bounded windows return sound same-side bounds") {
   for (const Case &test : cases) {
     const Ttt3State state = Ttt3State::from_board(test.board, Tie::X);
     const TestRational truth = solve_continuous(state, Tie::X).T;
-    const ReferenceResult unpruned = unpruned_solve<Ttt3Model>(state, Tie::X, 3);
+    const ReferenceResult unpruned =
+        unpruned_solve<Ttt3Model>(state, Tie::X, 3);
     Search<Ttt3Model> search;
     const SearchResult bounded =
         search.solve(state, Tie::X, {3, 10000}, test.window);
@@ -339,8 +390,8 @@ TEST_CASE("A4 bounded children preserve the parent interval and both moves") {
     const ReferenceResult unpruned =
         unpruned_solve<Ttt3Model>(state, test.tie, 4);
     Search<Ttt3Model> search;
-    const SearchResult bounded = search.solve(
-        state, test.tie, {4, 100000}, test.window);
+    const SearchResult bounded =
+        search.solve(state, test.tie, {4, 100000}, test.window);
 
     CAPTURE(board);
     if (std::string_view(board) == "OXXXX....") {
@@ -363,11 +414,10 @@ TEST_CASE("A4 bounded root moves match Task 8 on deterministic sample") {
   for (Ttt3State state : sample) {
     for (Tie tie : {Tie::X, Tie::O}) {
       state.tie = tie;
-      const ReferenceResult unpruned =
-          unpruned_solve<Ttt3Model>(state, tie, 4);
+      const ReferenceResult unpruned = unpruned_solve<Ttt3Model>(state, tie, 4);
       Search<Ttt3Model> search;
-      const SearchResult bounded = search.solve(
-          state, tie, {4, 100000}, Window{{0.7, 0.9}, 0.0});
+      const SearchResult bounded =
+          search.solve(state, tie, {4, 100000}, Window{{0.7, 0.9}, 0.0});
 
       CAPTURE(state.dense_code());
       CAPTURE(tie);
@@ -395,14 +445,14 @@ TEST_CASE("A4 named positions make every cutoff counter nonzero") {
   const Ttt3State high = Ttt3State::from_board("XOOO....O", Tie::O);
 
   Search<Ttt3Model> low_search;
-  const SearchResult low_result = low_search.solve(
-      low, Tie::X, {4, 100000}, Window{{0.4, 0.6}, 0.125});
+  const SearchResult low_result =
+      low_search.solve(low, Tie::X, {4, 100000}, Window{{0.4, 0.6}, 0.125});
   Search<Ttt3Model> high_search;
-  const SearchResult high_result = high_search.solve(
-      high, Tie::O, {4, 100000}, Window{{0.4, 0.6}, 0.125});
+  const SearchResult high_result =
+      high_search.solve(high, Tie::O, {4, 100000}, Window{{0.4, 0.6}, 0.125});
   Search<HullWitnessModel> hull_search;
-  const SearchResult hull_result = hull_search.solve(
-      HullState{}, Tie::O, {2, 100}, Window{{0.1, 0.2}, 0.0});
+  const SearchResult hull_result =
+      hull_search.solve(HullState{}, Tie::O, {2, 100}, Window{{0.1, 0.2}, 0.0});
 
   CAPTURE(low_result.cuts.min_dominance);
   CAPTURE(low_result.cuts.max_dominance);
@@ -429,8 +479,8 @@ TEST_CASE("A4 hull straddle refuses a one-branch window cut") {
   const ReferenceResult unpruned =
       unpruned_solve<HullWitnessModel>(HullState{}, Tie::O, 2);
   Search<HullWitnessModel> search;
-  const SearchResult result = search.solve(
-      HullState{}, Tie::O, {2, 100}, Window{{0.1, 0.2}, 0.0});
+  const SearchResult result =
+      search.solve(HullState{}, Tie::O, {2, 100}, Window{{0.1, 0.2}, 0.0});
 
   CHECK(result.cuts.hull_blocked > 0);
   CHECK(result.cuts.window_lo == 0);
@@ -446,8 +496,8 @@ TEST_CASE("A4 crossed preimage intersection cuts an empty child outright") {
   const ReferenceResult unpruned =
       unpruned_solve<PreimageWitnessModel>(PreimageState{}, Tie::O, 2);
   Search<PreimageWitnessModel> search;
-  const SearchResult result = search.solve(
-      PreimageState{}, Tie::O, {2, 10}, Window{{0.8, 0.9}, 0.0});
+  const SearchResult result =
+      search.solve(PreimageState{}, Tie::O, {2, 10}, Window{{0.8, 0.9}, 0.0});
 
   CHECK(result.complete);
   CHECK(result.cuts.window_lo > 0);
@@ -465,9 +515,9 @@ TEST_CASE("A4 crossed preimage intersection cuts an empty child outright") {
 
 TEST_CASE("cutoff search preserves node-cap incomplete publication") {
   Search<Ttt3Model> search;
-  const SearchResult result = search.solve(
-      Ttt3State::from_board(".........", Tie::X), Tie::X, {4, 1},
-      Window{{0.4, 0.6}, 0.125});
+  const SearchResult result =
+      search.solve(Ttt3State::from_board(".........", Tie::X), Tie::X, {4, 1},
+                   Window{{0.4, 0.6}, 0.125});
 
   CHECK(result.t.lo == 0.0);
   CHECK(result.t.hi == 1.0);

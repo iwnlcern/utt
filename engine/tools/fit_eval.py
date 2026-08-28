@@ -65,6 +65,23 @@ def self_test() -> None:
     if max(abs(actual - expected)
            for actual, expected in zip(predictions, midpoints, strict=True)) > 1e-8:
         raise SystemExit("sigmoid parameterization self-test failed")
+    try:
+        reject_error_replies([{"error": "synthetic rejection", "line": 7}])
+    except SystemExit as error:
+        if "line 7" not in str(error):
+            raise
+    else:
+        raise SystemExit("analyze rejection self-test failed")
+
+
+def reject_error_replies(replies: list[dict[str, object]]) -> None:
+    rejected = [reply for reply in replies if "error" in reply]
+    if rejected:
+        first = rejected[0]
+        raise SystemExit(
+            f"engine rejected analyze line {first.get('line')}: "
+            f"{first.get('error')}"
+        )
 
 
 def write_header(path: Path, weights: list[float]) -> None:
@@ -113,6 +130,7 @@ def main() -> int:
     replies = [json.loads(line) for line in process.stdout.splitlines()]
     if len(replies) != len(requests):
         raise SystemExit("engine returned the wrong number of analyze rows")
+    reject_error_replies(replies)
     features = [reply["features"] for reply in replies]
     labels = [(reply["t_lo"] + reply["t_hi"]) / 2.0 for reply in replies]
     weights = fit(features, [logit_midpoint(label) for label in labels])

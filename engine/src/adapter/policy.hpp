@@ -36,6 +36,13 @@ struct PolicyDiagnostics {
   bool matrix_action_published = false;
   uint64_t matrix_entries = 0;
   int rm_iterations = 0;
+  bool certificate_attempted = false;
+  bool certificate_published = false;
+  uint64_t alternation_searches = 0;
+  std::size_t alternation_memo_entries = 0;
+  CollisionStats threshold_tt_before_alt{};
+  CollisionStats threshold_tt_after_alt{};
+  CutCounters root_cuts{};
 };
 
 namespace policy_detail {
@@ -74,6 +81,73 @@ struct Decision {
   SearchResult searched{};
 };
 
+struct CertifiedChild {
+  uint8_t move = 0;
+  TInterval t{0.0, 1.0};
+  Quality quality = Quality::Estimate;
+  bool complete = false;
+};
+
+inline bool sound_complete(const CertifiedChild &child) {
+  return child.complete && child.quality != Quality::Estimate;
+}
+
+inline std::optional<uint8_t>
+dominant_move(const std::vector<CertifiedChild> &children, Seat seat) {
+  std::optional<uint8_t> selected;
+  for (const CertifiedChild &candidate : children) {
+    if (!sound_complete(candidate))
+      return std::nullopt;
+    bool dominates = true;
+    for (const CertifiedChild &other : children) {
+      if (&candidate == &other)
+        continue;
+      if (seat == Seat::X ? candidate.t.hi > other.t.lo
+                          : candidate.t.lo < other.t.hi) {
+        dominates = false;
+        break;
+      }
+    }
+    if (dominates && (!selected || candidate.move < *selected))
+      selected = candidate.move;
+  }
+  return selected;
+}
+
+inline std::optional<RootAction> certified_forced_action(
+    RootClass root_class, Seat seat, Tie tie, uint64_t total,
+    uint64_t own_stack, Aggregates aggregates,
+    const std::vector<CertifiedChild> &x_children,
+    const std::vector<CertifiedChild> &o_children, bool aggregates_complete) {
+  const bool own_forced = (root_class == XForced && seat == Seat::X) ||
+                          (root_class == OForced && seat == Seat::O);
+  if (!own_forced || !aggregates_complete || !aggregates.has_x ||
+      !aggregates.has_o || x_children.empty() || o_children.empty())
+    return std::nullopt;
+
+  if (aggregates.a.hi <= aggregates.b.lo) {
+    const auto move =
+        dominant_move(seat == Seat::X ? x_children : o_children, seat);
+    if (!move)
+      return std::nullopt;
+    const TInterval r = critical_r_enclosure(aggregates.a, aggregates.b);
+    const uint64_t low_ceiling = ceil_exact(r.lo, total);
+    const uint64_t high_ceiling = ceil_exact(r.hi, total);
+    if (low_ceiling != high_ceiling || high_ceiling > own_stack)
+      return std::nullopt;
+    return RootAction{static_cast<int64_t>(high_ceiling), *move};
+  }
+
+  if (aggregates.a.lo <= aggregates.b.hi || (tie != Tie::X && tie != Tie::O))
+    return std::nullopt;
+  const Seat tie_seat = tie == Tie::X ? Seat::X : Seat::O;
+  const auto move =
+      dominant_move(tie_seat == Seat::X ? x_children : o_children, tie_seat);
+  if (!move)
+    return std::nullopt;
+  return RootAction{0, *move};
+}
+
 } // namespace policy_detail
 
 struct EnginePolicy final : Policy {
@@ -90,18 +164,24 @@ struct EnginePolicy final : Policy {
     SearchResult fallback{{0.0, 1.0},        first, first,
                           Quality::Estimate, 0,     false};
     policy_detail::Decision decision{0, first, fallback};
-    const Tie action_tie = request.pos.tie == Tie::NullFirstMove
-                               ? (request.ctx.seat == Seat::X ? Tie::X : Tie::O)
-                               : request.pos.tie;
-
     Search<UtttModel> root_search(16);
+    const int64_t total = request.ctx.budget_x + request.ctx.budget_o;
+    const Window play_window = make_play_window(
+        request.ctx.budget_x, total, UtttModel::empties(request.pos));
     const SearchResult published = run_root_stages<SearchResult>(
         fallback, 1, 4, clock, deadlines,
         [&](int depth, int64_t hard) -> std::optional<SearchResult> {
           const SearchResult result = root_search.solve(
               request.pos, request.pos.tie,
               Limits{depth, 25'000, true, true, 12, 64,
-                     [&] { return clock.now_ms() >= deadlines.search_stop; }});
+                     [&] { return clock.now_ms() >= deadlines.search_stop; }},
+              play_window);
+          diagnostics_.root_cuts.min_dominance += result.cuts.min_dominance;
+          diagnostics_.root_cuts.max_dominance += result.cuts.max_dominance;
+          diagnostics_.root_cuts.window_lo += result.cuts.window_lo;
+          diagnostics_.root_cuts.window_hi += result.cuts.window_hi;
+          diagnostics_.root_cuts.precision += result.cuts.precision;
+          diagnostics_.root_cuts.hull_blocked += result.cuts.hull_blocked;
           diagnostics_.root_search_cancelled =
               diagnostics_.root_search_cancelled || root_search.was_cancelled();
           if (!result.complete || clock.now_ms() >= hard)
@@ -112,33 +192,26 @@ struct EnginePolicy final : Policy {
           decision.searched = staged;
           const int64_t bx = request.ctx.budget_x;
           const int64_t bo = request.ctx.budget_o;
+          const uint8_t preferred =
+              request.ctx.seat == Seat::X ? staged.best_x : staged.best_o;
+          decision.bid = 0;
+          decision.move = policy_detail::legal_preferred(request, preferred);
           const RootClass root_class = p2_classify(
               staged.t, bx, bx + bo, UtttModel::empties(request.pos));
           diagnostics_.p2_checked = true;
           diagnostics_.root_class = root_class;
-          if (root_class != InBand || clock.now_ms() >= hard) {
-            diagnostics_.matrix_bypassed = root_class != InBand;
-            const bool own_forced =
-                (root_class == XForced && request.ctx.seat == Seat::X) ||
-                (root_class == OForced && request.ctx.seat == Seat::O);
-            const int64_t own_stack = request.ctx.seat == Seat::X ? bx : bo;
-            decision.bid =
-                own_forced ? std::min<int64_t>(
-                                 own_stack, UtttModel::empties(request.pos) + 1)
-                           : 0;
-            const uint8_t preferred =
-                request.ctx.seat == Seat::X ? staged.best_x : staged.best_o;
-            decision.move = policy_detail::legal_preferred(request, preferred);
+          if (clock.now_ms() >= hard) {
             return staged;
           }
 
           const int child_depth = std::max<int>(1, staged.depth - 1);
           Search<UtttModel> child_search(16);
-          const auto solve_child = [&](const Position &child, Tie h2) {
+          const auto solve_child = [&](const Position &child, Tie h2,
+                                       int64_t stop_at) {
             SearchResult result = child_search.solve(
-                child, h2, Limits{child_depth, 12'000, true, true, 12, 64, [&] {
-                                    return clock.now_ms() >= hard;
-                                  }});
+                child, h2,
+                Limits{child_depth, 12'000, true, false, 12, 64,
+                       [&] { return clock.now_ms() >= stop_at; }});
             diagnostics_.child_search_cancelled =
                 diagnostics_.child_search_cancelled ||
                 child_search.was_cancelled();
@@ -146,16 +219,86 @@ struct EnginePolicy final : Policy {
           };
 
           Aggregates aggregates{};
-          for (const auto &child : UtttModel::children_x(request.pos))
-            fold_x(aggregates, solve_child(child.state, Tie::O).t);
-          for (const auto &child : UtttModel::children_o(request.pos))
-            fold_o(aggregates, solve_child(child.state, Tie::X).t);
+          auto x_children = UtttModel::children_x(request.pos);
+          auto o_children = UtttModel::children_o(request.pos);
+          bid_matrix_detail::order_production_children(request.pos, Seat::X,
+                                                       x_children);
+          bid_matrix_detail::order_production_children(request.pos, Seat::O,
+                                                       o_children);
+          constexpr std::size_t kAnchorSweepLimit = 12;
+          const int64_t anchor_stop =
+              std::min(hard, saturating_deadline(deadlines.search_stop,
+                                                 deadlines.reserve / 2));
+          const std::size_t x_limit =
+              std::min(x_children.size(), kAnchorSweepLimit);
+          const std::size_t o_limit =
+              std::min(o_children.size(), kAnchorSweepLimit);
+          bool aggregates_complete =
+              x_limit == x_children.size() && o_limit == o_children.size();
+          std::vector<policy_detail::CertifiedChild> certified_x;
+          std::vector<policy_detail::CertifiedChild> certified_o;
+          certified_x.reserve(x_limit);
+          certified_o.reserve(o_limit);
+          for (std::size_t index = 0; index < x_limit; ++index) {
+            if (clock.now_ms() >= anchor_stop) {
+              aggregates_complete = false;
+              break;
+            }
+            const SearchResult result =
+                solve_child(x_children[index].state, Tie::O, anchor_stop);
+            certified_x.push_back({x_children[index].move, result.t,
+                                   result.quality, result.complete});
+            if (!result.complete) {
+              aggregates_complete = false;
+              continue;
+            }
+            fold_x(aggregates, result.t);
+            if (result.quality == Quality::Estimate)
+              aggregates_complete = false;
+          }
+          for (std::size_t index = 0; index < o_limit; ++index) {
+            if (clock.now_ms() >= anchor_stop) {
+              aggregates_complete = false;
+              break;
+            }
+            const SearchResult result =
+                solve_child(o_children[index].state, Tie::X, anchor_stop);
+            certified_o.push_back({o_children[index].move, result.t,
+                                   result.quality, result.complete});
+            if (!result.complete) {
+              aggregates_complete = false;
+              continue;
+            }
+            fold_o(aggregates, result.t);
+            if (result.quality == Quality::Estimate)
+              aggregates_complete = false;
+          }
           const uint8_t best_x =
               policy_detail::legal_preferred(request, staged.best_x);
           const uint8_t best_o =
               policy_detail::legal_preferred(request, staged.best_o);
-          const Anchors anchors = production_anchors(aggregates.a, aggregates.b,
-                                                     bx + bo, best_x, best_o);
+          if (root_class != InBand) {
+            diagnostics_.certificate_attempted = true;
+            const uint64_t own_stack =
+                static_cast<uint64_t>(request.ctx.seat == Seat::X ? bx : bo);
+            if (const auto certified = policy_detail::certified_forced_action(
+                    root_class, request.ctx.seat, request.pos.tie,
+                    static_cast<uint64_t>(bx + bo), own_stack, aggregates,
+                    certified_x, certified_o, aggregates_complete)) {
+              decision.bid = certified->bid;
+              decision.move =
+                  policy_detail::legal_preferred(request, certified->move);
+              diagnostics_.certificate_published = true;
+              diagnostics_.matrix_bypassed = true;
+              return staged;
+            }
+          }
+          if (clock.now_ms() >= hard)
+            return staged;
+          const TInterval anchor_a = aggregates.has_x ? aggregates.a : staged.t;
+          const TInterval anchor_b = aggregates.has_o ? aggregates.b : staged.t;
+          const Anchors anchors =
+              production_anchors(anchor_a, anchor_b, bx + bo, best_x, best_o);
 
           struct CachedChild {
             Position state;
@@ -170,6 +313,9 @@ struct EnginePolicy final : Policy {
             if (UtttModel::terminal(child) != TerminalKind::None)
               return production_payoff<UtttModel>(child, h2, bx2, bo2, {});
             if (bx2 + bo2 == 0) {
+              diagnostics_.threshold_tt_before_alt =
+                  child_search.tt_stats() ? *child_search.tt_stats()
+                                          : CollisionStats{};
               const AltResult result = alternate.solve(
                   child, h2, AltLimits{child_depth, 12'000, 64, [&] {
                                          return clock.now_ms() >= hard;
@@ -177,6 +323,12 @@ struct EnginePolicy final : Policy {
               diagnostics_.child_search_cancelled =
                   diagnostics_.child_search_cancelled ||
                   alternate.was_cancelled();
+              diagnostics_.threshold_tt_after_alt =
+                  child_search.tt_stats() ? *child_search.tt_stats()
+                                          : CollisionStats{};
+              diagnostics_.alternation_searches =
+                  alternate.unique_root_searches();
+              diagnostics_.alternation_memo_entries = alternate.memo_entries();
               if (!result.complete)
                 return std::nullopt;
               return PayoffResult{result.value,
@@ -187,7 +339,7 @@ struct EnginePolicy final : Policy {
                   return entry.tie == h2 && entry.state.identity_equal(child);
                 });
             if (found == cache.end()) {
-              cache.push_back({child, h2, solve_child(child, h2)});
+              cache.push_back({child, h2, solve_child(child, h2, hard)});
               found = std::prev(cache.end());
             }
             if (!found->result.complete)
@@ -197,7 +349,7 @@ struct EnginePolicy final : Policy {
           };
           diagnostics_.matrix_constructed = true;
           const auto matrix = build_bid_matrix<UtttModel>(
-              request.pos, action_tie, bx, bo, anchors, std::move(payoff),
+              request.pos, request.pos.tie, bx, bo, anchors, std::move(payoff),
               [&] { return clock.now_ms() >= hard; });
           diagnostics_.matrix_complete = matrix.complete;
           diagnostics_.matrix_entries = matrix.entries_evaluated;

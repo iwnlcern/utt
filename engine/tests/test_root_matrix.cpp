@@ -11,11 +11,13 @@
 #include "core/clock.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <random>
 #include <set>
 #include <string>
 #include <tuple>
@@ -260,17 +262,230 @@ TEST_CASE("root matrix rejects nonfinite and out-of-range double payoffs") {
 }
 
 TEST_CASE(
-    "root matrix seat-aware extraction uses payoff then low action ties") {
+    "root matrix extraction filters by maximum averaged probability first") {
   RootMatrix<Ttt3State> matrix;
   matrix.row_actions = {{9, 8}, {3, 7}, {3, 2}};
   matrix.column_actions = {{8, 8}, {4, 7}, {4, 1}};
-  matrix.payoffs = {{0.0, -0.2, -0.2}, {0.4, 0.2, 0.2}, {0.4, 0.2, 0.2}};
+  matrix.payoffs = {{1.0, 1.0, 1.0}, {0.4, 0.2, 0.2}, {0.4, 0.2, 0.2}};
   RMPlusResult solution;
-  solution.row_strategy = {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0};
-  solution.column_strategy = {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0};
+  solution.row_strategy = {0.01, 0.495, 0.495};
+  solution.column_strategy = {0.01, 0.495, 0.495};
 
   CHECK(select_root_action(matrix, solution, Seat::X) == 2);
   CHECK(select_root_action(matrix, solution, Seat::O) == 2);
+}
+
+TEST_CASE(
+    "root matrix extraction compares payoff within equal max probability") {
+  RootMatrix<Ttt3State> matrix;
+  matrix.row_actions = {{5, 8}, {5, 7}, {3, 6}, {3, 2}};
+  matrix.column_actions = {{5, 8}, {5, 7}, {3, 6}, {3, 2}};
+  matrix.payoffs = {{0.0, 0.0, 0.0, 0.0},
+                    {0.5, 0.5, 0.5, 0.5},
+                    {-0.5, -0.5, -0.5, -0.5},
+                    {-0.5, -0.5, -0.5, -0.5}};
+  RMPlusResult solution;
+  solution.row_strategy = {0.4, 0.4, 0.1, 0.1};
+  solution.column_strategy = {0.4, 0.4, 0.1, 0.1};
+  CHECK(select_root_action(matrix, solution, Seat::X) == 1);
+
+  matrix.payoffs = {{0.0, 0.5, -0.5, -0.5},
+                    {0.0, 0.5, -0.5, -0.5},
+                    {0.0, 0.5, -0.5, -0.5},
+                    {0.0, 0.5, -0.5, -0.5}};
+  CHECK(select_root_action(matrix, solution, Seat::O) == 0);
+
+  matrix.payoffs.assign(4, std::vector<double>(4, 0.0));
+  CHECK(select_root_action(matrix, solution, Seat::X) == 1);
+  CHECK(select_root_action(matrix, solution, Seat::O) == 1);
+
+  solution.row_strategy = {0.4, 0.1, 0.4, 0.1};
+  solution.column_strategy = {0.4, 0.1, 0.4, 0.1};
+  CHECK(select_root_action(matrix, solution, Seat::X) == 2);
+  CHECK(select_root_action(matrix, solution, Seat::O) == 2);
+}
+
+TEST_CASE("root matrix ply-zero bid ties are fair coin expectations") {
+  const Ttt3State state = Ttt3State::from_board(".........", Tie::X);
+  int x_calls = 0;
+  int o_calls = 0;
+  PayoffFn<Ttt3State> payoff = [&](Ttt3State, Tie h2, int64_t bx2,
+                                   int64_t bo2) {
+    if (h2 == Tie::O) {
+      ++x_calls;
+      CHECK(bx2 == 0);
+      CHECK(bo2 == 0);
+      return std::optional<PayoffResult>{{1.0, true}};
+    }
+    ++o_calls;
+    CHECK(bx2 == 0);
+    CHECK(bo2 == 0);
+    return std::optional<PayoffResult>{{-0.5, false}};
+  };
+  const auto matrix = build_bid_matrix<Ttt3Model>(
+      state, Tie::NullFirstMove, 0, 0, Anchors{0, 0, 0}, std::move(payoff));
+  REQUIRE(matrix.complete);
+  REQUIRE(matrix.payoffs.size() == 4);
+  for (const auto &row : matrix.payoffs)
+    for (double value : row)
+      CHECK(value == 0.25);
+  CHECK(x_calls == 16);
+  CHECK(o_calls == 16);
+  CHECK_FALSE(matrix.all_exact);
+
+  PayoffFn<Ttt3State> reverse = [](Ttt3State, Tie h2, int64_t, int64_t) {
+    return std::optional<PayoffResult>{
+        h2 == Tie::O ? PayoffResult{-1.0, false}
+                     : PayoffResult{0.5, true}};
+  };
+  const auto reverse_matrix = build_bid_matrix<Ttt3Model>(
+      state, Tie::NullFirstMove, 0, 0, Anchors{0, 0, 0},
+      std::move(reverse));
+  REQUIRE(reverse_matrix.complete);
+  for (const auto &row : reverse_matrix.payoffs)
+    for (double value : row)
+      CHECK(value == -0.25);
+  CHECK_FALSE(reverse_matrix.all_exact);
+
+  PayoffFn<Ttt3State> both_exact = [](Ttt3State, Tie h2, int64_t, int64_t) {
+    return std::optional<PayoffResult>{
+        h2 == Tie::O ? PayoffResult{1.0, true}
+                     : PayoffResult{-1.0, true}};
+  };
+  const auto exact_matrix = build_bid_matrix<Ttt3Model>(
+      state, Tie::NullFirstMove, 0, 0, Anchors{0, 0, 0},
+      std::move(both_exact));
+  REQUIRE(exact_matrix.complete);
+  CHECK(exact_matrix.all_exact);
+}
+
+TEST_CASE("root matrix cancellation never stores a partial coin expectation") {
+  const Ttt3State state = Ttt3State::from_board(".........", Tie::X);
+  int payoff_calls = 0;
+  int stop_polls = 0;
+  PayoffFn<Ttt3State> payoff = [&](Ttt3State, Tie, int64_t, int64_t) {
+    ++payoff_calls;
+    return std::optional<PayoffResult>{{1.0, true}};
+  };
+  const auto matrix = build_bid_matrix<Ttt3Model>(
+      state, Tie::NullFirstMove, 0, 0, Anchors{0, 0, 0}, std::move(payoff),
+      [&] { return ++stop_polls == 2; });
+  CHECK_FALSE(matrix.complete);
+  CHECK(matrix.entries_evaluated == 0);
+  CHECK(payoff_calls == 1);
+}
+
+TEST_CASE("root matrix validates both coin branches before averaging") {
+  const Ttt3State state = Ttt3State::from_board(".........", Tie::X);
+  int calls = 0;
+  PayoffFn<Ttt3State> payoff = [&](Ttt3State, Tie, int64_t, int64_t) {
+    return std::optional<PayoffResult>{{++calls % 2 == 1 ? 2.0 : -2.0,
+                                        true}};
+  };
+  CHECK_THROWS_AS(build_bid_matrix<Ttt3Model>(
+                      state, Tie::NullFirstMove, 0, 0, Anchors{0, 0, 0},
+                      std::move(payoff)),
+                  std::logic_error);
+}
+
+TEST_CASE("root critical fraction enclosure contains exact scalar") {
+  const Aggregates aggregates{{0.2, 0.3}, {0.6, 0.7}, true, true};
+  const TInterval enclosure = critical_r_enclosure(aggregates.a, aggregates.b);
+  const TestRational a{1, 4};
+  const TestRational b{2, 3};
+  const TestRational exact = (b - a) / (TestRational{1} - a + b);
+  CHECK(exact.inside(enclosure.lo, enclosure.hi));
+
+  std::mt19937_64 rng{0xC8A13u};
+  for (int index = 0; index < 200; ++index) {
+    double point_a = static_cast<double>(rng() >> 11) * 0x1.0p-54;
+    double point_b = 0.5 + static_cast<double>(rng() >> 11) * 0x1.0p-54;
+    if (point_a > point_b)
+      std::swap(point_a, point_b);
+    const TInterval point =
+        critical_r_enclosure({point_a, point_a}, {point_b, point_b});
+    const TestRational exact_a = TestRational::from_double(point_a);
+    const TestRational exact_b = TestRational::from_double(point_b);
+    const TestRational exact_r =
+        (exact_b - exact_a) / (TestRational{1} - exact_a + exact_b);
+    CAPTURE(index);
+    CAPTURE(point_a);
+    CAPTURE(point_b);
+    CHECK(exact_r.inside(point.lo, point.hi));
+  }
+}
+
+TEST_CASE(
+    "root forced certificate fails closed and publishes only proven actions") {
+  using policy_detail::CertifiedChild;
+  const auto exact = [](uint8_t move, TInterval t) {
+    return CertifiedChild{move, t, Quality::Exact, true};
+  };
+
+  const std::vector<CertifiedChild> dominant_x{exact(1, {0.1, 0.1}),
+                                               exact(2, {0.4, 0.4})};
+  const std::vector<CertifiedChild> dominant_o{exact(3, {0.6, 0.6}),
+                                               exact(4, {0.3, 0.3})};
+  const Aggregates stable{{0.1, 0.1}, {0.6, 0.6}, true, true};
+  const auto x = policy_detail::certified_forced_action(
+      XForced, Seat::X, Tie::X, 10, 10, stable, dominant_x, dominant_o, true);
+  const auto o = policy_detail::certified_forced_action(
+      OForced, Seat::O, Tie::O, 10, 10, stable, dominant_x, dominant_o, true);
+  REQUIRE(x.has_value());
+  REQUIRE(o.has_value());
+  CHECK(*x == RootAction{4, 1});
+  CHECK(*o == RootAction{4, 3});
+
+  const Aggregates midpoint_witness{{0.0, 0.0}, {0.0, 0.3}, true, true};
+  CHECK_FALSE(policy_detail::certified_forced_action(
+      XForced, Seat::X, Tie::X, 100, 100, midpoint_witness,
+      {exact(1, {0.0, 0.0})}, {exact(2, {0.0, 0.3})}, true));
+
+  const double third = 1.0 / 3.0;
+  const Aggregates ceiling_straddle{
+      {0.0, 0.0},
+      {std::nextafter(third, 0.0), std::nextafter(third, 1.0)},
+      true,
+      true};
+  CHECK_FALSE(policy_detail::certified_forced_action(
+      XForced, Seat::X, Tie::X, 4, 4, ceiling_straddle, {exact(1, {0.0, 0.0})},
+      {exact(2, ceiling_straddle.b)}, true));
+
+  const std::vector<CertifiedChild> overlapping_x{exact(1, {0.1, 0.2}),
+                                                  exact(2, {0.15, 0.3})};
+  const Aggregates overlap{{0.1, 0.2}, {0.6, 0.6}, true, true};
+  CHECK_FALSE(policy_detail::certified_forced_action(
+      XForced, Seat::X, Tie::X, 1, 1, overlap, overlapping_x, dominant_o,
+      true));
+
+  CHECK_FALSE(policy_detail::certified_forced_action(
+      XForced, Seat::X, Tie::X, 10, 3, stable, dominant_x, dominant_o, true));
+  CHECK_FALSE(policy_detail::certified_forced_action(
+      XForced, Seat::X, Tie::X, 10, 10, stable, dominant_x, dominant_o, false));
+
+  const Aggregates zugzwang{{0.8, 0.8}, {0.2, 0.2}, true, true};
+  const auto zero = policy_detail::certified_forced_action(
+      XForced, Seat::X, Tie::X, 10, 10, zugzwang,
+      {exact(5, {0.8, 0.8}), exact(6, {0.9, 0.9})}, {exact(7, {0.2, 0.2})},
+      true);
+  REQUIRE(zero.has_value());
+  CHECK(*zero == RootAction{0, 5});
+}
+
+TEST_CASE("root production payoff preserves the half-boundary discriminator") {
+  const Ttt3State child = Ttt3State::from_board(".........", Tie::X);
+  SearchResult below{{0.0, 1.0}, 0, 0, Quality::Estimate, 1, true};
+  SearchResult above = below;
+  below.t_est = std::nextafter(0.5, 1.0);
+  above.t_est = std::nextafter(0.5, 0.0);
+  const double below_value =
+      production_payoff<Ttt3Model>(child, Tie::X, 9, 7, below).value;
+  const double above_value =
+      production_payoff<Ttt3Model>(child, Tie::X, 9, 7, above).value;
+  CHECK(std::bit_cast<uint64_t>(below_value) ==
+        std::bit_cast<uint64_t>(0x1.ffffffffffff0p-2));
+  CHECK(std::bit_cast<uint64_t>(above_value) ==
+        std::bit_cast<uint64_t>(0x1.0000000000004p-1));
 }
 
 TEST_CASE("root matrix zero-total alternation is finite for both tie owners") {
@@ -491,10 +706,53 @@ TEST_CASE("root matrix policy seam emits a legal in-band UTTT reply") {
   const PolicyDiagnostics forced = policy.last_diagnostics();
   CHECK(forced.p2_checked);
   CHECK(forced.root_class == XForced);
-  CHECK(forced.matrix_bypassed);
-  CHECK_FALSE(forced.matrix_constructed);
-  CHECK_FALSE(forced.matrix_solved);
-  CHECK_FALSE(forced.matrix_action_published);
+  CHECK(forced.certificate_attempted);
+  CHECK_FALSE(forced.certificate_published);
+  CHECK_FALSE(forced.matrix_bypassed);
+  CHECK(forced.matrix_constructed);
+  CHECK(forced.matrix_solved);
+  CHECK(forced.matrix_action_published);
+}
+
+TEST_CASE("root policy play window enables a production UTTT cutoff") {
+  std::mt19937 rng{0xC416u};
+  bool witnessed = false;
+  for (int attempt = 0; attempt < 24 && !witnessed; ++attempt) {
+    Position position = Position::initial();
+    Seat mover = Seat::X;
+    for (int ply = 0; ply < 70; ++ply) {
+      if (UtttModel::terminal(position) != TerminalKind::None)
+        break;
+      MoveList legal;
+      position.legal_moves(legal);
+      REQUIRE(legal.n > 0);
+      const Move move = legal.m[rng() % legal.n];
+      position = position.applied(move, mover).value();
+      mover = mover == Seat::X ? Seat::O : Seat::X;
+      if (UtttModel::terminal(position) != TerminalKind::None ||
+          UtttModel::empties(position) > 24)
+        continue;
+
+      wire::TurnRequest request;
+      request.request_id = "window-cut";
+      request.ply = ply + 1;
+      request.ctx = {Seat::X, 600, 400};
+      request.pos = position;
+      request.time_ms = 2'000;
+      position.legal_moves(legal);
+      request.legal.assign(legal.m.begin(), legal.m.begin() + legal.n);
+      EnginePolicy policy;
+      FakeClock clock;
+      static_cast<void>(policy.choose(request, clock));
+      const CutCounters cuts = policy.last_diagnostics().root_cuts;
+      witnessed = cuts.min_dominance + cuts.max_dominance + cuts.window_lo +
+                      cuts.window_hi + cuts.precision >
+                  0;
+      if (witnessed)
+        break;
+    }
+  }
+  CHECK(witnessed);
 }
 
 TEST_CASE("root matrix zero-time policy fallback is legal and incomplete") {
@@ -536,20 +794,31 @@ TEST_CASE("root matrix production cancellation preserves the reserved slice") {
   CHECK(reply.info.depth > 0);
   const PolicyDiagnostics diagnostics = policy.last_diagnostics();
   CHECK(diagnostics.root_search_cancelled);
-  CHECK(diagnostics.child_search_cancelled);
   CHECK(diagnostics.matrix_constructed);
-  CHECK(diagnostics.matrix_entries == 0);
+  CHECK(diagnostics.matrix_entries > 0);
   CHECK_FALSE(diagnostics.matrix_complete);
   CHECK_FALSE(diagnostics.matrix_solved);
   CHECK_FALSE(diagnostics.matrix_action_published);
 }
 
 TEST_CASE("root matrix zero-iteration RM preserves the staged fallback") {
+  std::array<uint16_t, 9> x{};
+  std::array<uint16_t, 9> o{};
+  x[0] = x[1] = 0b000000111;
+  for (int board = 3; board < 9; ++board) {
+    x[board] = 227;
+    o[board] = 284;
+  }
+  x[2] = static_cast<uint16_t>((1u << 3) | (1u << 4));
+  o[2] = static_cast<uint16_t>((1u << 1) | (1u << 2));
+  const auto witness = Position::from_parts(x, o, 2, Tie::X);
+  REQUIRE(witness.has_value());
+
   wire::TurnRequest request;
   request.request_id = "rm-zero";
   request.ply = 0;
   request.ctx = {Seat::X, 100, 100};
-  request.pos = Position::initial();
+  request.pos = *witness;
   request.time_ms = 2'000;
   MoveList legal;
   request.pos.legal_moves(legal);
@@ -583,5 +852,44 @@ TEST_CASE("root matrix zero-iteration RM preserves the staged fallback") {
   CHECK_FALSE(stopped_diagnostics.matrix_solved);
   CHECK_FALSE(stopped_diagnostics.matrix_action_published);
   CHECK(stopped_reply->bid == 0);
-  CHECK(stopped_reply->move == request.legal.front());
+  Search<UtttModel> reference(16);
+  const SearchResult staged = reference.solve(
+      request.pos, request.pos.tie,
+      Limits{stopped_reply->info.depth, 25'000, true, true, 12},
+      make_play_window(request.ctx.budget_x,
+                       request.ctx.budget_x + request.ctx.budget_o,
+                       UtttModel::empties(request.pos)));
+  const uint8_t expected =
+      policy_detail::legal_preferred(request, staged.best_x);
+  CHECK(stopped_reply->move == policy_detail::unflatten(expected));
+}
+
+TEST_CASE("root zero-total policy keeps its threshold TT unchanged") {
+  wire::TurnRequest request;
+  request.request_id = "zero-total-policy";
+  request.ply = 0;
+  request.ctx = {Seat::X, 0, 0};
+  request.pos = Position::initial();
+  request.time_ms = 2'000;
+  MoveList legal;
+  request.pos.legal_moves(legal);
+  request.legal.assign(legal.m.begin(), legal.m.begin() + legal.n);
+
+  EnginePolicy policy;
+  FakeClock clock;
+  const wire::TurnReply reply = policy.choose(request, clock);
+  CHECK(reply.bid == 0);
+  const PolicyDiagnostics diagnostics = policy.last_diagnostics();
+  CHECK(diagnostics.matrix_constructed);
+  CHECK(diagnostics.matrix_complete);
+  CHECK(diagnostics.alternation_searches > 0);
+  CHECK(diagnostics.alternation_memo_entries > 0);
+  CHECK(diagnostics.threshold_tt_before_alt.collisions ==
+        diagnostics.threshold_tt_after_alt.collisions);
+  CHECK(diagnostics.threshold_tt_before_alt.hits ==
+        diagnostics.threshold_tt_after_alt.hits);
+  CHECK(diagnostics.threshold_tt_before_alt.misses ==
+        diagnostics.threshold_tt_after_alt.misses);
+  CHECK(diagnostics.threshold_tt_before_alt.stores ==
+        diagnostics.threshold_tt_after_alt.stores);
 }

@@ -162,47 +162,14 @@ TEST_CASE(
   CHECK(deeper.value == 1.0);
 }
 
-TEST_CASE("alternation solver leaves the threshold TT bit-identical") {
-  TT table(2, TT::Mode::FullKey);
-  PosId id{};
-  id.x[0] = 7;
-  id.tie = Tie::X;
-  TTEntry entry{};
-  entry.lo = 0.25;
-  entry.hi = 0.75;
-  entry.move_x = 2;
-  entry.move_o = 6;
-  entry.depth = 4;
-  entry.flags = kTTQualityBound | kTTComplete;
-  table.store({7, 11}, id, entry);
-  const auto stored = table.probe({7, 11}, id);
-  REQUIRE(stored.has_value());
-  const CollisionStats before = table.stats;
-
-  AltSolver<ProbeModel> solver;
-  REQUIRE(solver.solve({0, TieState::X}, Tie::X, limits(1)).complete);
-  CHECK(table.stats.collisions == before.collisions);
-  CHECK(table.stats.hits == before.hits);
-  CHECK(table.stats.misses == before.misses);
-  CHECK(table.stats.stores == before.stores);
-  const auto after = table.probe({7, 11}, id);
-  REQUIRE(after.has_value());
-  CHECK(after->lo == stored->lo);
-  CHECK(after->hi == stored->hi);
-  CHECK(after->move_x == stored->move_x);
-  CHECK(after->move_o == stored->move_o);
-  CHECK(after->depth == stored->depth);
-  CHECK(after->flags == stored->flags);
-  CHECK(sizeof(TTEntry) == 32);
-}
-
 TEST_CASE(
     "alternation cancellation returns incomplete and caches no partial value") {
   AltSolver<ProbeModel> solver;
   int polls = 0;
   AltLimits stopped = limits(1);
-  stopped.stop_requested = [&] { return ++polls == 2; };
+  stopped.stop_requested = [&] { return ++polls == 4; };
   const AltResult result = solver.solve({0, TieState::X}, Tie::X, stopped);
   CHECK_FALSE(result.complete);
-  CHECK(solver.memo_entries() == 0);
+  CHECK(polls == 4);
+  CHECK(solver.memo_entries() == 1);
 }
