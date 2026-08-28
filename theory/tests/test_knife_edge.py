@@ -269,3 +269,25 @@ def test_cli_knife_edge_writes_contract(tmp_path):
 
     assert main(argv) == 0
     assert output.read_bytes() == first
+
+
+def test_cli_knife_edge_rejects_empty_spot_request(monkeypatch, tmp_path, capsys):
+    # Accepting a bare --spots flag would silently drop the locked targeted run.
+    monkeypatch.setattr(
+        "auction_ttt.__main__.knife_edge_report",
+        lambda **_kwargs: pytest.fail("empty --spots reached the report"),
+    )
+
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "knife-edge",
+                "--max-scale",
+                "2",
+                "--spots",
+                "--out",
+                str(tmp_path / "knife-edge.json"),
+            ]
+        )
+
+    assert "expected at least one argument" in capsys.readouterr().err

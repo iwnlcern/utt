@@ -106,7 +106,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--max-scale", type=_exhaustive_scale, required=True
     )
     knife_edge_parser.add_argument(
-        "--spots", nargs="*", type=_positive_int, default=[]
+        "--spots", nargs="+", type=_positive_int, default=[]
     )
     knife_edge_parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
