@@ -1,0 +1,85 @@
+00:01 Today we will be going over the quickest 
+and easiest way to win connect 4. 
+00:05 It's called a combinatoric win, 
+and in short, it means forcing  
+00:10 your opponent into a lose-lose scenario.
+Identifying these positions is a learned  
+00:15 skill, so we'll take a look at a few 
+examples of how to pull them off. 
+00:20 Here's a contrived example 
+to show you what I mean. 
+00:23 See how red's pieces form the shape of a 7? 
+00:26 Take a look at the two spots marked with 
+a capital "T" indicating a major threat. 
+00:32 A major threat means that if red 
+plays there, it would win the game. 
+00:36 But, here's the catch- since the threats 
+are stacked right on top of each other,  
+00:40 red has already won the game.
+Let's see what happens. 
+00:43 In reality, it doesn't even matter 
+what yellow does here, since red  
+00:46 will play in the 7th column regardless.
+Eventually, the first threat is revealed,  
+00:53 and yellow is forced to respond, 
+blocking the lower threat. 
+00:56 Then, since the second threat is immediately 
+above it, red plays the threat, winning the game. 
+01:03 This is a simple example of a 
+combinatoric win, but it is intentionally  
+01:06 constructed to give red the advantage.
+Yellow would never play this way in reality. 
+01:11 So, let's see some realistic 
+threat pairs in practice! 
+01:15 Check out this example.
+It's yellow's turn to play,  
+01:18 and red has some frightening threats.
+Take a moment to analyze the position  
+01:22 for yourself before I reveal what Yellow 
+needs to do to make it out in one piece. 
+01:28 Most obviously, red has 2 major 
+threats on the second row. 
+01:33 This means that playing in either of those two 
+rows will immediately cost Yellow the game.  
+01:38 On closer examination, there is also a minor 
+threat on the first row, marked with a lowercase  
+01:43 t. A minor threat is a set of 4 pieces with 
+2 empty spaces left to still be filled in. 
+01:50 Let's say that yellow ignores all 
+of these threats. What would happen?  
+01:55 Red can play at either of the two minor 
+threats, revealing two simultaneous threats.  
+02:01 Yellow can't respond to both at the same 
+time, meaning Red will win the game. 
+02:06 So, yellow has to block some of these 
+threats, or else it's game over.  
+02:10 There's only one that can be blocked- do you 
+see it? By playing in the seventh column,  
+02:15 Yellow can disarm the paired 
+threats and escape a swift defeat. 
+02:23 This is an example from a super 
+common opening called the narrow 6-1.  
+02:28 Usually, both players begin to 
+build up a pillar like this.  
+02:32 However, the last yellow move was a mistake! 
+Can you see what Red can do to attack? 
+02:39 If you said Red should play here, you're right! 
+Notice how this move exposes two major threats. 
+02:45 So, let's go back one move, and see 
+what Yellow should have done instead.  
+02:50 Notice all the minor threats here? It turns out, 
+as long as Yellow defuses any single one of them,  
+02:56 it will be sufficient to escape 
+the immediate danger from Red. 
+03:02 I hope you enjoyed this connect 4 tutorial! 
+Consider subscribing if you are interested  
+03:07 in seeing more connect 4 videos- they might 
+come slowly for the time being while I work  
+03:11 out the kinks in the software I have been making 
+to render this video, but I expect to be able to  
+03:15 produce them increasingly easily when it's in a 
+more stable state. I have a whole list of videos  
+03:20 I have planned, so be sure to stick around! And 
+definitely don't miss out on number 6- it will  
+03:25 change your understanding of reality itself.
+This has been 2swap.

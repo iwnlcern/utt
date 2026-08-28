@@ -1,0 +1,268 @@
+00:00 Last time, we learned that we can create a
+line of 3 pieces in a row, called a major
+00:05 threat.
+00:06 We learned how to simultaneously expose two
+of these threats, which can be used to win
+00:10 the game.
+00:11 However, all of our examples from last time
+showed us how to win quickly in the beginning,
+00:16 mostly in the case that the player under threat
+followed poor shape or poor opening decisions.
+00:22 On the contrary, today we will investigate
+how to use threats to our advantage when the
+00:26 opening goes exactly right.
+00:28 We don't necessarily need a double major threat
+to win.
+00:32 The game can be won with a smaller set of
+threats, because today we will learn that
+00:37 not all threats are created equal.
+00:42 In mathematics, parity refers to the even-ness
+or odd-ness of a number.
+00:47 We can say that 3 has odd parity and 4 has
+even parity.
+00:51 Insofar as the players alternate taking turns,
+we will be able to use this as a tool to analyze
+00:55 connect 4 positions.
+00:58 We begin by noticing that the board, as a
+whole, has a total of exactly 42 spots to
+01:03 play.
+01:04 That means that there will be an unending
+chain of 42 moves, starting with red, assuming
+01:10 you follow the convention of Red playing first,
+then alternating yellow, red, yellow, red,
+01:16 yellow, until the game ends with Yellow making
+the last move.
+01:25 The results of this fact are immediate and
+decisive.
+01:33 Consider this position in which both Red and
+Yellow hold a threat on the top row, and there
+01:37 is no threat anywhere else on the board.
+01:40 We can immediately determine the result of
+this game.
+01:44 From what we know, Yellow will play the last
+disk, thus claiming the threat and winning.
+01:53 Let's re-imagine this game where, instead,
+Yellow has his threat on the fourth row.
+01:60 Notice how the exact same thing happens?
+02:04 Both players fill in the rest of the board,
+until Yellow gets to claim the threat which
+02:08 he was guaranteed to begin with.
+02:10 Let's back up a few moves.
+02:15 Notice how Red and Yellow are happy to play
+in the first two spaces of the center column?
+02:20 However, consider the marked space.
+02:24 Notice that neither player would ever want
+to play it.
+02:27 The fact that yellow wouldn't forfeit the
+threat here, and that equivalently, Red wouldn't
+02:32 expose it for Yellow to take, is very important.
+02:36 This means that both players are effectively
+bounded 2 spaces below the threat.
+02:42 Play in that column wouldn't continue above
+that point until there is no other option
+02:46 for either player.
+02:48 The same logic applies for any threat at all,
+not just fourth row threats.
+02:57 For completeness, let's take a look at a second-row
+yellow threat.
+03:00 Do you see the pattern?
+03:03 In this case, Red has extremely good shape
+in the center of the board.
+03:13 However, none of that matters.
+03:15 Yellow's second-row major threats already
+seal Red's fate.
+03:21 After the dead space fills, Red is to play,
+forfeiting the game to Yellow.
+03:24 Here's an even more surprising example- We
+have barely progressed past the opening, yet
+03:25 Yellow is still guaranteed the win merely
+by the minor threats held on the second row.
+03:32 Let's see an example of a winning game for
+Red.
+03:35 In this case, Red's threat is on the Fifth
+row, thereby guaranteeing him the victory.
+03:45 It should start to become clear that these
+threats matter the most when their row corresponds
+03:50 to the parity of the player who owns them.
+03:52 That is to say, Red, who plays first, wants
+to have threats on odd rows, and Yellow, who
+03:59 plays second, wants to have threats on even
+rows.
+04:03 We can construct an example in which players
+have all of these threats on the wrong rows,
+04:11 and we immediately know that the game is pre-destined
+to tie.
+04:18 In this case, there are Red threats on the
+fifth row and third row- both of which are
+04:27 odd rows.
+04:29 This corresponds to Red being player 1, the
+odd parity player.
+04:33 But, we also notice that there is a Yellow
+major threat on the 2nd row, also corresponding
+04:39 to the fact that Yellow is the even player.
+04:42 Who will win?
+04:43 Naturally, it will be the first player to
+reach their threat.
+04:48 It is for this reason that we say that the
+Red threats on the odd rows are "undercut"
+04:53 by the Yellow second-row threat.
+04:55 Yellow will win, because the game will be
+over before Red's threats are ever available.
+05:01 It's as though the red threats aren't even
+there at all.
+05:04 Now, predicting who is going to win is great
+and all, but of course, once the threats are
+05:10 already in place, it's too late to change
+the course of the game.
+05:13 So, the appropriate time to use this knowledge
+is during the construction of these threats
+05:17 in the first place.
+05:20 This is an example from the Candlesticks opening.
+05:23 It's red's turn to move- where is the best
+place to play?
+05:27 Red could play here, creating two even major
+threats.
+05:31 But those aren't very important to red.
+05:34 Furthermore, Yellow then gets the opportunity
+to block what could have been a red odd row
+05:39 threat on the fifth row.
+05:45 Insofar as red wants odd row threats more
+than even row threats, Red would have been
+05:50 better off not permitting Yellow to have blocked
+this potential winning threat.
+05:55 And, sure enough, it turns out that all of
+the moves for Red are correct with the unique
+06:02 exception of the one which permits Yellow
+to block this critical threat.
+06:06 Let's see an example of how this game may
+play out, if Red continues the sequence correctly.
+06:13 Sure enough, eventually the odd row threat
+falls right into Red's hands.
+06:23 And what if Red gets it wrong, by exposing
+the potential 5th-row threat?
+06:28 Yellow blocks.
+06:29 Now, it's Red's turn to move.
+06:31 What should he do?
+06:33 Do you see the Yellow threat about to be made
+on the 6th row?
+06:37 The only move which doesn't hand Yellow the
+victory, naturally, is the one which blocks
+06:41 Yellow's even row threat.
+06:45 If Red blocks, the game will end as a tie,
+since neither player has an appropriate threat.
+06:50 Otherwise, yellow will win on the 6th row.
+07:03 At first glance, it looks like the player
+who is favored is that same player who has
+07:07 a threat on a row of their favored parity.
+07:11 All of the examples which we have seen so
+far have been evidence in favor of this claim.
+07:15 Well, then, what should we think of this example
+here?
+07:21 Just like the example in which Red was undercut,
+it features both players having at least one
+07:25 threat on their appropriate parity.
+07:29 Again, Red's threat on the 5th row is above
+the yellow threat on the 4th row.
+07:34 Does this mean that Red is undercut?
+07:36 On the right side, yes, but on the left side
+no- the left-side threat isn't even on the
+07:40 same column.
+07:42 Getting to that left-side 5th row red threat
+doesn't somehow require passing through the
+07:47 right-side yellow threat like it would have
+if they were in the same column.
+07:51 What should we expect, then?
+07:53 Both players have what they want to win, but
+of course they can't both win.
+07:57 Should we expect a tie?
+07:59 Let's see what happens.
+08:01 Both players begin by filling the dead space
+under the threats, leaving us here, with Yellow
+08:05 to move.
+08:06 Yellow now has a decision to make- either
+expose the Red threat on the left, immediately
+08:11 forfeiting the game, or forfeit his own fourth-row
+threat on the right.
+08:20 The latter sounds less terrible, but the result
+is the exact same, in that we now have a single
+08:25 red threat on red's favored row.
+08:29 This is all to say, this position was Red's
+win to begin with.
+08:33 But why?
+08:36 What's different between the two players'
+positions that gives Red the advantage here
+08:39 somehow?
+08:43 This is best explained by a somewhat abstract
+concept called the "Zugzwang."
+08:47 It's a German term, originally used in Chess
+to describe a position in which one would
+08:51 prefer to simply pass for their turn.
+08:55 Take a look at our position once the dead
+space is filled again.
+08:60 We can say that "Yellow is IN Zugzwang," because
+in this position, Yellow would prefer to just
+09:05 skip the turn and let Red move, so that Red
+is forced to either forfeit the Red threat,
+09:10 or reveal the Yellow threat.
+09:13 Alas, this is not permitted, and Yellow is
+forced to make a losing move.
+09:19 Is there an example of Red falling prey to
+the Zugzwang?
+09:25 Consider this position.
+09:28 Yellow doesn't even have a threat on his beloved
+even row, with just two odd-row threats.
+09:34 Red, on the other hand, has a threat on an
+appropriate row- the fifth row, in correspondence
+09:40 with his parity.
+09:42 Surely, Red should win here!
+09:44 But, the result is not quite what we expect.
+09:48 Once the dead space is filled, it's now Red's
+turn, and Red finds himself in Zugzwang.
+09:54 Regardless of the column, a red piece will
+expose either one of the two yellow threats.
+09:60 The Red threat on the 5th row doesn't even
+have any effect on the position- it is completely
+10:04 nullified by the Yellow threats on the third
+row!
+10:09 It is for these reasons that Yellow can be
+said to "Control the Zugzwang."
+10:14 Now that we have learned this new tool of
+analysis, how do we generalize it?
+10:18 In which positions does one find himself in
+the Zugzwang?
+10:24 The answer is a little bit complicated, but
+the gist is that on top of each player wanting
+10:28 threats of their parity, both players gain
+some advantage by having odd row threats.
+10:34 Odd row threats turn out to be just a little
+bit stronger.
+10:38 We'll clarify on exactly what that means in
+the next video.
+10:41 But before you go, I want to make a point
+of the key idea here.
+10:44 It doesn't matter how many spots are left
+open on the board, how many columns remain
+10:48 empty, or whose turn it is.
+10:51 Once you are sufficiently far into the game
+where all threats have been developed, you
+10:54 can ALWAYS predict the result of the game
+totally deterministically, ONLY by knowing
+10:59 the list of open threats and the parity of
+the rows which they lie on- no other information
+11:04 is needed.
+11:06 This is an enormous relief of mental burden
+in the endgame- once you get comfortable thinking
+11:10 about threats and their parities, you will
+never need to actually read the game to completion
+11:15 ever again.
+11:18 We have now developed the theoretical ideas
+to explain, given a set of threats, who we
+11:22 should expect to win.
+11:24 In the next video we will abstract this theoretical
+understanding to apply to all sets of starting
+11:30 threats, and crystallize them into "win conditions,"
+or concise rules which deterministically tell
+11:35 us, given a complex set of threats on different
+rows, who is favored as the winning player.
+11:41 Be sure to stay tuned!
+11:43 This has been 2swap.

@@ -1,0 +1,239 @@
+00:01 Let's start with a simple question. Whose turn is it? It's important that we know.
+00:06 If it's red's turn, then Red will have to expose this threat.
+00:09 Then, Yellow will take it and win.
+00:14 If it's Yellow's turn, then Yellow will have to expose it.
+00:18 Then Red claims the threat and wins.
+00:22 Whomever's turn it is, they are done for.
+00:26 This is the notion of the Zugzwang.
+00:28  To be in the Zugzwang is to be forced to play on the X,
+00:31  to permit the opponent to claim a threat.
+00:33 You don't want to be in the Zugzwang. It means giving something away to your opponent.
+00:38 For this reason, it's imperative that we know whose turn it is.
+00:42 Like last time, let's follow the convention of Red playing first.
+00:46 Since after every red move there is a yellow move,
+00:48  that means, if the amount of pieces that have been played is even, it is Red's turn.
+00:54 Of course, that means, if the number of disks played is odd, it's Yellow's turn.
+01:00 Let's go back to our game then. The amount of pieces played was odd.
+01:04 That means it's Yellow's turn.
+01:06 Yellow is in the Zugzwang. Yellow is forced to play the X.
+01:11 Then Red gets to claim the threat and win.
+01:15 Let's wind back time a few moves.
+01:17 This game isn't fully developed yet.
+01:19  There are still a number of moves to play before either player is forced to expose the threat.
+01:24 However, playing in the left two columns doesn't make any new threats.
+01:29 We are inevitably going to arrive at the same position,
+01:33  regardless of what pieces go where on the left.
+01:37 In this sense, because the structure of the threats is complete, we call this the endgame.
+01:42  In the endgame,
+01:43  since all of the threats are already developed,
+01:45  we can take some shortcuts and read ahead.
+01:48 For example, we already know that all of these spots are going to fill up.
+01:52  We just don't know exactly how.
+01:53 What this means is,
+01:54  we can look at the evenness or oddness like before,
+01:57  but instead of only considering the disks which have been played,
+02:01 instead we will consider all of the disks that have been played, and will be played.
+02:06 I call this area the dead space.
+02:08 In the same way that the evenness or oddness of the amount of pieces reveals whose turn it is,
+02:14  the evenness or oddness of the amount of dead space reveals whose turn it will be when a threat must be revealed.
+02:20  That is, it reveals who is in the Zugzwang.
+02:23  In our case, the dead space is odd. Yellow is in the Zugzwang.
+02:27 The dead space will be filled,
+02:30 Yellow will uncover the threat,
+02:33 and Red claims it.
+02:35 Now that we have this useful abstraction,
+02:37  we don't actually need to worry about the pieces which have been played.
+02:42 We know where the dead space is,
+02:44  and we also know that we are in the endgame,
+02:46  so the threats can't change, and thus neither can the dead space.
+02:49 We can remove all the pieces,
+02:53 separate the columns,
+02:54 and perform the computation just the same.
+02:57 We identify the dead space, and determine that it is odd,
+03:02 and know that Yellow will expose the threat to Red.
+03:08 Ok, so we know, in general, the player who is in Zugzwang is Red-
+03:12  that is, player 1, if the amount of dead space is even, or Yellow, AKA player 2, in the case that it is odd.
+03:19 As a corollary, This means that any row which has no threat at all can simply be ignored.
+03:24  6 pieces will be played in that column with no consequence,
+03:28  so it doesn't change the evenness or oddness of the total amount of dead space.
+03:33 Knowing this,
+03:33  it is obvious why our parity rules from last time work when there is a single threat.
+03:38 When the threat is odd- that is,
+03:40  it's on an odd row, such as this example here, there is an odd amount of dead space.
+03:45  That means Yellow is in the Zugzwang.
+03:50 If the threat had been on an even row,
+03:52  there would have been an even amount of dead space,
+03:54  meaning Red would have been in Zugzwang.
+03:58 And, to reiterate, adding an empty column won't change this result.
+04:04 Both players will just climb up the column and it will be red's turn in Zugzwang once again.
+04:10  Adding an even amount of dead space doesn't change anything.
+04:15 But as promised, it's time to generalize.
+04:18  There can be multiple rows which contain threats,
+04:22  and each row can contain multiple threats.
+04:25 First, let's just set up a complex array of threats and see what happens.
+04:30 Now, there is some sleight of hand going on.
+04:32  These threats couldn't really exist simultaneously on a standard board size,
+04:36  there's just not enough room.
+04:38  But you can imagine we are playing on a much wider board, still with a height of 6.
+04:42  Don't worry though, it should work out the same.
+04:45 The players begin by filling up the dead space, and there's an odd amount.
+04:49  So, Yellow is in the Zugzwang.
+04:51 In other words, it's Yellow who gets to choose which threat to expose.
+04:55 Of course, Yellow wouldn't expose a red threat, since Red would claim it, instantly winning the game.
+05:03 That means Yellow will have to expose a Yellow threat, leaving us with these 3 options.
+05:09 Let's say Yellow picks this one.
+05:12 Yellow exposes the threat,
+05:13  Red blocks the threat,
+05:15  and the players fill in the newly discovered dead space above the threat.
+05:20 But now, Yellow is once again in the Zugzwang!
+05:22  So, this didn't accomplish anything other than removing a Yellow threat from the board.
+05:27  Perhaps there was a better option?
+05:31 What about this threat?
+05:32 Yellow exposes the threat, Red blocks the threat,
+05:36 but this time there is no dead space above the threat.
+05:39  Once again, Yellow is in the Zugzwang. That leaves only one other option.
+05:45 What if Yellow chooses to expose the leftmost threat?
+05:48 Yellow exposes it,
+05:49  Red blocks it, and then, Yellow plays the single dead space above the threat.
+05:54 Now, Red is in the Zugzwang!
+05:56 But... what actually just happened there?
+05:60 In reality, we are not interested in the threat alone, rather the set of moves that get played in association with that threat.
+06:07 This includes the threat itself,
+06:08  the spot below it which exposes the threat,
+06:10  and all of the dead space which will be played immediately after the threat is blocked.
+06:15 Now it becomes clear why the leftmost threat gets Yellow out of the Zugzwang.
+06:20  It is the only threat which is composed of an odd number of spaces.
+06:24  Such a threat is said to exert control over the Zugzwang.
+06:28 These threats are stronger. We usually want to use them first.
+06:32 Ok, in that case, what should Red do here?
+06:35 Let's start by identifying the threats.
+06:37 This one has 5 spaces, so it exerts Zugzwang control.
+06:42 This one has 3, so it does as well.
+06:46 This one also has 3!
+06:48 But, playing in it would unearth a yellow Zugzwang-controlling threat.
+06:52  It's probably best not to do that.
+06:57 Finally, these 2 do not exert Zugzwang control.
+07:01 So, it seems Red's best option is to take one of these two!
+07:07 That way, we hand the Zugzwang back to Yellow.
+07:12 Now we have the foundation to understand why Yellow was winning in this example from last time.
+07:20 The parity of the dead space was even,
+07:22  and there was no threat that Red could give up to toggle the Zugzwang back to yellow.
+07:30 Okay then, so are there any cases in which it is beneficial to take a threat which does not exert Zugzwang control?
+07:37 In this case, the lower threat does not control the Zugzwang, but the top one does.
+07:42  Only by revealing the bottom one can Yellow arrive at the top threat and send the Zugzwang back to Red.
+07:53 Here's a much more obvious example.
+07:55  In this case,
+07:56  Red wants to get to the major threat pair as soon as possible,
+07:60  thereby, instantly winning the game.
+08:02 So, red will uncover the bottom threat, and then claim victory using the threat pair.
+08:11 In both of these instances, we play the non-controlling threat to expose the upper threat.
+08:16  There's no harm in this as long as the two threats have the same color.
+08:20 Therefore, since the threat will simply get trodded over, it can be ignored as dead space.
+08:27 However, in a situation like this, the red non-
+08:30 controlling threat is the only thing preventing Yellow from reaching a threat pair.
+08:35  It may not help Red control the Zugzwang, but it is preventing a swift defeat.
+08:40 For this reason,
+08:41  a threat which does not control the Zugzwang can be ignored,
+08:45  if and only if there is a threat of the same color following it.
+08:49 Now, we learned about threats which control and do not control the Zugzwang, but this threat pair can be considered as a separate kind of threat.
+08:57  Notice how the dead space above it can never be touched,
+08:60  since Yellow is guaranteed to win on the threat pair?
+09:04 This 'terminal threat' has the property that nothing above it can ever be touched.
+09:08  Anything above it might as well just not exist.
+09:11 The same can be said of a threat held by both players.
+09:15  This threat is terminal- whoever touches it wins, so there's no getting above it.
+09:20 This yellow threat might as well not exist. The result would be identical.
+09:26 Let's look at one other type of threat which we have neglected until now.
+09:30 This threat chain here actually works just like a normal threat.
+09:33 The chained threats above the bottom one will be played in the same way that players fill the dead space above a threat.
+09:40  So, the chain doesn't do anything special.
+09:43 And, since it has an even amount of spaces, it does not exert Zugzwang control.
+09:49 So, we can simply imagine that the chained threats are absent.
+09:54 Ok, let's see another example to see how we can use all of this.
+09:59 Here are the existing threats. Let's start by simplifying columns with terminal threats.
+10:05 On the left,
+10:06  the red-and-yellow threat is a terminal, so we can simply remove everything above it.
+10:13 The paired yellow threat one column over is also a terminal,
+10:17  so we can remove everything above it too.
+10:23 The chained threat in the 6th column can be simplified by ignoring the chain.
+10:29 The rightmost threat pair belongs to red-
+10:31  there's no way that Yellow could get to the upper threat without Red having gotten the bottom one.
+10:38 We are also safe to ignore these two red threats which exert no control over the Zugzwang,
+10:43  since there is another red threat above each one.
+10:49 The same is true of this yellow non-controlling threat.
+10:55 Excellent. Now that we have simplified the board,
+10:57  let's highlight the remaining threats up to whether or not they control the Zugzwang.
+11:02 Ok, this looks a lot more manageable! Can you tell how this game will proceed?
+11:07 Red is in the Zugzwang, since there is an even amount of dead space.
+11:13 Red will start by toggling the Zugzwang like so.
+11:18 Yellow will then return the favor.
+11:22 Now red once more.
+11:26 Followed by Yellow once more!
+11:30 At this point,
+11:31  Red has no other option but to cede a terminal threat to Yellow, thereby forfeiting.
+11:38 Ok, let's take a step back.
+11:39  We have now taxonomized all threats into Zugzwang-controlling threats (marked with a Z,
+11:45 ) non-controlling threats (marked with a zero,) and terminal threats (marked with a hash.)
+11:52 With the diagram on the bottom,
+11:54  we abstract away all of the unnecessary details and boil down this particular endgame to its fundamental structure.
+12:00 Let's watch the players play this same game over,
+12:03  but track what happens as they play hot-potato with the Zugzwang.
+12:06 Red handed the Zugzwang to Yellow like this, expending a Zugzwang-controlling threat.
+12:12 Yellow sent the Zugzwang back to red by using the threat on the sixth column.
+12:18 Red handed it back over again.
+12:21 And now Yellow.
+12:24 Now Red is clearly going to lose,
+12:27  because no remaining red threats can toggle the Zugzwang,
+12:30  so Red will end up revealing a yellow threat.
+12:39 Let's consider a yet more perplexing case, this time looking only at the diagram.
+12:46 Red's in the Zugzwang. Which threat should Red expose first?
+12:49  There turns out to be a very simple answer for determining this in any situation.
+12:54  The trick is to greedily take whichever Zugzwang-
+12:57 controlling threat has the fewest opponent Zugzwang-
+13:00 controlling threats immediately above it.
+13:03 In this case,
+13:03  that's the bottom-left threat,
+13:05  since there is no yellow threat immediately above it- there is another red threat there.
+13:11 Now, Yellow would expose the only immediately available threat.
+13:17 Red now takes the second-column threat,
+13:20  since it only has one yellow threat stacked immediately above it.
+13:25 Yellow now takes the third-column threat, since it has the smallest red stack above it.
+13:30 Now red...
+13:32 And yellow...
+13:35 And red...
+13:37 Now there are no more exposable Yellow threats left,
+13:40  so Yellow exposes a Red threat and loses.
+13:44 I'll leave it as an open puzzle for you to demonstrate why the greedy algorithm always works here.
+13:50 Understanding what we've covered so far is more than sufficient to derive the win conditions of the standard board size.
+13:57 Now that our endgame theory is basically complete,
+13:60  let's see how to actually apply this, by categorizing some common threat patterns.
+14:05 In practice,
+14:06  one or two columns with threats are common to see, but 3 or more is increasingly rare.
+14:11  Since our parity mechanics explain the one-column case,
+14:14  let's determine the win conditions for two threatened columns.
+14:19 When two yellow threats with nothing below them are both on even rows,
+14:24  or both on odd rows, then Yellow will win.
+14:26  Red's in the Zugzwang and can't toggle it.
+14:33 If Red has two threats with one even and one odd, then Red wins by the same reasoning.
+14:42 What about if each player has a Zugzwang-controlling threat? It's red's move.
+14:50 It's a tie!
+14:53 If we give Red 2 Zugzwang-controlling threats,
+14:55  that will be sufficient to overpower Yellow, who is in the Zugzwang to begin with.
+15:08 Flipping around the position, we get a tie.
+15:11  Not a yellow win- yellow is disadvantaged by being in the Zugzwang from the start.
+15:23 Since a second and fifth row threatened column exerts Zugzwang control twice,
+15:27  yet third and sixth rows exerts it only once,
+15:30  Red wins this one since Yellow starts in the Zugzwang.
+15:43 If we flip it around, the game ends as a tie.
+15:56 While there are an unending amount of different ways that columns can be threatened,
+16:00  by using the tools of reduction and abstraction which we learned here,
+16:04  it can be rather easily determined who is to win,
+16:07  even on arbitrarily large board sizes where we haven't memorized the win conditions.
+16:12 What we have done here was no mean feat-
+16:14  we have effectively and absolutely solved the endgame.
+16:18  Now the task is to work backwards.
+16:20  Is there a way that we can comparably reduce the midgame?
+16:24  The answer is, in many cases, yes.
+16:26  Stay tuned,
+16:27  because we will start to get a feeling of the shape of certain weakly solved subtrees of Connect 4.
+16:34 This has been 2swap.

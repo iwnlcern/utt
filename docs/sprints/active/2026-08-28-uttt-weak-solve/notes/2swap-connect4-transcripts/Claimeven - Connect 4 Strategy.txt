@@ -1,0 +1,136 @@
+00:00 To the untrained eye, this connect 4 position might look unassuming.
+00:06 This one, you might not even be able to tell who is winning.
+00:12 But an expert could tell you, all of these positions share a special property,
+00:18 one which is actually quite extraordinary.
+00:21 One feature of all of these positions is that the amount of space remaining in each column is even.
+00:27 This column has 6 empty spots.
+00:30 This column has 4.
+00:32 This is true for all of the games I've shown.
+00:36 Not a single column with an odd number of pieces.
+00:40 What's more, in each of these cases, it so happens that Yellow, player 2, is winning.
+00:46 It might not look like it,
+00:48  but Yellow is winning so spectacularly in these games,
+00:51  that even a fool could beat an expert.
+00:53  As long as that fool knows what makes these positions special.
+00:56 Remember how all of the empty space is even?
+00:59 That means that we can cut those remaining columns up into groups of 2.
+01:04 Now, since it's red's turn in all of these cases, let's let Red start by making a move.
+01:11 When drawn like this, yellow is almost beckoned to fill in the uncoupled pair.
+01:16 And, since the entire board is divied up into pairs, Yellow can just keep doing this forever.
+01:22 Wherever Red goes, yellow fills in the unpaired spot.
+01:28 We can even take away the pairings.
+01:31 All Yellow is doing is responding, thoughtlessly, to Red's last move.
+01:36 A randomly placed red stone, is followed by a Yellow stone immediately above.
+01:42 So on, and so forth. [silence]
+01:50 Wait a minute... did yellow just win?
+01:53 Let's try again, with a different board which we saw at the beginning.
+01:59 Remember, nothing fancy. Red initiates, then Yellow naively responds.
+02:05 On and on, until the end of the game. [silence]
+02:12 Like magic, Yellow has won again.
+02:16 Now, I promised you those boards at the beginning had something magical about them.
+02:20 Does the columns having an even amount of empty space necessitate this winning condition for Yellow?
+02:26 Yellow is winning in this position.
+02:30 and it also has all even columns.
+02:34 However, it is not one of the special ones I showed before. Let's try our strategy here!
+02:41 Just like before, red then yellow.
+02:45 But with this last Red move, Yellow is starting to panic.
+02:50 If Yellow continues our simple strategy, Red will immediately win.
+03:01 So, Yellow, in a last ditch effort, breaks our strategy.
+03:06 Perhaps, by making some threats on the right side, Yellow can regain the tempo?
+03:15 Unfortunately for Yellow, the damage is already done.
+03:20 Red immediately plays in the second column...
+03:23 Yellow is forced to block the horizontal threat,
+03:28 but Red wins on a diagonal anyways.
+03:35 So, our naive just-follow-red strategy didn't work in this case,
+03:41 Despite the fact that yellow is winning, and all of the columns are even.
+03:47 Indeed, it is the case that the 4 boards at the beginning weren't just any boards with all even columns.
+03:54 They were especially selected,
+03:56  as boards which can be won with our simple follow-red strategy.
+04:01 If Yellow could always win by just playing call-and-response,
+04:04  that wouldn't be much fun, would it?
+04:06 So, what is it about these positions which makes them special?
+04:11 When we play our naive strategy, let's take note of what happens.
+04:16 Let's mark all of the disks already played before we start.
+04:27 Regardless of what Red chooses, after the point where we start to use our strategy,
+04:32 all of the red disks end up on an odd row.
+04:37 That is, the first, third, and fifth rows from the bottom.
+04:41 Similarly, yellow inevitably gets all of the even rows.
+04:45 Since Yellow is the one employing this strategy, let's call it 'claimeven'.
+04:51 Yellow, by merely following Red, can get hold of all of the remaining even-row spaces.
+04:58 What makes this board special,
+04:60  is that even when we fill in all of the Red pieces on the odd rows,
+05:04  no line of 4 disks is made.
+05:06 However, Yellow is able to lay claim to the entire top row.
+05:11 So, it doesn't matter the order which Red plays.
+05:14  The result is already guaranteed for Yellow, as long as Yellow plays Claimeven.
+05:18 Well, what about this slightly different board?
+05:22 It was another one of the 4 at the beginning, so it also wins by claimeven.
+05:28 If we imagine all the red stones filling in the odd rows...
+05:31 There's a red line of 4!
+05:34 But... in this case, it is hovering immediately over a Yellow line of 4.
+05:40 So, for Red to win... Yellow would already have to have won.
+05:44 We say that the red line of 4 is undercut.
+05:48 Let's play it out!
+05:57 Sure enough, we win on the precise line that we predicted!
+06:01 This is what makes these boards special.
+06:04  If there are red winning lines on odd rows,
+06:06  they are all undercut by yellow winning chains on even rows.
+06:11 Let's try some examples.
+06:13 It's Yellow's turn. How can we force a win using Claimeven?
+06:18 Pause now if you want to think about it.
+06:23 By placing this disk in the center column, Yellow can kill two birds with one stone.
+06:28 This move makes all of the columns even,
+06:31 and guarantees that Red can't make a line of 4 until after Yellow gets a line of 4 on the 4th row.
+06:43 Let's try this trickier example.
+06:46 We may naively play the spot which yields even amounts of empty space in each column.
+06:51 But red has other plans in mind. Let's see what happens if we try to play Claimeven.
+06:57 Red claims this spot on the seventh column.
+07:00 See how that makes this threat on an odd row? Pay attention to that threat.
+07:06 Oblivious, Yellow continues playing Claimeven. Let's see what happens.
+07:13 Well, that didn't work.
+07:16 So then, what was yellow supposed to do?
+07:20 Pause now if you want to think about it.
+07:24 The trick is blocking that third row threat before it comes to fruition.
+07:29 Now, most columns have an even amount of empty space.
+07:33 But two columns don't.
+07:36 Is there any hope of using Claimeven?
+07:39 It turns out, here, the trick is as follows:
+07:42 If Red plays in one of these spots, then Yellow plays the other.
+07:47 From there, we can continue with Claimeven.
+07:56 Reducing a complex position to a simple one is difficult.
+08:01 However, an expert player up against a newbie might make it look easy.
+08:05 As expected, capitalizing on these situations on the fly is the hallmark of expertise.
+08:11 Attentive practice can help you see it coming.
+08:16 Before we part,
+08:16  I'll give you a taste of how this can be generalized, with one last puzzle.
+08:21 In this case, and unlike the others, Red, AKA player 1, is winning.
+08:26  But for now, it's Yellow's turn.
+08:28 How can we apply our understanding of claimeven to this position?
+08:33 For one, we notice that there is precisely one column that doesn't have an even amount of spaces left.
+08:39 This means we can't play claimeven.
+08:43 If Yellow goes anywhere but the middle,
+08:44 we find that there are two even spaces we need to take.
+08:48 So, Claimeven doesn't exactly work when you are player 1.
+08:52 Well, what happens if we just naively respond to Yellow anyways?
+08:56 We'll follow this pattern here, Red will get the top of each coupled pair of spaces.
+09:02 In other words,
+09:03  Red will play Claimeven, except, on the center column, it will instead be Claimodd.
+09:09 But, something weird is going on on the middle column, there's an unpaired spot...
+09:14 One other thing we notice is that there is an odd-row red threat on the center column.
+09:19 Since that is on the top half of one of the coupled spaces, Red will get that space.
+09:25 That means the game will end there,
+09:27  and consequently,
+09:27  we don't need to worry about what happens on the top of the middle column.
+09:32 Alright, let's try it! Claimeven, except claimodd in the middle.
+09:41 Once again, this only works because this position was, in some sense, simple to begin with.
+09:47 Red, through training and expertise, was able to force a position which permits such a simple strategy.
+09:54 Most positions aren't like this-
+09:56  most positions can't be naively solved just using Claimeven and/or Claimodd.
+10:01 But let this serve as a taste,
+10:03  an idea from which we could devise a more expressive positional language which permits the solution of a much larger class of boards.
+10:11 Understanding these positions is not only crucial for the learner,
+10:15  but also for the connect 4 researcher.
+10:18 Solving a game requires an immense search of billions of options on behalf of either player.
+10:23 However, these positions from which a player can win via Claimeven prove to be a small island of simplicity in an otherwise chaotic sea of complex situations.
+10:33 These positions will serve as a foothold, an indispensable landmark for further reduction.
+10:40 Stay tuned! This has been 2swap.

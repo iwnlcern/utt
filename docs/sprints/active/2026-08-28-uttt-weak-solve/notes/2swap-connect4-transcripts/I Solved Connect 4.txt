@@ -1,0 +1,231 @@
+00:00 This is a map of perfect play of Connect 4.
+00:09 Each branch emanating from this central node is a different connect 4 opening.
+00:19 Some are long and convoluted, but don't have much room for deviation, like this long, unbranching line.
+00:29 Some, on the other hand, have a whole bunch of variations on the 
+00:32 same theme, as indicated by this large blob of opportunities.
+00:41 But how can we come up with a connect 4 solution like this, which fits in a cute little graph?
+00:47 We start by imagining two omniscient gods playing a game of Connect 4.
+00:52 Players take turns dropping discs in the columns,
+00:55 and the first to make a line of 4 wins.
+00:59 What would happen?
+01:00 God 1, playing red, realizes that if he plays in the leftmost column, there is no path to victory.
+01:07 Starting one column over, he would lose as well!
+01:11 Starting almost in the center, he foresees that perfect play would yield a tie.
+01:16 But playing right in the center should result in victory, even against a flawless opponent.
+01:22 God 2, playing yellow, comes to the same realization, and promptly resigns.
+01:28 After analyzing millions of variations of every opening imaginable, God 2 
+01:33 realized there was no way of stopping God 1 from making a red line of 4.
+01:37 This was first discovered independently by computer scientists James Dow Allen and Victor Allis in 1988.
+01:44 They used strategies similar to the Gods:
+01:47 using computer programs to search all possible branches.
+01:51 Solutions like these make for great computer science,
+01:54 But as a human connect 4 player, it kind of leaves you wanting.
+01:58 Player 1 wins by playing in the center, but _why_?
+02:03 A computer, or a god, can evaluate billions of positions to check this result,
+02:09 But what's left for us humans?
+02:11 After player 1 plays in the center, what player 2 openings make it as hard as possible for player 1?
+02:18 To confuse red, should player 2 respond in the center, or one over? What about all the way on the side?
+02:26 Furthermore, is there some change of perspective that shows how us mortals 
+02:30 could hang on to the player one advantage, and defeat a perfect player 2?
+02:35 These questions went unanswered by those early solutions to Connect 4.
+02:39 But today, I'm going to show you connect 4 through the eyes of God 1.
+02:44 A simpler, more elegant solution, small enough to show on this screen.
+02:48 Because instead of relying on brute force search, I found a profoundly 
+02:52 simpler way to play perfect connect 4. All it takes is this graph.
+02:60 Suppose you're going to play as red, and you want a strategy to play your next game of connect 4 perfectly.
+03:06 What options are there, besides running brute force search in your head?
+03:10 Instead you could memorize every possibility upfront.
+03:14 That way you can just recall the right response during the game.
+03:18 Well, you'll need to memorize 90 gigabytes of connect 4 data, as this poor soul found out.
+03:24 These two strategies- brute force search and upfront memorization- both involve a large tree of positions.
+03:31 The difference is that just reading ahead makes you think a lot, and memorizing branches makes you remember a lot.
+03:39 The amount of positions to memorize up to a certain depth grows really fast.
+03:44 There's one empty position,
+03:46 7 options for the first move,
+03:49 49 two-move continuations,
+03:53 after 5 moves there's 4000 possibilities.
+03:57 and by the time we reach move 10, the number of positions we need to memorize is in the millions.
+04:03 Plotting the amount of positions up to n moves, we get a curve like this.
+04:07 Classic exponential growth.
+04:11 Now, after n moves have already been played, if we plot the amount 
+04:15 of work needed to brute-force solve the rest of the game...
+04:18 The amount of reading ahead required follows an opposite curve.
+04:23 For a game like this that's almost over,
+04:26 there's much less work needed to read through it, compared to brute forcing the opening position.
+04:32 This suggests a hybrid approach-
+04:35 Memorize all positions up to the midgame,
+04:38 and then we switch over to reading ahead.
+04:41 In other words, by balancing thinking hard and memorizing a lot, we can avoid these exponential explosions.
+04:48 This is why chess players memorize openings. By memorizing openings, you can 
+04:53 avoid the potential for making a mistake reading ahead, up to a certain depth.
+04:58 Eventually, the breadth of variations reachable at some depth is not memorizable, and you have to start thinking ahead.
+05:06 Victor Allis published a connect 4 solution like that in 1988.
+05:10 He found a table of 500,000 perfect openings, and a computer algorithm to solve endgames in a few seconds.
+05:18 Now I don't know about you, but I can't memorize half a million positions.
+05:22 Before I show you how to shrink that number by a factor of 100, 
+05:26 let me explain the trees that I've been showing in the background.
+05:30 If we add every possible connect 4 position to a tree, we get this gigantic thing.
+05:35 This full game tree up to move 5, taken as a guide on where to play, is called a 'strong solution'.
+05:42 However, it includes nodes where player 1, red, has already blundered.
+05:48 Remember, God 1 determined that starting all the way on the side is a losing first move...
+05:54 but it's recorded inside this strong solution graph.
+05:58 We don't want to memorize moves like those, since we'd never play them.
+06:02 So let's grab our hedge-trimmers and snip out all the mistakes...
+06:06 We get this smaller tree.
+06:11 We can shrink it further though.
+06:13 Consider this position.
+06:16 It's red's move, and there's two winning options.
+06:20 Red could either go here,
+06:22 or here.
+06:24 Everything else would be a blunder.
+06:27 Those two nodes are in our tree.
+06:29 But why memorize duplicates, instead of just memorizing the one we like better?
+06:34 Let's delete each duplicate option.
+06:38 This tree is sufficient- we can still play perfectly up to move 5 by memorizing 
+06:44 it. We've just cut out all of the stupid variations that we don't need.
+06:48 For that reason, we call this not a strong solution, but a weak solution.
+06:54 Check out this game.
+06:59 It's Red to move.
+07:01 Red is winning here. What do you think the weak solution looks like for this position?
+07:06 I'll give you a few options.
+07:09 Do you think it looks like this messy tree?
+07:13 Or this other messy tree?
+07:18 How about this third messy tree?
+07:22 Or do you think that it looks like this nice pillow shape?
+07:26 This isn't just some trivial question about appearance.
+07:30 If the weak solution is particularly simple, that means we can compress the information contained within it.
+07:36 So, make your guess! Which one do you think it is?
+07:41 The answer is... all of them!
+07:45 Remember how I chose between two winning options earlier?
+07:49 Up to the choices we make, we can get much different trees!
+07:53 This tree is what you get if any time there is a decision between two winning moves, you always choose the leftmost one.
+08:01 This tree involves always picking the rightmost option.
+08:04 This tree involves picking randomly between the winning options.
+08:10 But how on earth did I make this one?
+08:13 How do we identify these patterny weak solutions?
+08:17 I use what I call a 'steady state diagram'.
+08:21 The diagram is like a cheat-sheet, telling Red how to make all the right moves from here until the end of the game.
+08:28 To read it, there's a series of 8 priorities.
+08:31 It's red's turn. Let's follow the diagram to win the game.
+08:36 Rule 1: Can we win by making a line of 4?
+08:40 Nope. Move on to rule 2.
+08:43 Is the opponent about to win, such that we need to block it?
+08:47 Nope. Continue!
+08:49 Can we play on an exclamation mark?
+08:52 Yes! That's the move we'll make.
+08:54 Now, remember, this secret diagram tells _us_ what to do, but our opponent can fight back however they want!
+09:01 Our opponent chooses to block the threat. What should we do now?
+09:06 The first rule that applies now is rule 6, which says to play on a plus sign.
+09:12 Our opponent responds here.
+09:14 Try and figure out what Red should do next, according to the rules.
+09:21 There's only one at sign available now, so Red plays on it.
+09:25 As Red, if you follow this cheat sheet, regardless of what Yellow does, you'll eventually win the game.
+09:40 These diagrams are effectively a form of compression.
+09:44 By identifying such a simple program to play perfect endgames, 
+09:48 which describes a very compressible solution for our position,
+09:52 we can memorize that program instead of some convoluted search tree.
+09:57 So, what is the cheat sheet for the starting position?
+10:01 Unfortunately we're not that lucky.
+10:04 These diagrams are only good for describing midgames when the path to victory is already somewhat well-defined.
+10:10 So we're back to building trees.
+10:12 But this time, we can trim positions which have a steady state solution, 
+10:16 leaving us with the graph that I showed you in the start of this video.
+10:23 This is once again a weak solution. But, at every leaf node, instead of the game being over,
+10:29 we instead have a steady state diagram showing how to continue perfect play after that point,
+10:35 implicitly defining the remaining compressed game tree.
+10:45 This is just the compressed subgraph resulting from one particular leaf node.
+10:50 Imagine having to memorize those subtrees for every single leaf node on the graph!
+10:56 That's the degree of compression we're dealing with.
+10:60 The first thing you might notice about this graph is that it's symmetrical.
+11:04 This makes sense- If yellow plays on the left versus on the right, we'll respond in a way that is mirrored horizontally.
+11:11 There's a few exceptions to this rule. For example, this branch only has one asymmetric copy.
+11:17 In this case, both players made a perfectly symmetrical opening, and Red must pick a side to continue on.
+11:24 This opening is called the 6-1, because of the central column of 6 and neighboring column of 1.
+11:31 Let's shrink the graph even further, by fusing together mirror-symmetric nodes!
+11:39 This connect 4 solution has only 4,550 nodes!
+11:43 Comparing against Victor Allis's solution from the eighties,
+11:47 Allis's opening book was more than a hundred times as large, with half a million nodes.
+11:53 Furthermore, unlike the few seconds of search that Allis used,
+11:57 we don't need any search whatsoever since the steady state diagrams instantly tell us what to do in the endgame.
+12:05 This graph serves as a map of Connect 4 openings.
+12:09 Long branches represent openings which don't quickly simplify for player 1.
+12:14 They correspond quite well to openings which Connect 4 players actually study in practice.
+12:20 And this is great- it provides a framework to measure the difficulty of openings.
+12:25 For example, if player 2 plays like this, with player 1 following the solution,
+12:34 We run into a steady state right away, meaning Yellow didn't play a very challenging opening.
+12:42 What about the hardest opening for player 1?
+12:45 The first move which preserves the longest downstream subgraph is...
+12:49 One-off from center!
+12:51 Red, following the solution, is left with 2727 downstream nodes.
+12:57 One of the largest branches can be reached like this. It's the depth 8 position with the most downstream nodes.
+13:04 For connect 4 players, this probably isn't surprising. This is a very popular, very challenging opening.
+13:13 The center-column openings come in second place, also contributing a lot 
+13:18 of nodes to the graph. These first central moves are entirely forced.
+13:22 From here, a large amount of nodes are dedicated to variations of the 
+13:26 candlesticks opening, which involves making towers like so, which is also forced.
+13:33 We've covered a whole bunch of solutions to connect four.
+13:36 Brute force search relies intensively on reading ahead, but needs no memory.
+13:42 Memorizing the whole game tree before-hand takes up a ton of data, but no CPU.
+13:48 We can balance these extremes by memorizing openings and searching at 
+13:52 the end, demanding just a little memory and just a little compute.
+13:56 And finally, we can use pattern recognition to compress the tree upfront, demanding even less memory and compute,
+14:04 at the behest of a lot of resources used in upfront data compression, and pattern identification.
+14:10 In each case, we're just making trade-offs between different resources.
+14:14 Want to use less compute? That comes at the cost of other resources!
+14:19 This all begs the question- where is all this complexity coming from?
+14:24 A strong solution lookup table for the game takes up 90 gigabytes of data,
+14:29 and yet, the rules of the game can be defined in a single sentence of plain English.
+14:35 This video isn't about connect four. It's not entirely about computer science, either.
+14:40 It's about how systems yield complexity that can't be expressed in simpler terms.
+14:45 Just knowing the rules doesn't mean you can win without somehow 
+14:49 relying heavily on computation, raw memorization, or _something_...
+14:54 you can't just 'intuitively realize' that the candlesticks opening is a naturally arising strategy.
+15:00 Similarly, just knowing the laws of particle interactions doesn't mean you can predict the weather,
+15:07 and it doesn't tell you that there's such a thing as a cloud.
+15:10 But that doesn't stop us from discussing candlesticks openings or clouds.
+15:15 Maybe we can't concisely explain them from first principles, but that doesn't make them any less real.
+15:21 Clouds are best described not in the language of particle interations,
+15:25 but in the language of cold fronts, dew points, and vapor pressure-
+15:29 a whole new philosophy spawned out of thin air, far abstracted from any rules of physics or chemistry.
+15:35 Read all the physics textbooks you want- in none of them will you 
+15:39 find the rule that Cirrocumulus clouds cannot have species Volutus.
+15:43 There is no such rule, and yet we live in a world of intricate species of clouds, 
+15:48 with a whole subfield of meteorology concerned with their nomenclature and taxonomy.
+15:52 Connect 4 shows us a glimpse of that same emergent substance.
+15:56 It shows us that complexity and mystery aren't unique to those laws of 
+16:00 physics which gave us stars and galaxies, benzene rings and toothpaste.
+16:04 but are a mathematical inevitability more fundamental than physics, more real than reality.
+16:11 Equivalent magic arises from even the most humble systems of iterated rules, and this game is no exception.
+16:18 Complex enough to invoke that same spark of emergent fertility in full force,
+16:22 but simple enough that with modern computers, I can show you this graph and say,
+16:27 'Here is its shape. This is connect 4.'
+16:39 This has been 2swap,
+16:42 with music by 6884.
+16:45 I claim to have made a connect 4 solution that's human-memorizable,
+16:49 so let's put that to the test-
+16:51 I made a flash card deck using the spaced-repetition memorization app Anki, which I will attempt to learn!
+16:57 If you want to try too, you can download the deck in the description!
+17:01 I've also included a website where you can play against the weak solution,
+17:05 and explore the tree as you traverse it.
+17:07 Good luck winning... you'll need it!
+17:11 The site includes a lot of technical details which I glazed over, so be sure to check it out!
+17:17 I think the best way to learn the game is to play online, and in between rounds, review 
+17:22 the variations you played in the tree to see what a better response could have been.
+17:27 And that's where our sponsor, Opera Browser can help!
+17:31 Using Opera's split-screen browsing feature, you can easily replay your games in the tree alongside your online matches.
+17:38 In this case, we can see that I played out this variation of the 6-1 exactly as suggested by the solution graph!
+17:46 Want to read while waiting for an opponent?
+17:49 Just add another split-screen window! Opera lets you split your 
+17:53 view into two, three, or even four windows simultaneously.
+17:57 I found myself using Opera's tab islands to organize positions which I was in the process of analyzing.
+18:03 Opera automatically groups your tabs to keep everything in place, and you can name 
+18:08 or color-code these islands so you know exactly where your research is at a glance.
+18:13 I guess you could, like, use these features for organizing your research or travel plans 
+18:18 or something... but who am I kidding, this is practically made for connect 4 study.
+18:22 Opera is top-notch for productivity, especially with its Sidebar that 
+18:27 puts Google services like Gmail and Google Calendar just one click away.
+18:31 I can quickly check my schedule and my email without ever having to leave the page I’m working on.
+18:37 It also makes the YouTube experience more enjoyable.
+18:41 It has a video pop-out feature so that you can drag the video outside of your browser 
+18:45 window, letting you pretend that you're getting research done while watching 2swap instead.
+18:50 To try out Opera for yourself, click the link in the description to download it for free!

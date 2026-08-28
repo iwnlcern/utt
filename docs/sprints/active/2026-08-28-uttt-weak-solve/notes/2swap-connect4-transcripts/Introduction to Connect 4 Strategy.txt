@@ -1,0 +1,1570 @@
+00:01 hi this is two swap today I'm going to
+00:03 
+
+00:03 present an introduction to connect four
+00:06 
+
+00:06 tactics so specifically I'll be going
+00:08 
+
+00:08 over four things that you should look
+00:09 
+
+00:09 out for while you're playing the game
+00:11 
+
+00:11 um those are threat analysis common
+00:15 
+
+00:15 torque wins parody and opening strategy
+00:18 
+
+00:18 and hopefully you can think about these
+00:20 
+
+00:20 four things while you're playing the
+00:21 
+
+00:21 game and start to pay more attention to
+00:25 
+
+00:25 them while you're playing and hopefully
+00:26 
+
+00:26 develop an intuition for them in order
+00:28 
+
+00:28 to help your game improve in the long
+00:30 
+
+00:30 run so I'm going to start off with
+00:32 
+
+00:32 coming to torque wins
+00:35 
+
+00:35 so let's just say a game starts out like
+00:37 
+
+00:37 this
+00:38 
+
+00:38 this is probably not not realistic but
+00:42 
+
+00:42 it serves demonstrative purpose so you
+00:44 
+
+00:44 can now see that there are two
+00:46 
+
+00:46 um
+00:47 
+
+00:47 two major threats that red has a major
+00:50 
+
+00:50 threat is a threat that has three pieces
+00:52 
+
+00:52 already filled in so this is a major
+00:54 
+
+00:54 threat leaving this piece open and
+00:56 
+
+00:56 there's also a major threat here leaving
+00:58 
+
+00:58 this piece open
+00:59 
+
+00:59 so
+01:01 
+
+01:01 um
+01:02 
+
+01:02 turns out to be the case in this
+01:04 
+
+01:04 scenario that red or that yellow can
+01:05 
+
+01:05 play whatever yellow wants to do
+01:08 
+
+01:08 um but the results is going to be the
+01:09 
+
+01:09 same and that red can just fill up this
+01:11 
+
+01:11 this column here and yellow is going to
+01:13 
+
+01:13 be forced to block this bottom one and
+01:15 
+
+01:15 Red's gonna then be uh be able to win
+01:18 
+
+01:18 the game like that so this is an example
+01:20 
+
+01:20 of uh what's called a vertically
+01:22 
+
+01:22 adjacent fret pair so these two threats
+01:25 
+
+01:25 are vertically adjacent to each other
+01:26 
+
+01:26 and red can win the game by by creating
+01:28 
+
+01:29 these two threats
+01:30 
+
+01:30 um but more generally speaking this is a
+01:32 
+
+01:32 way that you can sort of make a trap for
+01:33 
+
+01:33 your opponent
+01:35 
+
+01:35 so that's a sort of contrived example
+01:37 
+
+01:37 with uh like by creating this little
+01:39 
+
+01:39 seven shape at the beginning of the game
+01:41 
+
+01:41 but we can think of another example uh
+01:43 
+
+01:43 that's more realistic so let's say
+01:46 
+
+01:46 um
+01:46 
+
+01:46 we start with an opening called the six
+01:48 
+
+01:48 one so this is the sixth one here
+01:49 
+
+01:49 specifically the narrow six one since
+01:51 
+
+01:51 yellow played this spot
+01:53 
+
+01:53 um
+01:54 
+
+01:54 and we continue up on this row you might
+01:57 
+
+01:57 think it would be a good idea for yellow
+01:59 
+
+01:59 to play
+02:01 
+
+02:01 um
+02:02 
+
+02:02 here for example but this turns out to
+02:04 
+
+02:04 be uh very incorrect because red Canal
+02:07 
+
+02:07 play
+02:08 
+
+02:08 this
+02:10 
+
+02:10 um
+02:12 
+
+02:12 and so now there are two a major threat
+02:16 
+
+02:16 uh major threats for red that are in
+02:18 
+
+02:18 existence
+02:19 
+
+02:19 um these two specifically so regardless
+02:21 
+
+02:21 of which one yellow blocks if yellow
+02:22 
+
+02:22 tries to block this bottom row then
+02:25 
+
+02:25 Red's going to take this other one and
+02:27 
+
+02:27 get this diagonal win so that's another
+02:29 
+
+02:29 example of a really common trap that
+02:31 
+
+02:31 you'll see played in practice
+02:34 
+
+02:34 so
+02:35 
+
+02:35 um
+02:36 
+
+02:36 okay let's try one more you can think of
+02:38 
+
+02:38 this opening
+02:40 
+
+02:40 it's very similar this is called the
+02:41 
+
+02:41 five five and we'll say red plays here
+02:45 
+
+02:45 now in this scenario yellow turns out to
+02:48 
+
+02:48 only have a single move to not lose
+02:50 
+
+02:50 basically immediately if yellow plays
+02:52 
+
+02:52 here for example then Red's gonna play
+02:55 
+
+02:55 here and yellow has to fill in this
+02:58 
+
+02:58 bottom line and then play uh and then
+03:01 
+
+03:01 red gets to play this uh this winning
+03:02 
+
+03:02 move to make this four in a row
+03:05 
+
+03:05 so
+03:06 
+
+03:06 in practice what would have actually
+03:07 
+
+03:07 happened is yellow would have recognized
+03:09 
+
+03:09 that that was coming and then played
+03:10 
+
+03:10 here in order to block
+03:12 
+
+03:12 in order to block the threat
+03:15 
+
+03:15 so
+03:17 
+
+03:17 that's an idea of how to create common
+03:19 
+
+03:19 Network wins or threats while you're
+03:20 
+
+03:20 playing the game
+03:22 
+
+03:22 um
+03:23 
+
+03:23 so now let's talk about the second topic
+03:25 
+
+03:25 which is parody you can think of
+03:27 
+
+03:27 combinatoric threats as a way to make
+03:29 
+
+03:29 quick wins happen
+03:30 
+
+03:30 um basically just push your opponent
+03:32 
+
+03:32 into a wall and just sneak a win out
+03:35 
+
+03:35 right there whereas parody is basically
+03:38 
+
+03:38 a tactic that you can use long term in
+03:40 
+
+03:40 order to uh sort of make your make your
+03:43 
+
+03:43 position better in the long run
+03:45 
+
+03:45 so
+03:47 
+
+03:47 um we can imagine uh filling up the
+03:50 
+
+03:50 board like almost entirely
+03:53 
+
+03:53 such that you know there's only a single
+03:55 
+
+03:55 row left
+03:56 
+
+03:56 um I'm just gonna spam pieces this is
+03:59 
+
+03:59 not there's no real Rhyme or Reason to
+04:01 
+
+04:01 this but you can imagine now okay
+04:04 
+
+04:04 um Red's gonna be forced to play in the
+04:06 
+
+04:06 first row here yellow is going to be
+04:08 
+
+04:08 forced to play in the second row right
+04:09 
+
+04:09 it's gonna be forced to play in the
+04:10 
+
+04:10 third row and so on and so forth until
+04:13 
+
+04:13 you end up with red playing in the fifth
+04:15 
+
+04:15 row and yellow playing in this in the
+04:16 
+
+04:16 sixth row so Red's player one yellows
+04:19 
+
+04:19 player two so you uh it turns out to be
+04:22 
+
+04:22 the case that player two is always going
+04:23 
+
+04:23 to play the last piece in the board
+04:24 
+
+04:24 that's because there's a total even
+04:26 
+
+04:26 number of uh spots to be played and
+04:29 
+
+04:29 yellow is the player two right so yellow
+04:32 
+
+04:32 as player two is always going to be the
+04:35 
+
+04:35 person to get um
+04:37 
+
+04:37 the even row spaces in the in the final
+04:41 
+
+04:41 column assuming there is a final column
+04:43 
+
+04:43 so
+04:46 
+
+04:46 uh and and similarly Red's gonna be the
+04:48 
+
+04:48 one to uh get the the odd spots in the
+04:51 
+
+04:51 final column so you the reason that this
+04:54 
+
+04:54 is important is this if yellow is known
+04:57 
+
+04:57 to have a
+04:59 
+
+04:59 have the last spot on the last column if
+05:01 
+
+05:01 yellow were to have for example
+05:03 
+
+05:03 developed a uh a major threat on these
+05:07 
+
+05:07 three stones here such that yellow plays
+05:09 
+
+05:09 the the fourth Stone on the last column
+05:11 
+
+05:11 here then yellow would have won the game
+05:13 
+
+05:13 so if yellow can develop a position
+05:17 
+
+05:17 where there's a major threat leaving
+05:20 
+
+05:20 um an even an even row threat
+05:24 
+
+05:24 then that's Advent he just for yellow
+05:25 
+
+05:25 and similarly red wants to create
+05:27 
+
+05:27 threats that leave the open piece in the
+05:30 
+
+05:30 threat on an odd row
+05:33 
+
+05:33 so let's go back to the position that we
+05:35 
+
+05:35 were at just a moment ago and I'll show
+05:37 
+
+05:37 what this exactly means in practice
+05:41 
+
+05:41 I think it was here so we'll just say
+05:43 
+
+05:43 red goes here
+05:44 
+
+05:44 and now so yellow is going to be
+05:46 
+
+05:46 thinking about this position yellow is
+05:48 
+
+05:48 going to say okay
+05:50 
+
+05:50 uh if if red were to have this spot
+05:53 
+
+05:53 then that's going to be developing a
+05:56 
+
+05:56 sort of a third row threat like this
+05:59 
+
+05:59 um and that's really bad for me so I'm
+06:01 
+
+06:01 going to
+06:03 
+
+06:03 play a piece here because I don't want
+06:05 
+
+06:05 this this Minor Threat on the third row
+06:06 
+
+06:06 to be formed because once again red is
+06:08 
+
+06:08 player one so player one having a third
+06:11 
+
+06:11 row threat is advantageous two two
+06:13 
+
+06:13 player one so
+06:15 
+
+06:15 similarly Red's gonna look at the board
+06:17 
+
+06:17 and say okay yellow or player two has um
+06:21 
+
+06:21 the ability to make a Minor Threat on
+06:23 
+
+06:23 the fourth row here so Red's Gonna Fill
+06:25 
+
+06:25 In to prevent that from happening also
+06:28 
+
+06:28 now
+06:30 
+
+06:30 um yellow is going to do the same logic
+06:31 
+
+06:32 up here yellow doesn't want red to get a
+06:33 
+
+06:33 Minor Threat on the fifth row so yellow
+06:35 
+
+06:35 is going to stop that from happening
+06:38 
+
+06:38 um
+06:39 
+
+06:39 and now
+06:41 
+
+06:41 let's say Okay red plays here
+06:45 
+
+06:45 this is actually a very good move
+06:47 
+
+06:47 because now red has played the two uh
+06:51 
+
+06:51 even Road pieces on a on a diagonal
+06:54 
+
+06:54 threat meaning the other two are going
+06:56 
+
+06:56 to be the odd row pieces right this is
+06:57 
+
+06:57 the fifth row on the sorry the third row
+06:59 
+
+06:59 in the fifth row piece that are
+07:00 
+
+07:00 remaining on this diagonal as opposed to
+07:02 
+
+07:02 the sixth row and the fourth which are
+07:04 
+
+07:04 already filled in so if red can manage
+07:07 
+
+07:07 to fill in one of these two holes then
+07:09 
+
+07:09 the other one is going to be a given
+07:11 
+
+07:11 when the game is ending
+07:12 
+
+07:12 so
+07:14 
+
+07:14 we can imagine that let's say yellow
+07:16 
+
+07:17 does something like this
+07:18 
+
+07:18 and
+07:20 
+
+07:20 I don't know maybe red
+07:22 
+
+07:22 let's say red just like uses this thread
+07:24 
+
+07:24 up
+07:24 
+
+07:24 just to advance the board a little bit
+07:27 
+
+07:27 and prevent yellow from maybe like
+07:28 
+
+07:28 making a fourth rough right over here
+07:30 
+
+07:30 which is even and of course again to two
+07:33 
+
+07:33 yellows yellow's advantage
+07:36 
+
+07:36 um now we'll say red plays uh this spot
+07:39 
+
+07:39 here
+07:41 
+
+07:41 um
+07:42 
+
+07:42 this this is beneficial in so far as it
+07:44 
+
+07:44 makes a a major growth right here
+07:46 
+
+07:46 although it's although it's even so it's
+07:48 
+
+07:48 not quite as important but you'll see
+07:49 
+
+07:49 how it comes into play in a moment
+07:51 
+
+07:51 uh yellow can I don't know threaten like
+07:53 
+
+07:53 this and then maybe red will stop that
+07:55 
+
+07:55 from from working out but like this is
+07:58 
+
+07:58 something that might happen in practice
+08:01 
+
+08:01 but now
+08:02 
+
+08:02 um Here's the the uh the magic
+08:05 
+
+08:05 um yellows now yellow doesn't really
+08:07 
+
+08:08 have much left to do so we'll say yellow
+08:09 
+
+08:09 just does this
+08:11 
+
+08:11 um and now red can do this now yellow
+08:15 
+
+08:15 has to fill in this this hole here and
+08:17 
+
+08:17 red then gets this fifth row threat
+08:21 
+
+08:21 um like creating the major threat here
+08:23 
+
+08:23 that that leaves the the third row piece
+08:25 
+
+08:25 empty
+08:26 
+
+08:26 so
+08:27 
+
+08:27 what this means is that red is basically
+08:29 
+
+08:29 guaranteed the win
+08:31 
+
+08:31 um insofar as the whole board is going
+08:33 
+
+08:33 to fill up until red gets to fill this
+08:34 
+
+08:34 this piece in so regardless of what else
+08:37 
+
+08:37 happens
+08:38 
+
+08:38 it actually turns out Red's gonna win
+08:40 
+
+08:40 earlier over here but you can imagine
+08:42 
+
+08:42 even if even if that weren't to have
+08:43 
+
+08:43 happened then yellow can fill in this
+08:45 
+
+08:45 and red gets the the guaranteed win on
+08:48 
+
+08:48 the third row major threat that red
+08:49 
+
+08:49 created over on this side of the board
+08:52 
+
+08:52 so that's an example of how parity Works
+08:54 
+
+08:54 in practice so basically the takeaway
+08:56 
+
+08:56 here is player one who's playing red
+08:59 
+
+08:59 wants to
+09:01 
+
+09:01 um
+09:02 
+
+09:02 wants to create threats that leave Open
+09:04 
+
+09:04 Spaces in the threats on the odd rows so
+09:07 
+
+09:07 player one wants audreo threats and the
+09:10 
+
+09:10 even player player 2 wants even row
+09:12 
+
+09:12 threats that's the general idea of
+09:14 
+
+09:14 parity of course this isn't completely
+09:16 
+
+09:16 cut and dry
+09:17 
+
+09:17 um there are times when like even real
+09:20 
+
+09:20 threats are beneficial to the odd player
+09:22 
+
+09:22 and vice versa but um the general idea
+09:25 
+
+09:25 is is uh that you want to create threats
+09:27 
+
+09:27 that leave holes that leave the the the
+09:30 
+
+09:30 actual piece that you're threatening on
+09:32 
+
+09:32 the even or odd row up to whether you're
+09:34 
+
+09:34 the even the rod player
+09:36 
+
+09:36 okay so that's uh that's parody in a
+09:38 
+
+09:38 nutshell
+09:39 
+
+09:39 the next topic is openings
+09:42 
+
+09:42 um
+09:42 
+
+09:42 so
+09:44 
+
+09:44 it turns out that connectiv4 is actually
+09:46 
+
+09:46 a solved game meaning that computers
+09:49 
+
+09:49 have been able to completely search the
+09:51 
+
+09:51 entire space of all the games that you
+09:53 
+
+09:53 can play and determine which moves are
+09:56 
+
+09:56 optimal so you can think of if there's a
+09:58 
+
+09:58 game of two players with perfect
+10:00 
+
+10:00 understanding of the game what would
+10:02 
+
+10:02 they do right
+10:04 
+
+10:04 um it in that sense it turns out to be
+10:07 
+
+10:07 the case that uh player one has the
+10:08 
+
+10:08 advantage insofar as player one is
+10:10 
+
+10:10 guaranteed to win according assuming
+10:13 
+
+10:13 that player one makes no blunders so you
+10:16 
+
+10:16 can you can think of player one as being
+10:17 
+
+10:17 advantaged in that sense
+10:20 
+
+10:20 um
+10:21 
+
+10:21 and what that means actually is that if
+10:24 
+
+10:24 player one plays uh in this spot
+10:27 
+
+10:27 that's that's a correct move
+10:30 
+
+10:30 um and the game would continue and
+10:31 
+
+10:31 player one could still win however if
+10:34 
+
+10:34 player one does anything other than that
+10:35 
+
+10:35 then player one uh is going to lose the
+10:39 
+
+10:39 game assuming player 2 then plays
+10:41 
+
+10:41 optimally so there are correct moves
+10:45 
+
+10:45 um and thus there are correct openings
+10:47 
+
+10:47 and and also incorrect openings
+10:49 
+
+10:50 um and we know what they are
+10:52 
+
+10:52 so specifically this is this is a
+10:55 
+
+10:56 correct move for player one in fact it's
+10:57 
+
+10:57 the only correct move for player one at
+10:59 
+
+10:59 the beginning of the game uh if player
+11:01 
+
+11:01 one does either this or of course by
+11:02 
+
+11:02 symmetry this
+11:04 
+
+11:04 um that turns out to be a a tie game
+11:06 
+
+11:06 assuming optimal play from both players
+11:08 
+
+11:08 thereon
+11:09 
+
+11:09 and then if player one does anything
+11:11 
+
+11:11 other than that so either of these two
+11:13 
+
+11:13 Fringe pieces
+11:16 
+
+11:16 then um that's going to be a win for
+11:19 
+
+11:19 player 2 assuming optimal play
+11:21 
+
+11:21 so you can start to sort of learn the
+11:25 
+
+11:25 game in a way such that your your
+11:26 
+
+11:26 understanding of the opening sort of
+11:28 
+
+11:28 feeds forward in the game and then you
+11:30 
+
+11:30 get good enough to read the game uh and
+11:33 
+
+11:33 like such that you can you can read out
+11:34 
+
+11:35 what's going to happen
+11:36 
+
+11:36 um from the end of the game back and
+11:38 
+
+11:38 eventually you'll get good enough such
+11:40 
+
+11:40 that you can sort of rely on your
+11:42 
+
+11:42 understanding of openings to get you to
+11:43 
+
+11:43 a point where you can just read the rest
+11:45 
+
+11:45 of the game by your understanding of
+11:47 
+
+11:47 parity and just come into torques and
+11:50 
+
+11:50 that way uh you'll sort of be able to
+11:52 
+
+11:52 meet in the middle and then
+11:53 
+
+11:53 theoretically play a perfect game and
+11:56 
+
+11:56 never make a mistake
+11:58 
+
+11:58 um of course that's easier said than
+12:00 
+
+12:00 done
+12:01 
+
+12:01 um and as far as I know there are no
+12:04 
+
+12:04 experts that can always do that
+12:06 
+
+12:06 um
+12:06 
+
+12:06 but if if you play someone who plays a
+12:08 
+
+12:08 relatively simple opening then you might
+12:10 
+
+12:10 be able to have that happen
+12:13 
+
+12:13 so um okay what do I mean by a simple
+12:15 
+
+12:15 opening then I guess is the next
+12:16 
+
+12:16 question uh you can think of it like
+12:18 
+
+12:18 this
+12:19 
+
+12:19 um player one since player one is
+12:21 
+
+12:21 already quote unquote guaranteed the win
+12:24 
+
+12:24 uh player two wants to basically confuse
+12:27 
+
+12:27 player one as much as possible it's
+12:28 
+
+12:28 advantageous for yellow to play a
+12:30 
+
+12:30 confusing opening whereas for player one
+12:34 
+
+12:34 um player one wants to keep it as clean
+12:36 
+
+12:36 cut as possible Right player one just
+12:38 
+
+12:38 wants to uh sort of play something as
+12:40 
+
+12:40 simple as possible so what this ends up
+12:42 
+
+12:42 looking at like is uh something player
+12:44 
+
+12:44 one might want to happen is like this
+12:47 
+
+12:47 this turns out to be a very well studied
+12:49 
+
+12:49 opening
+12:51 
+
+12:51 um it also is a very good one for for
+12:53 
+
+12:53 player one that is to say yellow yellow
+12:56 
+
+12:56 um doesn't really get that much out of
+12:58 
+
+12:58 this
+12:60 
+
+12:60 um however it does turn out to be the
+13:01 
+
+13:01 case that if if player one plays here on
+13:03 
+
+13:03 player one player two plays here it's
+13:05 
+
+13:05 necessarily the only correct move that
+13:07 
+
+13:07 player one continues up this line
+13:10 
+
+13:10 so player one has to make these two
+13:12 
+
+13:12 moves in this position that's forced
+13:15 
+
+13:15 but um
+13:19 
+
+13:19 uh alternatively uh you can think of you
+13:22 
+
+13:22 know as I as I said um player two wants
+13:24 
+
+13:24 to confuse the game a bit uh so for
+13:27 
+
+13:27 example I prefer this opening to to
+13:29 
+
+13:29 playing uh like this because it's
+13:32 
+
+13:32 generally just harder to reason about
+13:33 
+
+13:33 it's not symmetrical
+13:35 
+
+13:35 um and there's a lot of rather
+13:37 
+
+13:37 unintuitive variations uh on it so
+13:40 
+
+13:40 yellow or player two wants to create
+13:42 
+
+13:42 unintuitive and difficult positions
+13:46 
+
+13:46 because that's most likely what's going
+13:47 
+
+13:47 to get read to Forfeit the advantage
+13:49 
+
+13:49 that red is given by default
+13:52 
+
+13:52 um so sort of
+13:54 
+
+13:54 contrapositively you know you have the
+13:56 
+
+13:56 uh
+13:57 
+
+13:57 the fact that okay red wants simple
+13:59 
+
+13:59 openings right red wants to play
+14:01 
+
+14:01 something as simple as possible yellow
+14:03 
+
+14:03 wants the game to be as complicated as
+14:05 
+
+14:05 possible
+14:06 
+
+14:06 so uh for that that reason you know
+14:08 
+
+14:08 yellow might play something that's not
+14:10 
+
+14:10 on the center row
+14:12 
+
+14:12 um of course that doesn't mean go and
+14:13 
+
+14:13 play ridiculous things like this that's
+14:15 
+
+14:15 that's not a good idea
+14:17 
+
+14:17 so
+14:18 
+
+14:18 this is a good opening this is a good
+14:19 
+
+14:19 balance between
+14:21 
+
+14:21 um being an alright move and being a
+14:23 
+
+14:23 confusing move
+14:25 
+
+14:26 so okay
+14:27 
+
+14:27 um
+14:29 
+
+14:29 the way that you you end up thinking
+14:30 
+
+14:30 about openings is is you you'll sort of
+14:32 
+
+14:32 know what the correct responses to
+14:33 
+
+14:33 Things Are
+14:34 
+
+14:34 so in this case it turns out to be the
+14:36 
+
+14:36 case that the Right Moves for red are
+14:38 
+
+14:38 are very unintuitive a lot of the time
+14:40 
+
+14:40 red will play this or or this those are
+14:44 
+
+14:44 both wrong they both yield tie games
+14:46 
+
+14:46 under under perfect play
+14:48 
+
+14:48 um
+14:49 
+
+14:49 what what the right move is turns out to
+14:51 
+
+14:51 be this
+14:53 
+
+14:53 um
+14:54 
+
+14:54 so this this is the quote unquote
+14:56 
+
+14:56 correct response to the to this threat
+14:59 
+
+14:59 and not many people know that um unless
+15:01 
+
+15:01 they've explicitly studied the opening
+15:04 
+
+15:04 um
+15:05 
+
+15:05 it turns out actually this is also
+15:07 
+
+15:07 uh technically a win but uh it's it's
+15:09 
+
+15:09 much harder to uh to play it out so this
+15:13 
+
+15:13 is rarely played in practice
+15:16 
+
+15:16 um
+15:18 
+
+15:18 yeah so this this opening here uh yellow
+15:21 
+
+15:21 can Force Red to get into a rather
+15:23 
+
+15:23 awkward position and then it just makes
+15:24 
+
+15:24 some very confusing openings like this
+15:26 
+
+15:26 for example
+15:27 
+
+15:27 so
+15:29 
+
+15:29 um that's a way that you can use the
+15:30 
+
+15:30 opening to your advantage and you'll
+15:32 
+
+15:32 know sort of what what you should be
+15:34 
+
+15:34 doing in the position that you're in or
+15:36 
+
+15:36 how to respond if your opponent makes a
+15:38 
+
+15:38 move that's not uh standard on the
+15:41 
+
+15:41 opening so for example like if red plays
+15:43 
+
+15:43 this then uh Yellow by knowing opening
+15:46 
+
+15:46 Theory would know that this is the only
+15:47 
+
+15:47 correct move to play
+15:50 
+
+15:50 um
+15:51 
+
+15:51 so similarly
+15:54 
+
+15:54 um not just memorizing the the correct
+15:56 
+
+15:56 moves in any position you can also sort
+15:58 
+
+15:58 of know just what tends to happen uh
+16:02 
+
+16:02 given in the opening so for example I
+16:03 
+
+16:03 went over this let's say we're playing
+16:05 
+
+16:05 yellow in this in this position and red
+16:07 
+
+16:07 plays here so as I mentioned this is a
+16:08 
+
+16:08 tie game this is not the correct move
+16:10 
+
+16:11 for red but um we'll say the game
+16:13 
+
+16:13 continues like like this at this point
+16:16 
+
+16:16 this is uh this is a a game in favor of
+16:19 
+
+16:19 yellow and it turns out yellow can
+16:21 
+
+16:21 necessarily Force Owen on this diagonal
+16:24 
+
+16:24 line now
+16:26 
+
+16:26 um of course that's not by any means
+16:28 
+
+16:28 obvious but Having learned about
+16:31 
+
+16:31 openings you'll you'll start to realize
+16:32 
+
+16:32 things like this so I suggest knowing
+16:35 
+
+16:35 the names of openings and
+16:37 
+
+16:37 watching for when they happen in your
+16:40 
+
+16:40 game so that you can recognize patterns
+16:43 
+
+16:43 um and specifically I guess I'll just
+16:44 
+
+16:44 play out the uh
+16:46 
+
+16:46 the way that you get this win
+16:48 
+
+16:48 um
+16:49 
+
+16:49 you can you can do something like this
+16:51 
+
+16:51 um
+16:53 
+
+16:53 and we'll say I don't know red does red
+16:55 
+
+16:55 does that
+16:56 
+
+16:56 and yellow does this at this point
+16:59 
+
+16:59 yellow can actually just repeat all of
+17:01 
+
+17:01 Red's moves and it's guaranteed to yield
+17:03 
+
+17:03 this a win on this line so yellow can
+17:06 
+
+17:06 just
+17:07 
+
+17:07 do exactly what red does right back
+17:11 
+
+17:11 right back at him
+17:13 
+
+17:13 um so red does this you know I'm not
+17:15 
+
+17:15 even thinking about the order here
+17:16 
+
+17:16 because I already know what's going to
+17:17 
+
+17:17 happen
+17:18 
+
+17:18 um
+17:20 
+
+17:20 and it turns out sure enough red has to
+17:22 
+
+17:22 play here and on this second row major
+17:24 
+
+17:24 threat which benefits player two player
+17:27 
+
+17:27 two then gets the win on this line
+17:29 
+
+17:29 so only by having played this opening a
+17:33 
+
+17:33 million times and knowing that I'm
+17:34 
+
+17:34 playing it when I'm playing it
+17:36 
+
+17:36 um was I able to you know develop the
+17:39 
+
+17:39 understanding that okay this line is
+17:40 
+
+17:40 something to watch out for when I'm
+17:42 
+
+17:42 playing this opening so that's an
+17:44 
+
+17:44 example of opening Theory
+17:45 
+
+17:45 so yeah
+17:48 
+
+17:48 I've sort of gone into threat analysis
+17:50 
+
+17:50 common networks parity and and opening
+17:53 
+
+17:53 Theory and um I hope that's helpful I
+17:57 
+
+17:57 suggest playing a whole lot of games
+17:58 
+
+17:58 really I think the best way that you can
+18:00 
+
+18:00 use this information is to just play a
+18:02 
+
+18:02 lot of games of Connect Four and
+18:04 
+
+18:04 um
+18:05 
+
+18:05 think about these things actively while
+18:07 
+
+18:07 you're playing them in order to
+18:08 
+
+18:08 hopefully develop a better intuition as
+18:10 
+
+18:10 to how to apply these these theories in
+18:12 
+
+18:12 your own games
+18:14 
+
+18:14 I hope you enjoyed this has been two
+18:16 
+
+18:16 swap
+18:17 
+
+18:17 um
+18:18 
+
+18:18 let me know if you want to see more
+18:19 
+
+18:19 Connect Four content
+18:21 
+
+18:21 see ya

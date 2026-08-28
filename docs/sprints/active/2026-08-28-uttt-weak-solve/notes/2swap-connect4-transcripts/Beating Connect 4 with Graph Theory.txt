@@ -1,0 +1,150 @@
+00:00 So far we've been interested in strategies of connect 4,
+00:04 but now it's time to apply those strategies to get a structural understanding of the game.
+00:10 First of all, you're gonna have to get comfortable imagining the game as a tree.
+00:15 For a position of our choice, we draw a node.
+00:19 there are some moves that can be made from that position, which we'll represent as connected child nodes.
+00:25 Yellow can play in the left column,
+00:27 the next column over,
+00:30 and so on successively.
+00:33 We connect those new nodes to the root with yellow lines, since yellow was the one who played a move here.
+00:39 And from those positions, there are even more options that can be made, by Red this time, continuing the graph.
+00:46 In other words, every path through this graph represents a particular continuation from the existing board.
+00:52 Any set of moves that you could make is in this graph.
+00:56 As a result, it gets intractably large really quickly.
+00:59 At any position in the opening, there are 7 possible moves to make.
+01:04  So, at a depth of 0, the amount of nodes is 1 (that is, the empty board),
+01:08 at a depth of 1, the amount of nodes is 7 (the 7 openings),
+01:13 at a depth of 2, the amount of nodes is 49,
+01:16 and the progression continues exponentially.
+01:23 Now this is just a mess. You can't tell the structure of this graph whatsoever, and we're only 4 moves in.
+01:29 In fact, Stefan Edelkamp and Peter Kissmann computed in 2008 that there are a total of 4.
+01:33 5 trillion unique positions at any depth.
+01:35 We can do some tricks like de-duplicating based on horizontal symmetry,
+01:40 but that'll only remove less than half of the nodes, because we're only deleting one node per mirror pair.
+01:46 We're gonna need a bit of a paradigm shift if we wanna gain any insight from this tangled mess.
+01:50 Instead of growing the graph from the beginning of the game out,
+01:55 Let's start with an endgame position to make life a little easier on ourselves.
+01:59 This is a particular endgame.
+02:02 Let's see what it looks like when we expand out its full tree of positions.
+02:12 Now, I wanna focus on the nodes of this graph.
+02:15 Let's identify all the terminal states- that is, the nodes which have no children.
+02:20 In other words, we're identifying the games which either Red won,
+02:23 Yellow won,
+02:25 or completely filled without a winner, making it a tie.
+02:28 In the case of this endgame, there are some _paths_ that lead to a red victory,
+02:33 some _paths_ that lead to a Yellow victory,
+02:36 and some _paths_ that lead to the game becoming a tie.
+02:39 So, what we might wanna know is, who's favored in the root position? If both players play perfectly, who wins?
+02:46 We've constructed this graph, so how can we use it to play optimally from this position?
+02:52 We'll have to work our way up to that point.
+02:54 Consider this board, which is in the graph. The game hasn't ended yet, but it's about to.
+02:60 It's Red's move, with only one choice, which is to win the game.
+03:03 So, for all intents and purposes, we might as well color this node red too. Red'll win here.
+03:09 We can repeat this line of thinking for all the other moves which force the game into an ending state.
+03:23 Awesome! But, now, we're out of obvious nodes to fill in.
+03:27 What about this one?
+03:29 There's more than one choice, but both of the children have already been colored with a computed game result.
+03:35 If we show the edge colors again, we recall that it's yellow to move in this position.
+03:40 Looking at the children, one's yellow's win, and one's a tie.
+03:45 Well, Yellow will naturally take the win over a tie.
+03:49 Therefore, we can color this node as yellow.
+03:55 In general, a node's status is the best result of all the children, on behalf of the player whose move it is.
+04:02 The algorithm we just used is called Minimax.
+04:05 We've worked our way all the way back up to the endgame which we considered in the first place,
+04:10  and it turns out that it was a tie!
+04:12 This is called a strong solution.
+04:14  In a strong solution, we examine each possible board, and document what the result should be under optimal play.
+04:20 You can think of the strong solution as a dictionary of positions- you can look up a position,
+04:25  and the dictionary tells you who's favored there.
+04:27 If we already have a strong solution, we can use it to play optimally. Let's imagine we're playing as Red.
+04:33 Let's say Yellow plays in the 7th column.
+04:37 Now it's our turn, so we look at all the children of the current node, and choose the one with the best outcome.
+04:43 In our case here, one child's a tie, and one shows yellow winning.
+04:47 So, we'll choose the tied node, corresponding to a move in the 7th column.
+04:51 Yellow responds in the 5th column.
+04:54 We examine the new children here and play in the 5th column in response, which is the child node with the best outcome.
+04:60 Now yellow plays in column 7.
+05:03 In this case the children have the same outcome, so we can just pick one at random.
+05:08 Now, yellow only has one choice, which is to conclude the game as a tie.
+05:13 By doing this,
+05:14  we, as Red, made the best possible move at each turn, and therefore achieved the optimal result for this starting position.
+05:20 Now, instead of doing this selection of optimal branches while playing the game, we can do it upfront all at once.
+05:26 We consider each node for which it is Red's turn.
+05:30 For those nodes, we'll examine their edges, and from there, select an optimal child node.
+05:35 We can now delete all the other children.
+05:38 It's important to note that this is no longer a strong solution.
+05:42  There are positions which exist but which are no longer present in our graph.
+05:46 We've now chopped off all the variations which we wouldn't choose to play as Red.
+05:51 In the graph,
+05:51  this means that all the nodes for which it's Red's turn have only one Red edge coming out-
+05:57  namely the optimal one of our selection.
+05:59 But we haven't deleted any of the Yellow edges- you'll still notice that some nodes have multiple yellow children.
+06:05 This is because we still need to know how to respond to every possible branch which Yellow can concoct.
+06:11 What we've developed here is called a Weak solution (on behalf of Red.
+06:15 ) It doesn't contain all positions, but it contains enough for us to guarantee Red to play optimally.
+06:21 For that reason it shouldn't be a surprise that all the nodes which were yellow-to-win have been removed.
+06:26 That would've required a red blunder to get to, and we've removed all branches which contain red blunders.
+06:33 So the obvious question is, can we apply Minimax to the opening to determine who should win from the starting position?
+06:40 In theory, sure, but even with our modern computers, we can't do this for 4 trillion nodes. It's just too much.
+06:45 But by ignoring branches which are suboptimal _while traversing the graph in the first place_,
+06:50  along with a bunch of other tricks, this becomes doable.
+06:53 Using these strategies, Connect 4 was solved.
+06:56 We know that under optimal play, Red Wins, and only does so by starting with a disk in the center column.
+07:01 One space off to either side and it's a tie,
+07:05 and anywhere else, it's Yellow to win.
+07:08 But why?
+07:09 Knowing the game-theoretically-optimal move at any position's great,
+07:13  but it provides absolutely no insight into why this is the case.
+07:16 Lemme make an analogy.
+07:17  Imagine a prisoner is forced to memorize a deck of flash cards.
+07:21  On the front of each card is a 2-dimensional coordinate, and the back of the flash card is a hexadecimal number.
+07:27 The prison guard forgot to mention that the color codes on the back of the cards document the precise color of the Mona Lisa painting at those two coordinates,
+07:34  and, sadly, our prisoner was too caught up memorizing numbers to realize the structure underlying the data.
+07:39 You may call that prisoner the worlds leading expert on the Mona Lisa...
+07:43 At least in the sense that,
+07:44  if somebody held a contest to recreate the painting from memory, he'd win it, pixel-by-pixel.
+07:49  As long as the prison guard remembers to tell him that's what the data represents.
+07:53 But until that happens,
+07:54  if you were to go up to him and ask 'Is Mona Lisa's left hand on top of her right, or is it the other way around?
+07:60 ', he would have no idea.
+08:01 This analogy sort of illustrates the position we're in with our strong solution for connect 4.
+08:06 Just because we know these disparate facts about who wins in what scenario,
+08:10  we can't say we truly understand this system any better than before.
+08:13 What's more, this information is effectively incommunicable.
+08:16  Any solution tree is so big that you simply can't be bestowed that information.
+08:21 You can't realistically visualize it. You can't realistically memorize it.
+08:24 This position is pretty simple- the game is gonna end in 2 moves, and there are no choices to be made.
+08:31  Naturally, our graph is also extremely simple. Let's delete some discs from the board and see how the graphs grow.
+08:38 Ok, that's already getting a little bit bigger. I'll keep plucking off pieces and you can watch what happens.
+08:43 All the graphs are just gonna keep growing exponentially,
+08:46  with the strong solution being the biggest and the weak solution being the smallest.
+08:50 This should give some intuition that even if you claimed to have memorized a _weak_ solution tree of the whole game,
+08:55  merely verifying your memorization would likely take a lifetime.
+08:58 So, is there any way to rigorously unite the wisdom and intuition accrued by human experts with the output of this enormous algorithm?
+09:04 Well, a strong solution tells us everything that could be known, but weak solutions have a lot more room for creative expression.
+09:10 Take a close look at this particular weak solution- notice how it has a very regular structure?
+09:16 That's not because all weak solutions are well-structured,
+09:19  it's because I hand-picked this one with the intention for it to be simple.
+09:23 We can remove even more pieces and get a better view...
+09:26 Y'know how when your computer is storing files,
+09:29  structured information can easily be compressed and the filesize can be decreased?
+09:33 Can we immensely reduce the amount of information required to 'know' a weak solution,
+09:37  such that it doesn't require rote memorization?
+09:40 In other words, are there any particularly clever ways of representing such weak solutions?
+09:44  We can represent them graph-theoretically, but perhaps they can be expressed by other means?
+09:50 I'll give you a hint- Claimeven is the magic bullet here!
+09:53 We can use a positional language built on top of the idea of claimeven to concisely express solutions to positions which have a high degree of self-symmetry,
+10:00 and in doing so, we can get the full-board graph down from the trillions of nodes to the order of the tens of thousands.
+10:06 Or at least, I think so.
+10:07 .. I still haven't been able to perform this reduction for the entire graph. Still working on that technical challenge.
+10:13 But, what I can tell you for sure is that there's some real human openings which, using reduction by claimeven-
+10:19 like strategies, have weak solutions expressable with less than a thousand nodes.
+10:23  Not even a megabyte.
+10:24 And they're TOTALLY visualizable, and, if you wanna go there, memorizable too.
+10:28 This is a pretty big deal,
+10:30  because it formalizes the player's intuition of discrete variations or openings which are complex and worth learning.
+10:36  The offshooting lines in these graphs map onto them perfectly.
+10:40 I'll spoil this one here,
+10:41  but you'll have to stay tuned to see exactly how we accomplish this,
+10:44  as well as what we can learn about systems other than connect 4 from these compressed solutions.
+10:49 This has been 2swap.
