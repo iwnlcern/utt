@@ -1,0 +1,17 @@
+{
+  "engines": [
+    {
+      "id": "c4-engine",
+      "cmd": ["${BUILD}/uttt_engine"]
+    },
+    {
+      "id": "random",
+      "cmd": ["${PYTHON}", "${REFEREE}/bots/random_bot.py", "--seed", "4101"]
+    }
+  ],
+  "games_per_pair": 50,
+  "tournament_seed": "utt-c4-random-v1",
+  "time_ms": 2000,
+  "jobs": 4,
+  "out_dir": "/tmp/utt-c4-gauntlet-random"
+}

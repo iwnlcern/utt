@@ -1,0 +1,17 @@
+{
+  "engines": [
+    {
+      "id": "c4-engine",
+      "cmd": ["${BUILD}/uttt_engine"]
+    },
+    {
+      "id": "allin_tactical",
+      "cmd": ["${PYTHON}", "${REFEREE}/bots/allin_tactical_bot.py", "--seed", "4401"]
+    }
+  ],
+  "games_per_pair": 50,
+  "tournament_seed": "utt-c4-allin-tactical-v1",
+  "time_ms": 2000,
+  "jobs": 4,
+  "out_dir": "/tmp/utt-c4-gauntlet-allin-tactical"
+}
