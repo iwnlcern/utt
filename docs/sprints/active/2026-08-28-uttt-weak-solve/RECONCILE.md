@@ -60,3 +60,15 @@ Rejected findings: none.
 - R-s2-4 Fixtures schema v1 is frozen; s2 needs (alternating profile, certificate fixtures) land additively.
 
 Next lifecycle step: DESIGN dispatches s2-theory-c2 and s2-solver-c2 (GRILL_REQUIRED: yes on both — new-feature at large tier, cross-domain boundary contract, hard-to-reverse format/architecture decisions).
+
+### R2 — theory-c2 design-completion reconciliation (2026-08-28)
+
+Report: s2-theory/SITREP-pair-planner-20260828-112649.md (theory.planner).
+Verified by the orchestrator against disk/git before sequencing:
+
+- designs/DD-theory-c2-20260828.md sha256 = 629801c4b1cfc69f66390c47b72296d93867e46ac22ea142e9bfd2bdc8f41f0c (matches the relay's pin) at commit d692ac2 on main.
+- Approving review s2-theory/DESIGN-REVIEW-pair-implementer-20260828-051431.md: DISPATCH_ID s2-theory-c2-design-review-4, DESIGN_REVIEW_VERDICT approve, DESIGN_DOC_ID DD-theory-c2-20260828, parent s2-theory-c2-design-3, FROM theory.implementer TO theory.planner — lineage valid for the gated design-doc PLAN.
+- Grill ran per GRILL_REQUIRED; operator decisions G1–G8 (doc §10) are standing run rulings: dual boolean certificates; D4-only identity (color-swap out); partial certificates never deliverables; fully materialized certificate; XXH3-128 integrity-only digests; verdict manifest + N single-claim certificates; checker in C3 (newest stable, idiomatic).
+- Boundary effect: the schema seam DD-solver-c2 consumes is review-approved and byte-stable; relayed to solver.planner via CC on the proceed relay.
+
+Disposition: O1 (certificate schema + canonical/D4 spec) verified closed at design level; PROCEED-TO-PLAN s2-theory-c2-proceed-1 issued with delegated conditional dispatch authority.
