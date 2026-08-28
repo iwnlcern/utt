@@ -153,7 +153,7 @@ def _backup_fixture(
     return {
         "id": fixture_id,
         "game": "backup",
-        "consumed_by": ["theory"],
+        "consumed_by": ["engine", "theory"],
         "notes": notes,
         "a": _fraction_text(a),
         "b": _fraction_text(b),

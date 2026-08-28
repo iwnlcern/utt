@@ -146,3 +146,12 @@ def test_forced_closed_free_choice_fixture_excludes_engine_consumer():
     )
 
     assert fixture["consumed_by"] == ["harness", "theory"]
+
+
+def test_backup_cases_are_engine_contract():
+    # MR17 owner decision: theory-c1/SITREP-pair-planner-20260827-021436.md
+    envelope = json.loads(
+        (FIXTURES / "backup_cases.json").read_text(encoding="utf-8")
+    )
+    for fixture in envelope["fixtures"]:
+        assert fixture["consumed_by"] == ["engine", "theory"]
