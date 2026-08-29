@@ -71,4 +71,18 @@ Verified by the orchestrator against disk/git before sequencing:
 - Grill ran per GRILL_REQUIRED; operator decisions G1–G8 (doc §10) are standing run rulings: dual boolean certificates; D4-only identity (color-swap out); partial certificates never deliverables; fully materialized certificate; XXH3-128 integrity-only digests; verdict manifest + N single-claim certificates; checker in C3 (newest stable, idiomatic).
 - Boundary effect: the schema seam DD-solver-c2 consumes is review-approved and byte-stable; relayed to solver.planner via CC on the proceed relay.
 
-Disposition: O1 (certificate schema + canonical/D4 spec) verified closed at design level; PROCEED-TO-PLAN s2-theory-c2-proceed-1 issued with delegated conditional dispatch authority.
+Disposition: O1 (certificate schema + canonical/D4 spec) verified closed at design level; PROCEED-TO-PLAN issued (s2-theory-c2-proceed-2, superseding the lint-dirty proceed-1) with delegated conditional dispatch authority.
+
+### R3 — solver-c2 design-completion reconciliation (2026-08-29)
+
+Report: s2-solver/SITREP-pair-planner-20260829-021238.md (solver.planner).
+Verified by the orchestrator against disk/relays before sequencing:
+
+- designs/DD-solver-c2-20260828.md rev 6 sha256 = e5cd2ae3113e0f158480571e21b99e3da87ac36c7a8eda8db6cf870f9b1502c2 (matches the relay pin; was untracked — committed in this orchestrator batch so the PLAN can pin its source commit).
+- Approving review s2-solver/DESIGN-REVIEW-pair-implementer-20260829-013446.md: DISPATCH_ID s2-solver-c2-design-review-6, DESIGN_REVIEW_VERDICT approve, DESIGN_DOC_ID and DESIGN_SHA256 match current bytes, parent s2-solver-c2 — lineage valid; five must-revise rounds folded forward.
+- Grill lock GRILL-solver-c2-20260828: nine operator decisions of record (hand-rolled storage; D4-only; local-first scale seam; pluggable-kernel architecture with pre-registered ≥2×-or-B spike rule and no-decision default B; 3-day spike timebox; census ply 10 committed / 11 optioned; work-threshold durability; WIN_X-first with scheduling-only switch; single-threaded c3).
+  Still operator-owned: cloud vendor/box sizing at deep-run commissioning; ply-12 census extension on theory request.
+- Theory contract consumed at pinned digest 629801c4… — matches the byte-stable seam recorded in R2; obligation O5 (census, ply 10) is committed in doc §11 sequencing.
+
+Disposition: O4 verified closed at design level (and O5 committed into c3 scope); PROCEED-TO-PLAN s2-solver-c2-proceed-1 issued with delegated conditional dispatch authority.
+Observed in passing (not this section's subject): theory-c2 has advanced through gated PLAN (4 revisions), delegated IMPL (both seats), and REVIEW-FOLD relays — its merge-gate report is the next expected theory event.
