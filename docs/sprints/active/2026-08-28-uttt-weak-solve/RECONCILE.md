@@ -85,4 +85,16 @@ Verified by the orchestrator against disk/relays before sequencing:
 - Theory contract consumed at pinned digest 629801c4… — matches the byte-stable seam recorded in R2; obligation O5 (census, ply 10) is committed in doc §11 sequencing.
 
 Disposition: O4 verified closed at design level (and O5 committed into c3 scope); PROCEED-TO-PLAN s2-solver-c2-proceed-1 issued with delegated conditional dispatch authority.
+
+### R4 — theory-c2 merge receipt and bundle closure (2026-08-29)
+
+Claim: s2-theory/MERGE-GATE-pair-implementer-20260829-044446.md (dispatch s2-theory-c2-merge-1, pairing the orchestrator grant of the same id).
+Orchestrator verification: PR #12 state MERGED at 2026-08-29T11:40:01Z, merge commit 4df0bbeb583122e1f3e766bca2c215b9c6efa816 = origin/main (fresh gh + fetch); parents = pre-merge remote main 5e6ce1b + exact authorized head 4ac333c (head guard honored); claim evidence includes prospective-tree pre-test and actual-merge-commit re-test, both 141/141.
+
+- Verdict of record: merged-not-deployed; E2 is the terminal evidence class for this bundle (byte-pinned corpus, no deploy/live surface) — bundle theory-c2 CLOSED.
+- Landed: certificate-schema emitter-side package, byte-pinned positive vectors, 43-mutant corpus, deterministic catalogue/generator, fixtures-v1 compatibility coverage — the locked corpus the theory-c3 checker consumes.
+- Local/remote reconvergence: orchestration commits merged with origin/main at d598c5d; daemon-owned INDEX projection preserved without conflict.
+- Carried backlog into theory-c3: multi-reply OPPONENT positive P4 + dropped-reply mutant; catalogue count pin; R17 reason wording (accepted at grant as non-blocking).
+
+Next expected events: theory pair design/plan for c3 (independent checker, consuming the landed corpus); solver-c3 plan-review outcome under the delegated conditions of proceed-1.
 Observed in passing (not this section's subject): theory-c2 has advanced through gated PLAN (4 revisions), delegated IMPL (both seats), and REVIEW-FOLD relays — its merge-gate report is the next expected theory event.
