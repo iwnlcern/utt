@@ -94,3 +94,67 @@ def canonicalize(s: State) -> tuple:
         if best is None or serialized < best.serialize():
             best, best_g = transformed, g
     return best, best_g
+
+
+def legal_moves(s: State):
+    if terminal(s) is not None:
+        return []
+    boards = (
+        [s.forced]
+        if s.forced != ANY
+        else [b for b in range(9) if not s.board_closed(b)]
+    )
+    moves = []
+    for b in boards:
+        occupied = s.x[b] | s.o[b]
+        for c in range(9):
+            if not occupied >> c & 1:
+                moves.append((b, c))
+    return moves
+
+
+def apply_for(s: State, b: int, c: int, side: str) -> State:
+    # Explicit-mover apply: fixture states need not respect alternation parity.
+    if side not in ("X", "O"):
+        raise ValueError(side)
+    if (b, c) not in legal_moves(s):
+        raise ValueError(f"illegal move ({b},{c})")
+    x, o = list(s.x), list(s.o)
+    (x if side == "X" else o)[b] |= 1 << c
+    child = State(x=tuple(x), o=tuple(o), forced=c)
+    if child.board_closed(c):
+        child = State(x=child.x, o=child.o, forced=ANY)
+    return child
+
+
+def apply_move(s: State, b: int, c: int) -> State:
+    return apply_for(s, b, c, s.side_to_move())
+
+
+def board_result(s: State, b: int):
+    if _won(s.x[b]):
+        return "X"
+    if _won(s.o[b]):
+        return "O"
+    if (s.x[b] | s.o[b]).bit_count() == 9:
+        return "full"
+    return None
+
+
+def _macro_win(s: State, side: str) -> bool:
+    masks = s.x if side == "X" else s.o
+    macro = 0
+    for b in range(9):
+        if _won(masks[b]):
+            macro |= 1 << b
+    return _won(macro)
+
+
+def terminal(s: State):
+    if _macro_win(s, "X"):
+        return "X"
+    if _macro_win(s, "O"):
+        return "O"
+    if all(s.board_closed(b) for b in range(9)):
+        return "draw"
+    return None
