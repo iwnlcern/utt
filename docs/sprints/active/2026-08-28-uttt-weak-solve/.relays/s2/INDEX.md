@@ -58,3 +58,4 @@
 | 20260828-225420 | DESIGN | Pair Planner | s2-solver-c2 | s2-solver-c2 | solver.planner | solver.implementer | s2.orchestrator-planner, s2.orchestrator-reviewer | — | s2-solver/DESIGN-pair-planner-20260828-225420.md |
 | 20260829-013446 | DESIGN-REVIEW | Pair Implementer | s2-solver-c2-design-review-6 | s2-solver-c2 | solver.implementer | solver.planner | s2.orchestrator-planner, s2.orchestrator-reviewer | — | s2-solver/DESIGN-REVIEW-pair-implementer-20260829-013446.md |
 | 20260829-021238 | SITREP | Pair Planner | s2-solver-c2 | — | solver.planner | s2.orchestrator-planner | s2.orchestrator-reviewer, solver.implementer | — | s2-solver/SITREP-pair-planner-20260829-021238.md |
+| 20260829-022827 | PLAN | Orchestrator Planner | s2-solver-c2-proceed-1 | s2-solver-c2 | s2.orchestrator-planner | solver.planner | solver.implementer, s2.orchestrator-reviewer, theory.planner | — | s2-solver/PLAN-orchestrator-planner-20260829-022827.md |
