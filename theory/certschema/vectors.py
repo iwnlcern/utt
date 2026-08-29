@@ -524,6 +524,8 @@ def _change_kind(blob: bytes, old: int, new: int) -> bytes:
     def edit(cert):
         _row, record = _first_fixed(cert, kind=old)
         record[37] = new
+        if new != KIND["PROVER"]:
+            record[38] = 0xFF
 
     return _model_mutation(blob, edit)
 
@@ -560,7 +562,13 @@ def _r15(blob: bytes) -> bytes:
 
 def _r17(blob: bytes) -> bytes:
     def edit(cert):
-        cert.rows[0].chunk.fixed_count = 2
+        row = cert.rows[0]
+        # Keep the chunk fully parseable: the sole target is the manifest's
+        # record_count (1) disagreeing with fixed_count + rule_count (2).
+        row.chunk.fixed_records.append(
+            bytearray(Record(alt_root(), KIND["TERMINAL"], 0xFF).encode())
+        )
+        row.chunk.fixed_count = 2
 
     return _model_mutation(blob, edit)
 
