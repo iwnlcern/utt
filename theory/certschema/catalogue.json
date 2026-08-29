@@ -1,0 +1,422 @@
+{
+  "ruleset_id": "uttt-s2-r1",
+  "schema": "certschema-catalogue-v0",
+  "vectors": [
+    {
+      "dd_ref": "Appendix B",
+      "file": "vectors/golden-terminal-winx.utc",
+      "id": "P1",
+      "kind": "positive"
+    },
+    {
+      "dd_ref": "\u00a73.2 PROVER",
+      "file": "vectors/p2-prover-winx.utc",
+      "id": "P2",
+      "kind": "positive"
+    },
+    {
+      "dd_ref": "\u00a73.2 OPPONENT",
+      "file": "vectors/p3-opponent-winx.utc",
+      "id": "P3",
+      "kind": "positive"
+    },
+    {
+      "dd_ref": "Appendix B",
+      "file": "vectors/golden-winx.utv",
+      "id": "V1",
+      "kind": "positive-verdict-subgame"
+    },
+    {
+      "dd_ref": "\u00a77/\u00a79",
+      "file": null,
+      "id": "GATE-01",
+      "kind": "gate",
+      "note": "deliverable-mode root predicate; unit-level in c3"
+    },
+    {
+      "dd_ref": "\u00a77/\u00a79",
+      "file": "vectors/golden-winx.utv",
+      "id": "GATE-02",
+      "kind": "gate",
+      "note": "must pass subgame mode, fail deliverable mode"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H01.bin",
+      "id": "MUT-H01",
+      "kind": "mutant",
+      "reason": "bad certificate magic"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H02.bin",
+      "id": "MUT-H02",
+      "kind": "mutant",
+      "reason": "unsupported schema minor"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H03.bin",
+      "id": "MUT-H03",
+      "kind": "mutant",
+      "reason": "unknown claim tag"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H04.bin",
+      "id": "MUT-H04",
+      "kind": "mutant",
+      "reason": "nonzero header reserved byte"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H05.bin",
+      "id": "MUT-H05",
+      "kind": "mutant",
+      "reason": "ruleset digest mismatch"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H06.bin",
+      "id": "MUT-H06",
+      "kind": "mutant",
+      "reason": "unknown symmetry id"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H07.bin",
+      "id": "MUT-H07",
+      "kind": "mutant",
+      "reason": "non-canonical root state"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H08.bin",
+      "id": "MUT-H08",
+      "kind": "mutant",
+      "reason": "nonempty v0 rule registry"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H09.bin",
+      "id": "MUT-H09",
+      "kind": "mutant",
+      "reason": "zero manifest rows"
+    },
+    {
+      "base": "p3",
+      "dd_ref": "\u00a74.3/\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H10.bin",
+      "id": "MUT-H10",
+      "kind": "mutant",
+      "reason": "descending manifest order violation"
+    },
+    {
+      "base": "p3",
+      "dd_ref": "\u00a74.3/\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H11.bin",
+      "id": "MUT-H11",
+      "kind": "mutant",
+      "reason": "first chunk offset gap"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H12.bin",
+      "id": "MUT-H12",
+      "kind": "mutant",
+      "reason": "manifest digest mismatch"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a74.3/\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H13.bin",
+      "id": "MUT-H13",
+      "kind": "mutant",
+      "reason": "nonzero manifest flags"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a74.3/\u00a76.1",
+      "expected": "reject",
+      "file": "mutants/MUT-H14.bin",
+      "id": "MUT-H14",
+      "kind": "mutant",
+      "reason": "manifest ply above 80"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R01.bin",
+      "id": "MUT-R01",
+      "kind": "mutant",
+      "reason": "duplicate canonical state"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R02.bin",
+      "id": "MUT-R02",
+      "kind": "mutant",
+      "reason": "non-canonical record state"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a72.6/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R03.bin",
+      "id": "MUT-R03",
+      "kind": "mutant",
+      "reason": "overlapping X and O masks"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a72.6/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R04.bin",
+      "id": "MUT-R04",
+      "kind": "mutant",
+      "reason": "forced board is closed"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R05.bin",
+      "id": "MUT-R05",
+      "kind": "mutant",
+      "reason": "record mark count differs from chunk ply"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a74.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R06.bin",
+      "id": "MUT-R06",
+      "kind": "mutant",
+      "reason": "nonzero record reserved byte"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a74.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R07.bin",
+      "id": "MUT-R07",
+      "kind": "mutant",
+      "reason": "non-PROVER payload is not 0xFF"
+    },
+    {
+      "base": "p2",
+      "dd_ref": "\u00a73.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R08.bin",
+      "id": "MUT-R08",
+      "kind": "mutant",
+      "reason": "illegal occupied PROVER move"
+    },
+    {
+      "base": "p2",
+      "dd_ref": "\u00a73.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R09.bin",
+      "id": "MUT-R09",
+      "kind": "mutant",
+      "reason": "PROVER child absent"
+    },
+    {
+      "base": "p3",
+      "dd_ref": "\u00a73.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R10.bin",
+      "id": "MUT-R10",
+      "kind": "mutant",
+      "reason": "OPPONENT reply missing"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a73.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R11.bin",
+      "id": "MUT-R11",
+      "kind": "mutant",
+      "reason": "terminal does not satisfy WIN_O"
+    },
+    {
+      "base": "p2",
+      "dd_ref": "\u00a73.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R12.bin",
+      "id": "MUT-R12",
+      "kind": "mutant",
+      "reason": "non-terminal state marked TERMINAL"
+    },
+    {
+      "base": "p2",
+      "dd_ref": "\u00a73.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R13.bin",
+      "id": "MUT-R13",
+      "kind": "mutant",
+      "reason": "kind inconsistent with side to move"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a75/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R14.bin",
+      "id": "MUT-R14",
+      "kind": "mutant",
+      "reason": "RULE record in a v0 stream"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a74.3/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R15.bin",
+      "id": "MUT-R15",
+      "kind": "mutant",
+      "reason": "chunk digest mismatch"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a74.3/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R16.bin",
+      "id": "MUT-R16",
+      "kind": "mutant",
+      "reason": "trailing bytes"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a74.3/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R17.bin",
+      "id": "MUT-R17",
+      "kind": "mutant",
+      "reason": "chunk count mismatch"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a74.3/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R18.bin",
+      "id": "MUT-R18",
+      "kind": "mutant",
+      "reason": "streamed totals mismatch"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R19.bin",
+      "id": "MUT-R19",
+      "kind": "mutant",
+      "reason": "declared root absent"
+    },
+    {
+      "base": "p1",
+      "dd_ref": "\u00a74.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R20.bin",
+      "id": "MUT-R20",
+      "kind": "mutant",
+      "reason": "RULE kind in fixed section"
+    },
+    {
+      "base": "verdict",
+      "dd_ref": "\u00a77",
+      "expected": "reject",
+      "file": "mutants/MUT-V01.bin",
+      "id": "MUT-V01",
+      "kind": "mutant",
+      "reason": "bad verdict magic"
+    },
+    {
+      "base": "verdict",
+      "dd_ref": "\u00a77/\u00a74.5",
+      "expected": "reject",
+      "file": "mutants/MUT-V02.bin",
+      "id": "MUT-V02",
+      "kind": "mutant",
+      "reason": "parent path segment"
+    },
+    {
+      "base": "verdict",
+      "dd_ref": "\u00a77.2",
+      "expected": "reject",
+      "file": "mutants/MUT-V03.bin",
+      "id": "MUT-V03",
+      "kind": "mutant",
+      "reason": "member target absent"
+    },
+    {
+      "base": "verdict",
+      "dd_ref": "\u00a77.4",
+      "expected": "reject",
+      "file": "mutants/MUT-V04.bin",
+      "id": "MUT-V04",
+      "kind": "mutant",
+      "reason": "member header digest mismatch"
+    },
+    {
+      "base": "verdict",
+      "dd_ref": "\u00a77.5",
+      "expected": "reject",
+      "file": "mutants/MUT-V05.bin",
+      "id": "MUT-V05",
+      "kind": "mutant",
+      "reason": "member claim mismatch"
+    },
+    {
+      "base": "verdict",
+      "dd_ref": "\u00a77.1",
+      "expected": "reject",
+      "file": "mutants/MUT-V06.bin",
+      "id": "MUT-V06",
+      "kind": "mutant",
+      "reason": "unknown member claim tag"
+    },
+    {
+      "base": "verdict",
+      "dd_ref": "\u00a77.6",
+      "expected": "reject",
+      "file": "mutants/MUT-V07.bin",
+      "id": "MUT-V07",
+      "kind": "mutant",
+      "reason": "member and manifest roots differ"
+    },
+    {
+      "base": "verdict",
+      "dd_ref": "\u00a77.7",
+      "expected": "reject",
+      "file": "mutants/MUT-V08.bin",
+      "id": "MUT-V08",
+      "kind": "mutant",
+      "reason": "draw completeness multiset violation"
+    }
+  ]
+}
