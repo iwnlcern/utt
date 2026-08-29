@@ -347,6 +347,15 @@
       "reason": "RULE kind in fixed section"
     },
     {
+      "base": "p1",
+      "dd_ref": "\u00a73.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R21.bin",
+      "id": "MUT-R21",
+      "kind": "mutant",
+      "reason": "terminal state marked OPPONENT"
+    },
+    {
       "base": "verdict",
       "dd_ref": "\u00a77",
       "expected": "reject",

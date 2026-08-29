@@ -693,6 +693,7 @@ MUTANTS = {
     "MUT-R18": MutantSpec("p1", "§4.3/§6.4", "streamed totals mismatch", _r18),
     "MUT-R19": MutantSpec("p1", "§6.4", "declared root absent", _r19),
     "MUT-R20": MutantSpec("p1", "§4.2/§6.4", "RULE kind in fixed section", lambda b: _change_kind(b, KIND["TERMINAL"], KIND["RULE"])),
+    "MUT-R21": MutantSpec("p1", "§3.2/§6.4", "terminal state marked OPPONENT", lambda b: _change_kind(b, KIND["TERMINAL"], KIND["OPPONENT"])),
     "MUT-V01": MutantSpec("verdict", "§7", "bad verdict magic", lambda b: _patch(b, 0, 0x56)),
     "MUT-V02": MutantSpec("verdict", "§7/§4.5", "parent path segment", _v02),
     "MUT-V03": MutantSpec("verdict", "§7.2", "member target absent", _v03),
