@@ -7,6 +7,9 @@ import std::collections::list;
 import std::collections::map;
 import std::core::bitorder;
 import std::bits;
+import std::io;
+import std::io::file;
+import std::io::path;
 
 struct FailPosition
 {
@@ -351,5 +354,293 @@ fn VerifyResult verify_certificate(char[] blob)
     result.code = "OK";
     result.fail_position = { -1, -1, -1 };
     result.orphans = nodes.size - reachable_count;
+    return result;
+}
+
+enum Mode : char
+{
+    DELIVERABLE,
+    SUBGAME,
+}
+
+struct VerdictResult
+{
+    bool ok;
+    String code;
+    FailPosition fail_position;
+    char game_value;
+    ushort schema_major;
+    ushort schema_minor;
+    String ruleset_id;
+    char[16] ruleset_digest;
+    String symmetry_id;
+    char[37] root;
+    bool root_is_initial;
+    sz member_count;
+    VerifyResult certificate;
+}
+
+struct VerdictMember
+{
+    char claim;
+    String path;
+    char[16] header_digest;
+    sz offset;
+}
+
+struct VerdictReader
+{
+    char[] blob;
+    sz position;
+}
+
+fn bool verdict_available(VerdictReader* reader, sz count)
+{
+    return count <= reader.blob.len - reader.position;
+}
+
+fn ushort verdict_u16(VerdictReader* reader)
+{
+    ushort value = bitorder::read(reader.blob[reader.position:2], UShortLE);
+    reader.position += 2;
+    return value;
+}
+
+fn bool verdict_string(VerdictReader* reader, String* output, sz max_length, bool ascii_only)
+{
+    if (!verdict_available(reader, 2)) return false;
+    ushort length = verdict_u16(reader);
+    if (length < 1 || length > max_length || !verdict_available(reader, length)) return false;
+    char[] bytes = reader.blob[reader.position:length];
+    if (ascii_only)
+    {
+        foreach (byte : bytes) if (byte < 0x21 || byte > 0x7e) return false;
+    }
+    reader.position += length;
+    *output = (String)bytes;
+    return true;
+}
+
+fn bool valid_utf8(String value)
+{
+    for (sz i = 0; i < value.len;)
+    {
+        uint first = value[i++];
+        if (first < 0x80)
+        {
+            if (first == 0) return false;
+            continue;
+        }
+        sz continuation;
+        uint minimum;
+        uint codepoint;
+        if (first >= 0xc2 && first <= 0xdf)
+        {
+            continuation = 1;
+            minimum = 0x80;
+            codepoint = first & 0x1f;
+        }
+        else if (first >= 0xe0 && first <= 0xef)
+        {
+            continuation = 2;
+            minimum = 0x800;
+            codepoint = first & 0x0f;
+        }
+        else if (first >= 0xf0 && first <= 0xf4)
+        {
+            continuation = 3;
+            minimum = 0x10000;
+            codepoint = first & 0x07;
+        }
+        else { return false; }
+        if (i + continuation > value.len) return false;
+        for (sz j = 0; j < continuation; j++)
+        {
+            uint next = value[i++];
+            if ((next & 0xc0) != 0x80) return false;
+            codepoint = (codepoint << 6) | (next & 0x3f);
+        }
+        if (codepoint < minimum || codepoint > 0x10ffff) return false;
+        if (codepoint >= 0xd800 && codepoint <= 0xdfff) return false;
+    }
+    return true;
+}
+
+fn bool valid_member_path(String member_path)
+{
+    if (!valid_utf8(member_path) || member_path[0] == '/' || member_path[member_path.len - 1] == '/') return false;
+    sz segment_start;
+    for (sz i = 0; i <= member_path.len; i++)
+    {
+        if (i < member_path.len && member_path[i] == '\\') return false;
+        if (i < member_path.len && member_path[i] != '/') continue;
+        sz length = i - segment_start;
+        if (length == 0) return false;
+        String segment = member_path[segment_start:length];
+        if (segment == "." || segment == "..") return false;
+        segment_start = i + 1;
+    }
+    return true;
+}
+
+fn VerdictResult verdict_reject(VerdictResult result, String code, long byte_offset = -1)
+{
+    result.ok = false;
+    result.code = code;
+    result.fail_position = { byte_offset, -1, -1 };
+    return result;
+}
+
+fn bool verdict_root_valid(char[37] root_bytes)
+{
+    game::State root = game::deserialize(root_bytes);
+    return root.well_formed() && same_state(root, game::canonical(root));
+}
+
+fn VerdictResult verify_verdict(String manifest_path, Mode mode)
+{
+    VerdictResult result = {
+        .ok = false,
+        .code = "EV_PARSE",
+        .fail_position = { 0, -1, -1 },
+    };
+    char[]? loaded_manifest = file::load_temp(manifest_path);
+    if (catch loaded_manifest) return verdict_reject(result, "EV_PARSE", 0);
+    char[] blob = loaded_manifest;
+    VerdictReader reader = { blob, 0 };
+
+    if (!verdict_available(&reader, 8) || (String)blob[:8] != "UTTTVRDT")
+    {
+        return verdict_reject(result, "EV_PARSE", 0);
+    }
+    reader.position = 8;
+    if (!verdict_available(&reader, 4)) return verdict_reject(result, "EV_PARSE", reader.position);
+    result.schema_major = verdict_u16(&reader);
+    result.schema_minor = verdict_u16(&reader);
+    if (result.schema_major != 0 || result.schema_minor != 1)
+    {
+        return verdict_reject(result, "EV_PARSE", 8);
+    }
+    if (!verdict_available(&reader, 4)) return verdict_reject(result, "EV_PARSE", reader.position);
+    result.game_value = blob[reader.position++];
+    if (result.game_value > 2) return verdict_reject(result, "EV_PARSE", reader.position - 1);
+    for (sz i = 0; i < 3; i++)
+    {
+        if (blob[reader.position + i] != 0) return verdict_reject(result, "EV_PARSE", reader.position + i);
+    }
+    reader.position += 3;
+
+    sz field_offset = reader.position;
+    if (!verdict_string(&reader, &result.ruleset_id, 64, true)
+        || result.ruleset_id != wire::RULESET_ID)
+    {
+        return verdict_reject(result, "EV_PARSE", field_offset);
+    }
+    if (!verdict_available(&reader, 16)) return verdict_reject(result, "EV_PARSE", reader.position);
+    result.ruleset_digest[..] = blob[reader.position:16];
+    if (result.ruleset_digest[..] != wire::RULESET_DIGEST[..])
+    {
+        return verdict_reject(result, "EV_PARSE", reader.position);
+    }
+    reader.position += 16;
+
+    field_offset = reader.position;
+    if (!verdict_string(&reader, &result.symmetry_id, 64, true)
+        || result.symmetry_id != wire::SYMMETRY_ID)
+    {
+        return verdict_reject(result, "EV_PARSE", field_offset);
+    }
+    if (!verdict_available(&reader, 38)) return verdict_reject(result, "EV_PARSE", reader.position);
+    result.root[..] = blob[reader.position:37];
+    if (!verdict_root_valid(result.root)) return verdict_reject(result, "EV_PARSE", reader.position);
+    result.root_is_initial = is_initial_root(result.root);
+    reader.position += 37;
+    char member_count = blob[reader.position++];
+    result.member_count = member_count;
+
+    List { VerdictMember } members;
+    members.tinit(member_count > 0 ? member_count : 1);
+    for (char i = 0; i < member_count; i++)
+    {
+        VerdictMember member = { .offset = reader.position };
+        if (!verdict_available(&reader, 1)) return verdict_reject(result, "EV_PARSE", reader.position);
+        member.claim = blob[reader.position++];
+        field_offset = reader.position;
+        if (!verdict_string(&reader, &member.path, 4096, false))
+        {
+            return verdict_reject(result, "EV_PARSE", field_offset);
+        }
+        if (!verdict_available(&reader, 16)) return verdict_reject(result, "EV_PARSE", reader.position);
+        member.header_digest[..] = blob[reader.position:16];
+        reader.position += 16;
+        members.push(member);
+    }
+    if (reader.position != blob.len) return verdict_reject(result, "EV_PARSE", reader.position);
+    for (sz i = 0; i < members.size; i++)
+    {
+        if (members[i].claim > 3) return verdict_reject(result, "EV_MEMBER_TAG", members[i].offset);
+    }
+
+    Path manifest = path::tnew(manifest_path)!!;
+    Path directory = path::tnew(manifest.dirname())!!;
+    char[4] certified_claims;
+    for (sz i = 0; i < members.size; i++)
+    {
+        VerdictMember member = members[i];
+        if (!valid_member_path(member.path))
+        {
+            return verdict_reject(result, "EV_MEMBER_PATH", member.offset + 1);
+        }
+        Path member_path = directory.tappend(member.path)!!;
+        char[]? loaded_member = file::load_path_temp(member_path);
+        if (catch loaded_member) return verdict_reject(result, "EV_MEMBER_ABSENT", member.offset + 1);
+        char[] member_blob = loaded_member;
+        VerifyResult certificate = verify_certificate(member_blob);
+        if (!certificate.ok)
+        {
+            result.certificate = certificate;
+            result.ok = false;
+            result.code = certificate.code;
+            result.fail_position = certificate.fail_position;
+            return result;
+        }
+        if (certificate.header_digest[..] != member.header_digest[..])
+        {
+            return verdict_reject(result, "EV_MEMBER_DIGEST", member.offset + 1 + 2 + member.path.len);
+        }
+        if (member.claim != certificate.claim)
+        {
+            return verdict_reject(result, "EV_CLAIM_BINDING", member.offset);
+        }
+        if (certificate.schema_major != result.schema_major
+            || certificate.schema_minor != result.schema_minor
+            || certificate.ruleset_id != result.ruleset_id
+            || certificate.ruleset_digest[..] != result.ruleset_digest[..]
+            || certificate.symmetry_id != result.symmetry_id
+            || certificate.root[..] != result.root[..])
+        {
+            return verdict_reject(result, "EV_FIELD_MISMATCH", member.offset);
+        }
+        result.certificate = certificate;
+        certified_claims[member.claim]++;
+    }
+
+    bool complete;
+    switch (result.game_value)
+    {
+        case 0: complete = members.size == 1 && certified_claims[0] == 1;
+        case 1: complete = members.size == 2 && certified_claims[2] == 1 && certified_claims[3] == 1;
+        case 2: complete = members.size == 1 && certified_claims[1] == 1;
+        default: unreachable();
+    }
+    if (!complete) return verdict_reject(result, "EV_COMPLETENESS", (long)blob.len);
+    if (mode == Mode.DELIVERABLE && !result.root_is_initial)
+    {
+        return verdict_reject(result, "EV_ROOT_NOT_INITIAL", (long)blob.len);
+    }
+
+    result.ok = true;
+    result.code = "OK";
+    result.fail_position = { -1, -1, -1 };
     return result;
 }
