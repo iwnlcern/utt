@@ -209,6 +209,19 @@ def test_orphan_island_reported_not_failed(checker: Checker, tmp_path: pathlib.P
     assert result.exit == 0 and result.json["orphans"] == 1
 
 
+def test_long_chunk_digest_is_checked_with_emitter_bytes(
+    checker: Checker, tmp_path: pathlib.Path
+):
+    blob = emitter_vectors.build_long_digest_probe()
+    parsed = emitter_vectors.parse_cert(blob)
+    assert max(row.byte_length for row in parsed.rows) > 240
+
+    path = tmp_path / "long-digest.utc"
+    path.write_bytes(blob)
+    result = checker.cert(path)
+    assert result.exit == 1 and result.json["code"] == "E_DUP_STATE"
+
+
 def test_repeated_verification_is_semantically_deterministic(checker: Checker):
     first = checker.cert(VEC / "p4-opponent2-winx.utc").json
     second = checker.cert(VEC / "p4-opponent2-winx.utc").json
@@ -230,5 +243,14 @@ def test_usage_and_top_level_io_errors_exit_two(checker: Checker, tmp_path: path
 
 
 def test_missing_verdict_member_is_semantic_reject(checker: Checker):
+    # Members are resolved and fully verified one at a time; keep this
+    # member-major order rather than hoisting resolution into a separate pass.
     result = checker.verdict(MUT / "MUT-V03.bin", mode="subgame")
     assert result.exit == 1 and result.json["code"] == "EV_MEMBER_ABSENT"
+
+
+def test_verdict_path_normalization_fault_is_semantic_reject(checker: Checker):
+    pathological = "/.." + str(VEC / "golden-winx.utv")
+    result = checker.run("verdict", pathological, "--mode", "subgame")
+    assert result.exit == 1 and result.json["code"] == "EV_PARSE"
+    assert result.stdout.count("\n") == 1

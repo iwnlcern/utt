@@ -413,6 +413,21 @@ def append_orphan_terminal(blob: bytes) -> bytes:
     return _model_mutation(blob, edit)
 
 
+def build_long_digest_probe() -> bytes:
+    """Emit a six-record chunk whose correctly sealed digest spans >240 bytes."""
+
+    def edit(cert):
+        row = next(row for row in cert.rows if row.ply == 17)
+        record = bytes(row.chunk.fixed_records[0])
+        row.chunk.fixed_records.extend(bytearray(record) for _ in range(5))
+        row.chunk.fixed_count = 6
+        row.record_count = 6
+
+    blob = _model_mutation(build_p1(), edit)
+    assert max(row.byte_length for row in parse_cert(blob).rows) > 240
+    return blob
+
+
 def _patch(blob: bytes, offset: int, value: int) -> bytes:
     edited = bytearray(blob)
     edited[offset] = value

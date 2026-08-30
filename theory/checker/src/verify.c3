@@ -302,7 +302,6 @@ fn VerifyResult verify_certificate(char[] blob)
             nodes.push({ state, kind, payload });
             streamed_totals[kind]++;
         }
-        streamed_totals[3] += rule_count;
     }
 
     if (streamed_totals[..] != header.totals[..])
@@ -581,8 +580,12 @@ fn VerdictResult verify_verdict(String manifest_path, Mode mode)
         if (members[i].claim > 3) return verdict_reject(result, "EV_MEMBER_TAG", members[i].offset);
     }
 
-    Path manifest = path::tnew(manifest_path)!!;
-    Path directory = path::tnew(manifest.dirname())!!;
+    Path? parsed_manifest = path::tnew(manifest_path);
+    if (catch parsed_manifest) return verdict_reject(result, "EV_PARSE", 0);
+    Path manifest = parsed_manifest;
+    Path? parsed_directory = path::tnew(manifest.dirname());
+    if (catch parsed_directory) return verdict_reject(result, "EV_PARSE", 0);
+    Path directory = parsed_directory;
     char[4] certified_claims;
     for (sz i = 0; i < members.size; i++)
     {
@@ -591,7 +594,12 @@ fn VerdictResult verify_verdict(String manifest_path, Mode mode)
         {
             return verdict_reject(result, "EV_MEMBER_PATH", member.offset + 1);
         }
-        Path member_path = directory.tappend(member.path)!!;
+        Path? appended_member = directory.tappend(member.path);
+        if (catch appended_member)
+        {
+            return verdict_reject(result, "EV_MEMBER_PATH", member.offset + 1);
+        }
+        Path member_path = appended_member;
         char[]? loaded_member = file::load_path_temp(member_path);
         if (catch loaded_member) return verdict_reject(result, "EV_MEMBER_ABSENT", member.offset + 1);
         char[] member_blob = loaded_member;

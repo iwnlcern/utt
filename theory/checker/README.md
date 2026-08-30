@@ -41,6 +41,13 @@ passes exit 0, semantic or structural rejects exit 1, and usage or top-level
 I/O errors exit 2. `verdict` accepts `--mode deliverable|subgame` and defaults
 to `deliverable`.
 
+Verdict member paths are length-prefixed byte strings of 1 through 4096 bytes;
+an out-of-range length is a structural `EV_PARSE` reject. A parsed path must be
+valid UTF-8 and relative, with no empty, `.` or `..` segment. Backslashes are
+rejected deliberately on every host so a manifest cannot change meaning across
+POSIX and Windows. A malformed top-level verdict path that cannot be represented
+by the checker path API is likewise an `EV_PARSE` reject.
+
 From `theory`, run the corpus-wide checker battery or the complete theory suite:
 
 ```sh
@@ -61,3 +68,13 @@ The normative first-failure order and reason-code table are recorded in
 an in-memory verified-state set. External-memory verification, sharding, and
 performance work belong to theory-c6 and are intentionally outside this
 project.
+
+Verdict members are processed member-major: each member is resolved and fully
+verified before resolution begins for the next member. Do not hoist the checks
+into step-major passes across all members, because that changes first-failure
+precedence.
+
+A zero-mark state encoded with `forced=ANY` is only a pseudo-root. Appendix A
+rule 2 is modeled by the canonical initial state with `forced=4`, and the
+deliverable-mode root gate requires that state; this clarification does not
+change move legality.
