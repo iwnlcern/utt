@@ -7,6 +7,7 @@ from certschema.vectors import (
     build_p1,
     build_p2,
     build_p3,
+    build_p4,
     catalogue,
     parse_cert,
     rebuild,
@@ -15,7 +16,7 @@ from certschema.xxh import xxh3_128
 
 EXPECTED_IDS = (
     [f"MUT-H{i:02d}" for i in range(1, 15)]
-    + [f"MUT-R{i:02d}" for i in range(1, 22)]
+    + [f"MUT-R{i:02d}" for i in range(1, 23)]
     + [f"MUT-V{i:02d}" for i in range(1, 9)]
 )
 
@@ -102,6 +103,16 @@ EXPECTED_CHANGED_FIELDS = {
     "MUT-R19": {"cert.root_state"},
     "MUT-R20": {"cert.totals"} | FIXED_RECORD_FIELDS,
     "MUT-R21": {"cert.totals"} | FIXED_RECORD_FIELDS,
+    "MUT-R22": {
+        "cert.totals",
+        "chunk.fixed_count",
+        "chunk.fixed_records",
+        "manifest.byte_length",
+        "manifest.byte_offset",
+        "manifest.chunk_digest",
+        "manifest.digest",
+        "manifest.record_count",
+    },
     "MUT-V01": {"verdict.magic"},
     "MUT-V02": {"verdict.member_path"},
     "MUT-V03": {"verdict.member_path"},
@@ -121,10 +132,18 @@ def test_catalogue_covers_dd_trace_table_exactly():
     assert "GATE-01" in ids and "GATE-02" in ids
 
 
+def test_catalogue_row_count_and_r17_reason_are_pinned():
+    rows = catalogue()["vectors"]
+    assert len(rows) == 51
+    r17 = next(row for row in rows if row["id"] == "MUT-R17")
+    assert r17["reason"] == "manifest record_count != fixed_count + rule_count"
+
+
 BASES = {
     "p1": build_p1,
     "p2": build_p2,
     "p3": build_p3,
+    "p4": build_p4,
     "verdict": build_golden_verdict,
 }
 
