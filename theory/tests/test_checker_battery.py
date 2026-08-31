@@ -222,6 +222,21 @@ def test_long_chunk_digest_is_checked_with_emitter_bytes(
     assert result.exit == 1 and result.json["code"] == "E_DUP_STATE"
 
 
+def test_ply81_terminal_draw_certificate_passes(
+    checker: Checker, tmp_path: pathlib.Path
+):
+    blob = emitter_vectors.build_ply81_draw_probe()
+    parsed = emitter_vectors.parse_cert(blob)
+    assert len(blob) == 237
+    assert parsed.claim == emitter_vectors.CLAIM["NOLOSS_X"]
+    assert len(parsed.rows) == 1 and parsed.rows[0].ply == 81
+
+    path = tmp_path / "ply81-terminal-draw.utc"
+    path.write_bytes(blob)
+    result = checker.cert(path)
+    assert result.exit == 0 and result.json["verdict"] == "pass", result.json
+
+
 def test_repeated_verification_is_semantically_deterministic(checker: Checker):
     first = checker.cert(VEC / "p4-opponent2-winx.utc").json
     second = checker.cert(VEC / "p4-opponent2-winx.utc").json

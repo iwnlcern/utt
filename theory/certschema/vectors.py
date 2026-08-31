@@ -3,7 +3,15 @@
 from collections import namedtuple
 from dataclasses import dataclass
 
-from .game import ANY, State, apply_move, canonicalize, legal_moves, terminal
+from .game import (
+    ANY,
+    State,
+    apply_move,
+    board_result,
+    canonicalize,
+    legal_moves,
+    terminal,
+)
 from .wire import (
     CLAIM,
     KIND,
@@ -413,6 +421,28 @@ def append_orphan_terminal(blob: bytes) -> bytes:
     return _model_mutation(blob, edit)
 
 
+def build_ply81_draw_probe() -> bytes:
+    """Emit a one-record terminal draw at the manifest-ply upper boundary."""
+
+    five_mark_draw = 0x073
+    four_mark_draw = 0x18C
+    raw = State(
+        x=tuple([five_mark_draw] * 5 + [four_mark_draw] * 4),
+        o=tuple([four_mark_draw] * 5 + [five_mark_draw] * 4),
+        forced=ANY,
+    )
+    root = canonicalize(raw)[0]
+    assert root.counts() == (41, 40)
+    assert root.well_formed() and canonicalize(root)[0] == root
+    assert all(board_result(root, board) == "full" for board in range(9))
+    assert terminal(root) == "draw"
+    return build_certificate(
+        CLAIM["NOLOSS_X"],
+        root,
+        {81: [Record(root, KIND["TERMINAL"], 0xFF)]},
+    )
+
+
 def build_long_digest_probe() -> bytes:
     """Emit a six-record chunk whose correctly sealed digest spans >240 bytes."""
 
@@ -504,7 +534,7 @@ def _h13(blob: bytes) -> bytes:
 
 
 def _h14(blob: bytes) -> bytes:
-    return _model_mutation(blob, lambda cert: setattr(cert.rows[0], "ply", 81))
+    return _model_mutation(blob, lambda cert: setattr(cert.rows[0], "ply", 82))
 
 
 def _r01(blob: bytes) -> bytes:
@@ -767,7 +797,7 @@ MUTANTS = {
     "MUT-H11": MutantSpec("p3", "§4.3/§6.1", "first chunk offset gap", _h11),
     "MUT-H12": MutantSpec("p1", "§6.1", "manifest digest mismatch", _h12),
     "MUT-H13": MutantSpec("p1", "§4.3/§6.1", "nonzero manifest flags", _h13),
-    "MUT-H14": MutantSpec("p1", "§4.3/§6.1", "manifest ply above 80", _h14),
+    "MUT-H14": MutantSpec("p1", "§4.3/§6.1", "manifest ply above 81", _h14),
     "MUT-R01": MutantSpec("p1", "§6.4", "duplicate canonical state", _r01),
     "MUT-R02": MutantSpec("p1", "§6.4", "non-canonical record state", _r02),
     "MUT-R03": MutantSpec("p1", "§2.6/§6.4", "overlapping X and O masks", _r03),

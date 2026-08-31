@@ -170,7 +170,7 @@
       "file": "mutants/MUT-H14.bin",
       "id": "MUT-H14",
       "kind": "mutant",
-      "reason": "manifest ply above 80"
+      "reason": "manifest ply above 81"
     },
     {
       "base": "p1",

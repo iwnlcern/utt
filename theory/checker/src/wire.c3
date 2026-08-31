@@ -199,7 +199,7 @@ fn Header parse_header(char[] blob)
     }
     for (sz i = 0; i < header.rows.size; i++)
     {
-        if (header.rows[i].ply > 80) return fail(header, "E_ROW_PLY_RANGE", header.rows[i].row_offset);
+        if (header.rows[i].ply > 81) return fail(header, "E_ROW_PLY_RANGE", header.rows[i].row_offset);
     }
     for (sz i = 0; i < header.rows.size; i++)
     {
