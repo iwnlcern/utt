@@ -3,7 +3,15 @@
 from collections import namedtuple
 from dataclasses import dataclass
 
-from .game import ANY, State, apply_move, canonicalize, legal_moves, terminal
+from .game import (
+    ANY,
+    State,
+    apply_move,
+    board_result,
+    canonicalize,
+    legal_moves,
+    terminal,
+)
 from .wire import (
     CLAIM,
     KIND,
@@ -113,6 +121,55 @@ def build_p3() -> bytes:
         CLAIM["WIN_X"],
         opponent.state,
         {25: [opponent], 26: [prover], 27: [terminal_record]},
+    )
+
+
+def p4_states():
+    state = _mk(
+        {
+            4: (4,),
+            5: (0, 1, 5, 6),
+            6: (6, 7, 8),
+            7: (6, 7, 8),
+            8: (6, 7),
+        },
+        {
+            0: (0, 1),
+            1: (3, 4),
+            2: (5, 6),
+            3: (7, 8),
+            4: (0,),
+            5: (2, 3, 4),
+        },
+        5,
+    )
+    return state, [(5, 7), (5, 8)], (8, 8)
+
+
+def build_p4() -> bytes:
+    s0, replies, x_move = p4_states()
+    assert s0.counts() == (13, 12)
+    assert legal_moves(s0) == replies and terminal(s0) is None
+
+    opponent = Record(canonicalize(s0)[0], KIND["OPPONENT"], 0xFF)
+    provers = []
+    terminals = []
+    canonical_states = [opponent.state]
+    for reply in replies:
+        parent = apply_move(s0, *reply)
+        assert parent.well_formed() and parent.side_to_move() == "X"
+        child = apply_move(parent, *x_move)
+        assert terminal(child) == "X"
+        prover = _prover_record(parent, x_move)
+        terminal_record = Record(canonicalize(child)[0], KIND["TERMINAL"], 0xFF)
+        provers.append(prover)
+        terminals.append(terminal_record)
+        canonical_states.extend((prover.state, terminal_record.state))
+    assert len({state.serialize() for state in canonical_states}) == 5
+    return build_certificate(
+        CLAIM["WIN_X"],
+        opponent.state,
+        {25: [opponent], 26: provers, 27: terminals},
     )
 
 
@@ -350,6 +407,57 @@ def alt_root() -> State:
     return alternate
 
 
+def append_orphan_terminal(blob: bytes) -> bytes:
+    """Append a distinct, valid terminal that is not referenced by any edge."""
+
+    def edit(cert):
+        row = next(row for row in cert.rows if row.ply == 17)
+        orphan = Record(alt_root(), KIND["TERMINAL"], 0xFF).encode()
+        assert all(bytes(record) != orphan for record in row.chunk.fixed_records)
+        row.chunk.fixed_records.append(bytearray(orphan))
+        row.chunk.fixed_count += 1
+        row.record_count += 1
+
+    return _model_mutation(blob, edit)
+
+
+def build_ply81_draw_probe() -> bytes:
+    """Emit a one-record terminal draw at the manifest-ply upper boundary."""
+
+    five_mark_draw = 0x073
+    four_mark_draw = 0x18C
+    raw = State(
+        x=tuple([five_mark_draw] * 5 + [four_mark_draw] * 4),
+        o=tuple([four_mark_draw] * 5 + [five_mark_draw] * 4),
+        forced=ANY,
+    )
+    root = canonicalize(raw)[0]
+    assert root.counts() == (41, 40)
+    assert root.well_formed() and canonicalize(root)[0] == root
+    assert all(board_result(root, board) == "full" for board in range(9))
+    assert terminal(root) == "draw"
+    return build_certificate(
+        CLAIM["NOLOSS_X"],
+        root,
+        {81: [Record(root, KIND["TERMINAL"], 0xFF)]},
+    )
+
+
+def build_long_digest_probe() -> bytes:
+    """Emit a six-record chunk whose correctly sealed digest spans >240 bytes."""
+
+    def edit(cert):
+        row = next(row for row in cert.rows if row.ply == 17)
+        record = bytes(row.chunk.fixed_records[0])
+        row.chunk.fixed_records.extend(bytearray(record) for _ in range(5))
+        row.chunk.fixed_count = 6
+        row.record_count = 6
+
+    blob = _model_mutation(build_p1(), edit)
+    assert max(row.byte_length for row in parse_cert(blob).rows) > 240
+    return blob
+
+
 def _patch(blob: bytes, offset: int, value: int) -> bytes:
     edited = bytearray(blob)
     edited[offset] = value
@@ -426,7 +534,7 @@ def _h13(blob: bytes) -> bytes:
 
 
 def _h14(blob: bytes) -> bytes:
-    return _model_mutation(blob, lambda cert: setattr(cert.rows[0], "ply", 81))
+    return _model_mutation(blob, lambda cert: setattr(cert.rows[0], "ply", 82))
 
 
 def _r01(blob: bytes) -> bytes:
@@ -586,6 +694,23 @@ def _r19(blob: bytes) -> bytes:
     )
 
 
+def _r22(blob: bytes) -> bytes:
+    s0, _replies, _x_move = p4_states()
+    missing_parent = canonicalize(apply_move(s0, 5, 8))[0].serialize()
+
+    def edit(cert):
+        row = next(row for row in cert.rows if row.ply == 26)
+        matches = [
+            record for record in row.chunk.fixed_records if record[:37] == missing_parent
+        ]
+        assert len(matches) == 1
+        row.chunk.fixed_records.remove(matches[0])
+        row.chunk.fixed_count -= 1
+        row.record_count -= 1
+
+    return _model_mutation(blob, edit)
+
+
 def _parse_verdict(blob: bytes) -> tuple[int, State, list[tuple[int, str, bytes]]]:
     offset = 8 + 4
     game_value = blob[offset]
@@ -672,7 +797,7 @@ MUTANTS = {
     "MUT-H11": MutantSpec("p3", "§4.3/§6.1", "first chunk offset gap", _h11),
     "MUT-H12": MutantSpec("p1", "§6.1", "manifest digest mismatch", _h12),
     "MUT-H13": MutantSpec("p1", "§4.3/§6.1", "nonzero manifest flags", _h13),
-    "MUT-H14": MutantSpec("p1", "§4.3/§6.1", "manifest ply above 80", _h14),
+    "MUT-H14": MutantSpec("p1", "§4.3/§6.1", "manifest ply above 81", _h14),
     "MUT-R01": MutantSpec("p1", "§6.4", "duplicate canonical state", _r01),
     "MUT-R02": MutantSpec("p1", "§6.4", "non-canonical record state", _r02),
     "MUT-R03": MutantSpec("p1", "§2.6/§6.4", "overlapping X and O masks", _r03),
@@ -689,11 +814,12 @@ MUTANTS = {
     "MUT-R14": MutantSpec("p1", "§5/§6.4", "RULE record in a v0 stream", _r14),
     "MUT-R15": MutantSpec("p1", "§4.3/§6.4", "chunk digest mismatch", _r15),
     "MUT-R16": MutantSpec("p1", "§4.3/§6.4", "trailing bytes", lambda b: b + bytes.fromhex("deadbeef")),
-    "MUT-R17": MutantSpec("p1", "§4.3/§6.4", "chunk count mismatch", _r17),
+    "MUT-R17": MutantSpec("p1", "§4.3/§6.4", "manifest record_count != fixed_count + rule_count", _r17),
     "MUT-R18": MutantSpec("p1", "§4.3/§6.4", "streamed totals mismatch", _r18),
     "MUT-R19": MutantSpec("p1", "§6.4", "declared root absent", _r19),
     "MUT-R20": MutantSpec("p1", "§4.2/§6.4", "RULE kind in fixed section", lambda b: _change_kind(b, KIND["TERMINAL"], KIND["RULE"])),
     "MUT-R21": MutantSpec("p1", "§3.2/§6.4", "terminal state marked OPPONENT", lambda b: _change_kind(b, KIND["TERMINAL"], KIND["OPPONENT"])),
+    "MUT-R22": MutantSpec("p4", "§3.2/§6.4", "OPPONENT reply child missing (non-first reply)", _r22),
     "MUT-V01": MutantSpec("verdict", "§7", "bad verdict magic", lambda b: _patch(b, 0, 0x56)),
     "MUT-V02": MutantSpec("verdict", "§7/§4.5", "parent path segment", _v02),
     "MUT-V03": MutantSpec("verdict", "§7.2", "member target absent", _v03),
@@ -709,6 +835,7 @@ _BASE_BUILDERS = {
     "p1": build_p1,
     "p2": build_p2,
     "p3": build_p3,
+    "p4": build_p4,
     "verdict": build_golden_verdict,
 }
 
@@ -730,6 +857,7 @@ def catalogue() -> dict:
         {"id": "P1", "file": "vectors/golden-terminal-winx.utc", "kind": "positive", "dd_ref": "Appendix B"},
         {"id": "P2", "file": "vectors/p2-prover-winx.utc", "kind": "positive", "dd_ref": "§3.2 PROVER"},
         {"id": "P3", "file": "vectors/p3-opponent-winx.utc", "kind": "positive", "dd_ref": "§3.2 OPPONENT"},
+        {"id": "P4", "file": "vectors/p4-opponent2-winx.utc", "kind": "positive", "dd_ref": "§3.2 OPPONENT"},
         {"id": "V1", "file": "vectors/golden-winx.utv", "kind": "positive-verdict-subgame", "dd_ref": "Appendix B"},
         {"id": "GATE-01", "file": None, "kind": "gate", "dd_ref": "§7/§9", "note": "deliverable-mode root predicate; unit-level in c3"},
         {"id": "GATE-02", "file": "vectors/golden-winx.utv", "kind": "gate", "dd_ref": "§7/§9", "note": "must pass subgame mode, fail deliverable mode"},

@@ -11,6 +11,7 @@ from .vectors import (
     build_p1,
     build_p2,
     build_p3,
+    build_p4,
     catalogue,
 )
 
@@ -27,6 +28,7 @@ def main() -> None:
     (vectors / "golden-winx.utv").write_bytes(build_golden_verdict())
     (vectors / "p2-prover-winx.utc").write_bytes(build_p2())
     (vectors / "p3-opponent-winx.utc").write_bytes(build_p3())
+    (vectors / "p4-opponent2-winx.utc").write_bytes(build_p4())
     for mutant_id in MUTANTS:
         (mutants / f"{mutant_id}.bin").write_bytes(build_mutant(mutant_id))
     # Verdict members resolve relative to the manifest location. Keep the valid

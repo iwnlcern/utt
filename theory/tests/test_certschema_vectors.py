@@ -2,12 +2,13 @@ import pathlib
 import subprocess
 import sys
 
-from certschema.game import apply_move, canonicalize, legal_moves, terminal
+from certschema.game import ANY, apply_move, canonicalize, legal_moves, terminal
 from certschema.vectors import (
     build_golden_verdict,
     build_p1,
     build_p2,
     build_p3,
+    build_p4,
     golden_root,
 )
 
@@ -37,8 +38,27 @@ def test_p3_chain_semantics():
     assert terminal(s2) == "X"
 
 
-def test_p2_p3_are_valid_certificates_structurally():
-    for blob in (build_p2(), build_p3()):
+def test_p4_semantics():
+    from certschema.vectors import p4_states
+
+    s0, replies, x_move = p4_states()
+    assert s0.counts() == (13, 12)
+    assert s0.side_to_move() == "O"
+    assert legal_moves(s0) == replies == [(5, 7), (5, 8)]
+
+    states = [canonicalize(s0)[0]]
+    for reply in replies:
+        parent = apply_move(s0, *reply)
+        assert parent.well_formed() and parent.side_to_move() == "X"
+        assert parent.forced == (ANY if reply == (5, 7) else 8)
+        child = apply_move(parent, *x_move)
+        assert terminal(child) == "X"
+        states.extend((canonicalize(parent)[0], canonicalize(child)[0]))
+    assert len({state.serialize() for state in states}) == 5
+
+
+def test_p2_p3_p4_are_valid_certificates_structurally():
+    for blob in (build_p2(), build_p3(), build_p4()):
         assert blob[:8] == b"UTTTCERT" and len(blob) > 100
 
 
@@ -56,6 +76,7 @@ def test_committed_artifacts_match_generator_output(tmp_path):
         "vectors/golden-winx.utv",
         "vectors/p2-prover-winx.utc",
         "vectors/p3-opponent-winx.utc",
+        "vectors/p4-opponent2-winx.utc",
         "catalogue.json",
     ]:
         assert (tmp_path / rel).read_bytes() == (PKG / rel).read_bytes(), rel

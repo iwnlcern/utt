@@ -1,0 +1,13 @@
+{
+  "langrev": "1",
+  "version": "0.1.0",
+  "sources": [ "src/**" ],
+  "test-sources": [ "test/**" ],
+  "build-dir": "build",
+  "output": "build",
+  "targets": {
+    "uttt-checker": {
+      "type": "executable"
+    }
+  }
+}

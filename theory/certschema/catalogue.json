@@ -21,6 +21,12 @@
       "kind": "positive"
     },
     {
+      "dd_ref": "\u00a73.2 OPPONENT",
+      "file": "vectors/p4-opponent2-winx.utc",
+      "id": "P4",
+      "kind": "positive"
+    },
+    {
       "dd_ref": "Appendix B",
       "file": "vectors/golden-winx.utv",
       "id": "V1",
@@ -164,7 +170,7 @@
       "file": "mutants/MUT-H14.bin",
       "id": "MUT-H14",
       "kind": "mutant",
-      "reason": "manifest ply above 80"
+      "reason": "manifest ply above 81"
     },
     {
       "base": "p1",
@@ -317,7 +323,7 @@
       "file": "mutants/MUT-R17.bin",
       "id": "MUT-R17",
       "kind": "mutant",
-      "reason": "chunk count mismatch"
+      "reason": "manifest record_count != fixed_count + rule_count"
     },
     {
       "base": "p1",
@@ -354,6 +360,15 @@
       "id": "MUT-R21",
       "kind": "mutant",
       "reason": "terminal state marked OPPONENT"
+    },
+    {
+      "base": "p4",
+      "dd_ref": "\u00a73.2/\u00a76.4",
+      "expected": "reject",
+      "file": "mutants/MUT-R22.bin",
+      "id": "MUT-R22",
+      "kind": "mutant",
+      "reason": "OPPONENT reply child missing (non-first reply)"
     },
     {
       "base": "verdict",
