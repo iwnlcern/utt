@@ -97,4 +97,17 @@ Orchestrator verification: PR #12 state MERGED at 2026-08-29T11:40:01Z, merge co
 - Carried backlog into theory-c3: multi-reply OPPONENT positive P4 + dropped-reply mutant; catalogue count pin; R17 reason wording (accepted at grant as non-blocking).
 
 Next expected events: theory pair design/plan for c3 (independent checker, consuming the landed corpus); solver-c3 plan-review outcome under the delegated conditions of proceed-1.
+
+### R5 — theory-c3 merge receipt and bundle closure (2026-08-31Z / 2026-08-30 local)
+
+Claim: s2-theory/MERGE-GATE-pair-implementer-20260830-200854.md (dispatch s2-theory-c3-merge-1, pairing the orchestrator grant of the same id).
+Orchestrator verification: PR #13 MERGED at 2026-08-31T03:01:13Z, merge commit 6ec80c0860baae9a270c55bd165099acb7f67a6a = origin/main = local main (0/0 divergence, fresh gh + fetch); parents = pre-merge main 71d9ddf + exact authorized head df9a90a (head guard honored); prospective-tree pre-test and actual-merge re-test both green (C3 19/19, pytest 198/198).
+
+- Verdict of record: merged-not-deployed; E2 terminal — bundle theory-c3 CLOSED.
+- Landed: independent C3 checker (fresh rules implementation, R-s2-2/R-s2-3 boundary respected), expanded deterministic corpus (44 mutants + P4 positive + catalogue 51), folded ply-81/82 erratum boundary. Both halves of the certificate seam are now on main: emitter-side corpus (c2) + independent checker (c3).
+- Erratum-1 of record: DD-theory-c2-20260828-erratum-1 rev2 @ 56c74ef2… (approving review s2-theory-c2-erratum-design-review-2) — schema of record includes ply 0..81.
+- Non-gating signal retained: broad unpinned ruff scan red at the pre-merge 13-finding baseline (unchanged by this PR); targeted fold-2 lint green under pinned Ruff 0.14.14.
+- Carried ledgers: c6 (external-memory verified-set, resume-under-interruption, scale proof; fault-channel unification + verified/indices merge idiom items); alt fixture profile as-needed.
+
+Next expected events: solver spike decision → solver-c3 completion (PR + impl report); then solver review/fold/merge-gate; theory idle until c4-era work (rule kernel per DD §11 renumbering — the next theory bundle) is sequenced after solver-c3 lands.
 Observed in passing (not this section's subject): theory-c2 has advanced through gated PLAN (4 revisions), delegated IMPL (both seats), and REVIEW-FOLD relays — its merge-gate report is the next expected theory event.
